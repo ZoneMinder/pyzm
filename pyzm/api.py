@@ -10,6 +10,7 @@ from pyzm.helpers.Base import Base
 from pyzm.helpers.Monitors import Monitors
 from pyzm.helpers.Events import Events
 from pyzm.helpers.States import States
+from pyzm.helpers.Configs import Configs
 
 
 class ZMApi (Base):
@@ -28,10 +29,12 @@ class ZMApi (Base):
         self.api_version = None
         self.zm_version = None
         
+        
         self.login()
         
         self.Monitors = Monitors(logger=options.get('logger'),api=self)
         self.Events = None
+        self.Configs = Configs(logger=options.get('logger'), api=self)
 
     def _versiontuple(self,v):
         #https://stackoverflow.com/a/11887825/1361529
@@ -150,3 +153,7 @@ class ZMApi (Base):
         url = self.api_url +'/states/change/{}.json'.format(state)
         return self.make_request(url=url)
 
+    def configs(self, options={}):
+        if options.get('force_reload') or not self.Configs:
+            self.Configs = Monitors(logger=self.logger,api=self)
+        return self.Configs

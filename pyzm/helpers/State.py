@@ -1,7 +1,7 @@
 """
 Module State
 =================
-Each Staet will hold a single ZoneMinder State.
+Each State will hold a single ZoneMinder State.
 It is basically a bunch of getters for each access to event data.
 If you don't see a specific getter, just use the generic get function to get
 the full object

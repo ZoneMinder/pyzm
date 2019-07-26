@@ -102,6 +102,13 @@ except Exception as e:
     print ('Error: {}'.format(str(e)))
 
 
+print ("--------| Configs |-----------")
+try:
+    conf = zmapi.configs()
+    print (conf.find(name='ZM_AUTH_HASH_LOGINS'))
+except Exception as e:
+    print ('Error: {}'.format(str(e)))
+
 zmlog.close()
 
 
