@@ -42,5 +42,37 @@ class Monitor(Base):
     def events(self, options={}):
         options['mid'] = self.id()
         return self.api.events(options=options)
-        
+    
+    def set_parameter(self, options={}):
+        url = self.api.api_url+'/monitors/{}.json'.format(self.id())
+        payload = {}
+        if options.get('function'):
+            payload['Monitor[Function]'] = options.get('function')
+        if options.get('name'):
+            payload['Monitor[Name]'] = options.get('name')
+        if options.get('enabled'):
+            enabled = '1' if options.get('enabled') else '0'
+            payload['Monitor[Enabled]'] = enabled
 
+        if options.get('raw'):
+            for k in options.get('raw'):
+                payload[k] = options.get('raw')[k]
+               
+        if payload:
+            return self.api.make_request(url=url, payload=payload, type='post')
+
+    def arm(self):
+        return self._set_alarm(type='on')
+
+    def disarm(self):
+        return self._set_alarm(type='off')
+
+    def _set_alarm(self,type='on'):
+        url = self.api.api_url+'/monitors/alarm/id:{}/command:{}.json'.format(self.id(), type)
+        return self.api.make_request(url=url)
+
+
+
+    def status(self):
+        url = self.api.api_url+'/monitors/daemonStatus/id:{}/daemon:zmc.json'.format(self.id())
+        return self.api.make_request(url=url)

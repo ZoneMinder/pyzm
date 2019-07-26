@@ -18,6 +18,7 @@ class State(Base):
     
     def get(self):
         return self.state['State']
+    
 
     def active(self):
         return self.state['State']['IsActive'] == '1'

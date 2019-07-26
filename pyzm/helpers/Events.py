@@ -62,7 +62,7 @@ class Events:
         self.events = []
         events= []
         while True:
-            r = self.api.make_request(url=url, params=params)
+            r = self.api.make_request(url=url, query=params)
             events.extend(r.get('events'))
             pagination = r.get('pagination')
             if not pagination:

@@ -46,6 +46,9 @@ class ZMApi (Base):
             'zm_version': self.zm_version
         }
 
+           
+    def authenticated(self):
+        return self.authenticated
 
     def login(self):
         try:
@@ -83,12 +86,13 @@ class ZMApi (Base):
             self.authenticated = False
             raise err
 
-    def make_request(self, url=None, params={}):
+    def make_request(self, url=None, query={}, payload={}, type='get'):
+        type = type.lower()
         if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
-            params['token'] = self.access_token
+            query['token'] = self.access_token
             # ZM 1.34 API bug, will be fixed soon
             self.session = requests.Session()
-            #print (vars(self.session))
+    
         else:
             # credentials is already query formatted
             lurl = url.lower()
@@ -99,8 +103,16 @@ class ZMApi (Base):
             url += qchar + self.legacy_credentials
             
         try:
-            self.logger.Debug(1,'make_request called with {} {}'.format(url,params))
-            r = self.session.get(url, params=params)
+            self.logger.Debug(1,'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
+            if type=='get':
+                r = self.session.get(url, params=query)
+            elif type=='post':
+                r = self.session.post(url, data=payload, params=query)
+            elif type=='delete':
+                r = self.session.delete(url, data=payload, params=query)
+            else:
+                self.logger.Error('Unsupported request type:{}'.format(type))
+                raise ValueError ('Unsupported request type:{}'.format(type))
             #print (url, params)
             #r = requests.get(url, params=params)
             r.raise_for_status()
@@ -122,6 +134,19 @@ class ZMApi (Base):
     def states(self, options={}):
         self.States = States(logger=self.logger,api=self)
         return self.States
-       
-    def authenticated(self):
-        return self.authenticated
+    
+    def restart(self):
+        return self.set_state(state='restart')
+    
+    def stop(self):
+        return self.set_state(state='stop')
+    
+    def start(self):
+        return self.set_state(state='start')
+    
+    def set_state(self, state=None):
+        if not state:
+            return
+        url = self.api_url +'/states/change/{}.json'.format(state)
+        return self.make_request(url=url)
+
