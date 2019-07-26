@@ -23,5 +23,5 @@ You can mix and match them, for example:
 
 ### Example
 
-Take a look at <a href='example.py'>the example</a> for a good staring point.
+Take a look at <a href='https://github.com/pliablepixels/pyzm/blob/master/example.py'>the example</a> for a good staring point.
 
