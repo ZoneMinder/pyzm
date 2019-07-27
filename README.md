@@ -12,6 +12,7 @@ Current modules:
   * Monitors
   * Events
   * States
+  * Configs
 
 ### Usage
 

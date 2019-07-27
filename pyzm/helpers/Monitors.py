@@ -30,6 +30,35 @@ class Monitors(Base):
     def list(self):
         return self.monitors
 
+    def add(self, options={}):
+        url = self.api_url+'/monitors/.json'
+        payload = {}
+        if options.get('function'):
+            payload['Monitor[Function]'] = options.get('function')
+        if options.get('name'):
+            payload['Monitor[Name]'] = options.get('name')
+        if options.get('enabled'):
+            enabled = '1' if options.get('enabled') else '0'
+            payload['Monitor[Enabled]'] = enabled
+        if options.get('protocol'):
+            payload['Monitor[Protocol]'] = options.get('protocol')
+        if options.get('host'):
+            payload['Monitor[Host]'] = options.get('host')
+        if options.get('port'):
+            payload['Monitor[Port]'] = options.get('port')
+        if options.get('path'):
+            payload['Monitor[Path]'] = options.get('path')
+        if options.get('width'):
+            payload['Monitor[Width]'] = options.get('width')
+        if options.get('height'):
+            payload['Monitor[Height]'] = options.get('height')
+
+        if options.get('raw'):
+            for k in options.get('raw'):
+                payload[k] = options.get('raw')[k]
+               
+        if payload:
+            return self.api.make_request(url=url, payload=payload, type='post')
     
     def find(self, id=None, name=None):
         if not id and not name:

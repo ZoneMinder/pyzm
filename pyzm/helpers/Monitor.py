@@ -42,7 +42,21 @@ class Monitor(Base):
     def events(self, options={}):
         options['mid'] = self.id()
         return self.api.events(options=options)
+
+    def eventcount(self, options={}):
+        # regular events API is more powerful than
+        # console events as it allows us flexible timings
+        # making limit=1 keeps the processing limited
+        options['mid'] = self.id()
+        options['max_events'] = 1
+        return self.api.events(options=options).count()
+        #print (s)
     
+    def delete(self):
+        url = self.api.api_url+'/monitors/{}.json'.format(self.id())
+        return self.api.make_request(url=url, type='delete')
+
+
     def set_parameter(self, options={}):
         url = self.api.api_url+'/monitors/{}.json'.format(self.id())
         payload = {}

@@ -49,7 +49,8 @@ event_filter = {
     'from': '2 hours ago',
     'object_only':False,
     'min_alarmed_frames': 3,
-    'max_events':5
+    'max_events':5,
+    
 }
 
 es = zmapi.events(event_filter)
@@ -59,6 +60,11 @@ print ('Getting events for {} with filter: {}'.format(cam_name, event_filter))
 cam_events = ms.find(name=cam_name).events(options=event_filter)
 for e in cam_events.list():
     print ('Event:{} Cause:{} Notes:{}'.format(e.name(), e.cause(), e.notes()))
+
+print ('Getting event summaries')
+m = ms.find(name=cam_name)
+print ('Monitor {} has {} events {}'.format(m.name(), m.eventcount(options={'from':'1 hour ago','tz': zmapi.tz()}), '1 hour ago'))
+print ('Monitor {} has {} events {}'.format(m.name(), m.eventcount(options={'from':'1 day ago','tz': zmapi.tz()}), '1 day ago'))
 
 print ("--------| Getting ZM States |-----------")
 states = zmapi.states()

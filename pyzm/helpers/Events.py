@@ -16,20 +16,27 @@ class Events:
         Base.__init__(self, logger)
         self.api = api
         self.events = []
+        self.pagination = {}
         self._load(options)
     
     def list(self):
         return self.events
 
+    def count(self):
+        return self.pagination.get('count')
 
     def _load(self, options={}):
         self.logger.Debug(1,'Retrieving events via API')
         url_filter=''
        
+        tz = {}
+        if options.get('tz'):
+            tz = {'TIMEZONE': options.get('tz')}
+            #print ('USING ',tz)
         if options.get('from'):
-            url_filter +=  '/StartTime >=:'+dateparser.parse(options.get('from')).strftime('%Y-%m-%d %H:%M:%S')
+            url_filter +=  '/StartTime >=:'+dateparser.parse(options.get('from'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('to'):
-            url_filter+=  '/EndTime <=:'+dateparser.parse(options.get('from')).strftime('%Y-%m-%d %H:%M:%S')
+            url_filter+=  '/EndTime <=:'+dateparser.parse(options.get('from'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('mid'):
             url_filter+= '/MonitorId =:'+str(options.get('mid'))
         if options.get('min_alarmed_frames'):
@@ -43,6 +50,8 @@ class Events:
         if options.get('raw_filter'):
              url_filter+=options.get('raw_filter')
 
+
+        #print ('URL filter: ',url_filter)
         # tbd - no need for url_prefix in options
         url_prefix = options.get('url_prefix',self.api.api_url + '/events/index' )
        
@@ -56,7 +65,10 @@ class Events:
             if k in params:
                 params[k] = options[k]
 
-        numevents = options.get('max_events', 100)
+        numevents = 100
+        if options.get('max_events'): numevents = options.get('max_events')
+        if options.get('limit'): numevents = options.get('limit')
+      
         params['limit'] = numevents
         currevents = 0
         self.events = []
@@ -65,6 +77,7 @@ class Events:
             r = self.api.make_request(url=url, query=params)
             events.extend(r.get('events'))
             pagination = r.get('pagination')
+            self.pagination = pagination
             if not pagination:
                 break
             if  not pagination.get('nextPage'):

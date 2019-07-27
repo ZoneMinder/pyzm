@@ -28,7 +28,7 @@ class ZMApi (Base):
         self.session = requests.Session()
         self.api_version = None
         self.zm_version = None
-        
+        self.zm_tz = None
         
         self.login()
         
@@ -49,7 +49,9 @@ class ZMApi (Base):
             'zm_version': self.zm_version
         }
 
-           
+    def tz(self):
+        return self.zm_tz
+
     def authenticated(self):
         return self.authenticated
 
@@ -89,6 +91,16 @@ class ZMApi (Base):
             self.authenticated = False
             raise err
 
+        # now get timezone
+        url = self.api_url + '/host/gettimezone.json'
+        
+        try:
+            r = self.make_request(url)
+            self.zm_tz = r.get('tz')
+        except requests.exceptions.HTTPError as err:
+            self.logger.Error ('Timezone API not found, relative timezones will be local time')
+        
+
     def make_request(self, url=None, query={}, payload={}, type='get'):
         type = type.lower()
         if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
@@ -111,6 +123,8 @@ class ZMApi (Base):
                 r = self.session.get(url, params=query)
             elif type=='post':
                 r = self.session.post(url, data=payload, params=query)
+            elif type=='put':
+                r = self.session.put(url, data=payload, params=query)
             elif type=='delete':
                 r = self.session.delete(url, data=payload, params=query)
             else:
