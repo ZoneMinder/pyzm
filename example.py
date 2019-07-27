@@ -46,7 +46,7 @@ for m in ms.list():
 print ("--------| Getting Events |-----------")
 print ("Getting events across all monitors")
 event_filter = {
-    'from': '2 hours ago',
+    'from': '2 hours ago', # this will use localtimezone, use 'tz' for other timezones
     'object_only':False,
     'min_alarmed_frames': 3,
     'max_events':5,
@@ -63,6 +63,8 @@ for e in cam_events.list():
 
 print ('Getting event summaries')
 m = ms.find(name=cam_name)
+
+# These will use server timezone
 print ('Monitor {} has {} events {}'.format(m.name(), m.eventcount(options={'from':'1 hour ago','tz': zmapi.tz()}), '1 hour ago'))
 print ('Monitor {} has {} events {}'.format(m.name(), m.eventcount(options={'from':'1 day ago','tz': zmapi.tz()}), '1 day ago'))
 
