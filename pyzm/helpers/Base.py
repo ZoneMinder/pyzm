@@ -1,6 +1,6 @@
 """
-Module Base
-===========
+Base
+======
 All classes derive from this Base class.
 It implements some common functions that apply across all.
 For now, this basically holds a pointer to the logging function to invoke

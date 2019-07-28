@@ -1,6 +1,6 @@
 """
-Module Monitors
-=================
+Monitors
+=========
 Holds a list of Monitors for a ZM configuration
 Given monitors are fairly static, maintains a cache of monitors
 which can be overriden 
@@ -20,7 +20,7 @@ class Monitors(Base):
     def _load(self,options={}):
         self.logger.Debug(1,'Retrieving monitors via API')
         url = self.api.api_url +'/monitors.json'
-        r = self.api.make_request(url=url)
+        r = self.api._make_request(url=url)
         ms = r.get('monitors')
         self.monitors = []
         for m in ms:
@@ -58,7 +58,7 @@ class Monitors(Base):
                 payload[k] = options.get('raw')[k]
                
         if payload:
-            return self.api.make_request(url=url, payload=payload, type='post')
+            return self.api._make_request(url=url, payload=payload, type='post')
     
     def find(self, id=None, name=None):
         if not id and not name:

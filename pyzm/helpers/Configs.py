@@ -1,6 +1,6 @@
 """
-Module Configs
-=================
+Configs
+=======
 Hold all ZM Config data. No need for a separate config class
 """
 
@@ -18,7 +18,7 @@ class Configs(Base):
     def _load(self,options={}):
         self.logger.Debug(1,'Retrieving config via API')
         url = self.api.api_url +'/configs.json'
-        r = self.api.make_request(url=url)
+        r = self.api._make_request(url=url)
         self.configs = r.get('configs')
 
     def list(self):
@@ -54,7 +54,7 @@ class Configs(Base):
             return
         url = self.api.api_url + '/configs/edit/{}.json'.format(name)
         data = {'Config[Value]':val}
-        return self.api.make_request(url=url, payload=data, type='put')
+        return self.api._make_request(url=url, payload=data, type='put')
         
         
 

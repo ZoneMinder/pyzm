@@ -1,6 +1,6 @@
 """
-Module Event
-============
+Event
+======
 Each Event will hold a single ZoneMinder Event.
 It is basically a bunch of getters for each access to event data.
 If you don't see a specific getter, just use the generic get function to get

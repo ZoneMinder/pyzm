@@ -1,6 +1,6 @@
 """
-Module ZMLog
-=============
+ZMLog
+=======
 Implements a python implementation of ZoneMinder's logging system
 You could use this to connect it to the APIs if you want
 
@@ -59,6 +59,34 @@ priorities = {
     }
 
 def init(name=None, override={}):
+    """Initializes the ZM logging system. It follows ZM logging principles and ties into appropriate ZM logging levels. Like the rest of ZM, it can write to files, syslog and the ZM DB.
+
+    To make it simpler to override, you can pass various options in the override dict. When passed, they will override any ZM setting
+    
+    Args:
+        name (string, optional): Name to be used while writing logs. If not specified, it will use the process name. Defaults to None.
+        override (dict, optional): Various parameters that can supercede standard ZM logs. Defaults to {}. The parameters that can be overriden are::
+
+            {
+                'conf_path': '/etc/zm',
+                'user' : None,
+                'password' : None,
+                'host' : None,
+                'webuser': 'www-data',
+                'webgroup': 'www-data',
+                'dbname' : None,
+                'logpath' : '/var/log',
+                'log_level_syslog' : 0,
+                'log_level_file' : 0,
+                'log_level_db' : 0,
+                'log_debug' : 0,
+                'log_level_debug' : 1,
+                'log_debug_target' : '',
+                'log_debug_file' :'',
+                'server_id': 0,
+                'driver': 'mysql+mysqlconnector'
+            }
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     inited = True
     pid =  os.getpid()

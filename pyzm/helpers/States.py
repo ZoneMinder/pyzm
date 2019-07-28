@@ -1,6 +1,6 @@
 """
-Module States
-=================
+States
+=======
 Holds a list of States for a ZM configuration
 Given states are fairly static, maintains a cache of states
 which can be overriden 
@@ -20,7 +20,7 @@ class States(Base):
     def _load(self,options={}):
         self.logger.Debug(1,'Retrieving states via API')
         url = self.api.api_url +'/states.json'
-        r = self.api.make_request(url=url)
+        r = self.api._make_request(url=url)
         states = r.get('states')
         self.states = []
         for state in states:
@@ -32,6 +32,15 @@ class States(Base):
 
     
     def find(self, id=None, name=None):
+        """Return a state object that matches either and id or a
+        
+        Args:
+            id (int, optional): Id of state. Defaults to None.
+            name (string, optional): name of state. Defaults to None.
+        
+        Returns:
+            :class:`pyzm.helpers.State`: State object that matches
+        """
         if not id and not name:
             return None
         match = None

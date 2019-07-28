@@ -1,6 +1,6 @@
 """
-Module Api
-==========
+ZMApi
+=============
 Python API wrapper for ZM.
 Exposes login, monitors, events, etc. API
 """
@@ -15,6 +15,16 @@ from pyzm.helpers.Configs import Configs
 
 class ZMApi (Base):
     def __init__(self,options={}):
+        '''
+        Options is a dict with the following keys:
+
+            - apiurl - the full API URL (example https://server/zm/api)
+            - user - username
+            - password - password
+            - logger - (OPTIONAL) function used for logging. If none specified, a simple logger will be used that prints to console. You could instantiate and connect the :class:`pyzm.helpers.ZMLog` module here if you want to use ZM's logging.
+
+            Note: you can connect your own customer logging class to the API in which case all modules will use your custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.Base.SimpleLog` for method details.
+        '''
         Base.__init__(self, options.get('logger'))
         self.api_url = options.get('apiurl')
         self.options = options
@@ -30,7 +40,7 @@ class ZMApi (Base):
         self.zm_version = None
         self.zm_tz = None
         
-        self.login()
+        self._login()
         
         self.Monitors = Monitors(logger=options.get('logger'),api=self)
         self.Events = None
@@ -41,6 +51,17 @@ class ZMApi (Base):
         return tuple(map(int, (v.split("."))))
 
     def version(self):
+        """Returns version of API and ZM
+        
+        Returns:
+            dict: Version of API and ZM::
+
+            {
+                status: string # if 'error' then will also have 'reason' 
+                api_version: string # if status is 'ok'
+                zm_version: string # if status is 'ok'
+            }
+        """
         if not authenticated:
             return {'status':'error', 'reason':'not authenticated'}
         return {
@@ -50,12 +71,27 @@ class ZMApi (Base):
         }
 
     def tz(self):
+        """Returns timezone of ZoneMinder server
+       
+        Returns:
+           string: timezone of ZoneMinder server (or None if API not supported)
+        """
         return self.zm_tz
 
     def authenticated(self):
+        """True if login API worked
+        
+        Returns:
+            boolean -- True if Login API worked
+        """
         return self.authenticated
 
-    def login(self):
+    def _login(self):
+        """This is called by the constructor. You are not expected to call this directly.
+        
+        Raises:
+            err: reason for failure
+        """
         try:
             url = self.api_url+'/host/login.json'
             if self.options.get('token'):
@@ -95,13 +131,13 @@ class ZMApi (Base):
         url = self.api_url + '/host/gettimezone.json'
         
         try:
-            r = self.make_request(url)
+            r = self._make_request(url)
             self.zm_tz = r.get('tz')
         except requests.exceptions.HTTPError as err:
             self.logger.Error ('Timezone API not found, relative timezones will be local time')
         
 
-    def make_request(self, url=None, query={}, payload={}, type='get'):
+    def _make_request(self, url=None, query={}, payload={}, type='get'):
         type = type.lower()
         if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
             query['token'] = self.access_token
@@ -140,11 +176,45 @@ class ZMApi (Base):
 
 
     def monitors(self, options={}):
+        """Returns list of monitors. Given monitors are fairly static, maintains a cache and returns from cache on subsequent calls.
+                
+            Args:
+                options (dict, optional): Available fields::
+            
+                    {
+                        'force_reload': boolean # if True refreshes monitors 
+
+                    }
+            
+        Returns:
+            list of :class:`pyzm.helpers.Monitor`: list of monitors 
+        """
         if options.get('force_reload') or not self.Monitors:
             self.Monitors = Monitors(logger=self.logger,api=self)
         return self.Monitors
 
     def events(self,options={}):
+        """Returns list of events based on filter criteria. Note that each time you called events, a new HTTP call is made.
+        
+        Args:
+            options (dict, optional): Various filters that will be applied to events. Defaults to {}. Available fields::
+        
+                {
+                    'tz': string # long form timezone (example America/New_York),
+                    'from': string # minimum start time (including human readable
+                                   # strings like '1 hour ago')
+                    'to': string # maximum end time 
+                    'mid': int # monitor id
+                    'min_alarmed_frames': int # minimum alarmed frames
+                    'max_alarmed_frames': int # maximum alarmed frames
+                    'object_only': boolean # if True will only pick events 
+                                           # that have objects
+
+                }
+        
+        Returns:
+            list of :class:`pyzm.helpers.Event`: list of events that match criteria
+        """
         self.Events = Events(logger=self.logger,api=self, options=options)
         return self.Events
 
@@ -165,7 +235,7 @@ class ZMApi (Base):
         if not state:
             return
         url = self.api_url +'/states/change/{}.json'.format(state)
-        return self.make_request(url=url)
+        return self._make_request(url=url)
 
     def configs(self, options={}):
         if options.get('force_reload') or not self.Configs:

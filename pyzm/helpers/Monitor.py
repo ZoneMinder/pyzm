@@ -1,6 +1,6 @@
 """
-Module Monitor
-=================
+Monitor
+=======
 Each Monitor will hold a single ZoneMinder Monitor.
 It is basically a bunch of getters for each access to event data.
 If you don't see a specific getter, just use the generic get function to get
@@ -54,7 +54,7 @@ class Monitor(Base):
     
     def delete(self):
         url = self.api.api_url+'/monitors/{}.json'.format(self.id())
-        return self.api.make_request(url=url, type='delete')
+        return self.api._make_request(url=url, type='delete')
 
 
     def set_parameter(self, options={}):
@@ -73,7 +73,7 @@ class Monitor(Base):
                 payload[k] = options.get('raw')[k]
                
         if payload:
-            return self.api.make_request(url=url, payload=payload, type='post')
+            return self.api._make_request(url=url, payload=payload, type='post')
 
     def arm(self):
         return self._set_alarm(type='on')
@@ -83,10 +83,10 @@ class Monitor(Base):
 
     def _set_alarm(self,type='on'):
         url = self.api.api_url+'/monitors/alarm/id:{}/command:{}.json'.format(self.id(), type)
-        return self.api.make_request(url=url)
+        return self.api._make_request(url=url)
 
 
 
     def status(self):
         url = self.api.api_url+'/monitors/daemonStatus/id:{}/daemon:zmc.json'.format(self.id())
-        return self.api.make_request(url=url)
+        return self.api._make_request(url=url)
