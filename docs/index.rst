@@ -11,6 +11,7 @@ Welcome to pyzm's documentation!
    :caption: Contents:
 
    source/modules
+   example
 
 
 
