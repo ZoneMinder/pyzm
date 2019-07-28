@@ -1,8 +1,8 @@
 **/.DS_Store
 images/*
 # general things to ignore
-build/
-dist/
+**/build/
+**/dist/
 *.egg-info/
 *.egg
 *.py[cod]
@@ -10,7 +10,6 @@ __pycache__/
 *.so
 *~
 .vscode/
-
 # due to using tox and pytest
 .tox
 .cache
