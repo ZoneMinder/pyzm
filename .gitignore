@@ -10,7 +10,6 @@ __pycache__/
 *.so
 *~
 .vscode/
-_*/
 
 # due to using tox and pytest
 .tox
