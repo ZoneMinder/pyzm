@@ -53,6 +53,7 @@ setup(name = NAME,
                     'pyzm.helpers.Event',
                     'pyzm.helpers.States',
                     'pyzm.helpers.State',
+                    'pyzm.helpers.Configs',
                     'pyzm.helpers.ZMLog',
                     ]
       )
