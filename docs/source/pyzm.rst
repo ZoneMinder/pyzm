@@ -49,7 +49,7 @@ Classes returned by the API
 
 Logging
 --------
-.. automodule:: pyzm.helpers.ZMLog
+.. automodule:: pyzm.ZMLog
     :members:
     :special-members: __init__
     :undoc-members:

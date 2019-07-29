@@ -1,6 +1,6 @@
 import pyzm.api as zmapi
 import sys,traceback
-import pyzm.helpers.ZMLog as zmlog #only if you want to log to ZM
+import pyzm.ZMLog as zmlog #only if you want to log to ZM
 
 # Assuming you want to log to ZM
 # You can override default ZM Log settings
