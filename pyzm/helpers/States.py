@@ -28,6 +28,11 @@ class States(Base):
 
 
     def list(self):
+        """Returns list of state objects
+        
+        Returns:
+            list of `pyzm.helpers.State`: list of state objects
+        """
         return self.states
 
     

@@ -22,10 +22,29 @@ class Configs(Base):
         self.configs = r.get('configs')
 
     def list(self):
+        """Returns list of configuration
+        
+        Returns:
+            :class:`pyzm.helpers.Configs: list of configs
+        """
         return self.configs
 
     
     def find(self, id=None, name=None):
+        """Given an id or name of config, returns its value
+        
+        Args:
+            id (int, optional): ID of config. Defaults to None.
+            name (string, optional): Name of config. Defaults to None.
+        
+        Returns:
+            dict: config value::
+            {
+                'id': int,
+                'name': string,
+                'value': string
+            }
+        """
         if not id and not name:
             return None
         match = None
@@ -48,6 +67,15 @@ class Configs(Base):
         }
     
     def set(self, name=None, val=None):
+        """Given a config name, change its value
+        
+        Args:
+            name (string, optional): Name of config. Defaults to None.
+            val (string, optional): Value of config. Defaults to None.
+        
+        Returns:
+            json: json of API to change
+        """
         if not val:
             return
         if not name:

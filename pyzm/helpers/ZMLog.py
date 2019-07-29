@@ -206,10 +206,20 @@ def init(name=None, override={}):
 
 
 def get_config():
+    """Returns configuration of ZM logger
+    
+    Returns:
+        dict: config params
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     return config
 
 def reconnect():
+    """Invoked by the logger if disconnection occurs
+    
+    Returns:
+        boolean: True if reconnected
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     try:
         conn.close()
@@ -229,7 +239,7 @@ def reconnect():
         syslog.syslog (syslog.LOG_INFO, log_string)
     except SQLAlchemyError as e:
         connected = False
-        syslog.syslog (syslog.LOG_ERR, format_string("Turning off DB logging due to error received:" + str(e)))
+        syslog.syslog (syslog.LOG_ERR, _format_string("Turning off DB logging due to error received:" + str(e)))
         return False
     else:
         connected = True
@@ -237,18 +247,20 @@ def reconnect():
         
 
 def close():
+    """Closes all handles. Invoke this before you exit your app
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     if conn: conn.close()
     if engine: engine.dispose()
     syslog.closelog()
     if (log_fhandle): log_fhandle.close()
 
-def format_string(msg, level='ERR'):
+def _format_string(msg, level='ERR'):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     log_string = '{level} [{pname}] [{msg}]'.format(level=level, pname=process_name, msg=msg)
     return (log_string)
 
-def log(level, message, caller):
+def _log(level, message, caller):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
 
     if not inited:
@@ -270,7 +282,7 @@ def log(level, message, caller):
     # write to db
     if levels[level] <= config['log_level_db']:
         if not connected:
-            syslog.syslog (syslog.LOG_INFO, format_string("Trying to reconnect"))
+            syslog.syslog (syslog.LOG_INFO, _format_string("Trying to reconnect"))
             if not reconnect():
                 syslog.syslog (syslog.LOG_ERR, format_string("reconnection failed, not writing to DB"))
             return False
@@ -288,7 +300,7 @@ def log(level, message, caller):
             conn.execute(cmd)
         except SQLAlchemyError as e:
             connected = False
-            syslog.syslog (syslog.LOG_ERR, format_string("Error writing to DB:" + str(e)))
+            syslog.syslog (syslog.LOG_ERR, _format_string("Error writing to DB:" + str(e)))
 
     # write to file components
     if levels[level] <= config['log_level_file']:
@@ -301,10 +313,24 @@ def log(level, message, caller):
             log_fhandle.flush()
 
 def Info(message,caller=None):
+    """Info level ZM message
+    
+    Args:
+        message (string): Message to log
+        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    log('INF',message,caller)
+    _log('INF',message,caller)
 
 def Debug(level, message,caller=None):
+    """Debug level ZM message
+    
+    Args:
+        level (int): ZM Debug level
+        message (string): Message to log
+        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
+    """
+
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     target = config['log_debug_target']
     if target:
@@ -315,25 +341,49 @@ def Debug(level, message,caller=None):
 
     
     if config['log_debug'] and level <= config['log_level_debug']:
-        log('DBG', message,caller)
+        _log('DBG', message,caller)
 
 def Warning(message,caller=None):
+    """Warning level ZM message
+    
+    Args:
+        message (string): Message to log
+        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    log('WAR',message,caller)
+    _log('WAR',message,caller)
 
 def Error(message,caller=None):
+    """Error level ZM message
+    
+    Args:
+        message (string): Message to log
+        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    log('ERR',message,caller)
+    _log('ERR',message,caller)
     
 def Fatal(message,caller=None):
+    """Fatal level ZM message. Quits after logging
+    
+    Args:
+        message (string): Message to log
+        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    log('FAT',message,caller)
+    _log('FAT',message,caller)
     close()
     exit(-1)
 
 def Panic(message,caller=None):
+    """Panic level ZM message. Quits after logging
+    
+    Args:
+        message (string): Message to log
+        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
+    """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    log('PNC',message,caller)
+    _log('PNC',message,caller)
     close()
     exit(-1)
 

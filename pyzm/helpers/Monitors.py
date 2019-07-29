@@ -31,6 +31,32 @@ class Monitors(Base):
         return self.monitors
 
     def add(self, options={}):
+        """Adds a new monitor
+        
+        Args:
+            options (dict): Set of attributes that define the monitor::
+
+                {
+                    'function': string # function of monitor
+                    'name': string # name of monitor
+                    'enabled': boolean
+                    'protocol': string
+                    'host': string
+                    'port': int
+                    'path': string
+                    'width': int
+                    'height': int
+                    'raw': {
+                        # Any other monitor value that is not exposed above. Example:
+                        'Monitor[Colours]': '4',
+                        'Monitor[Method]': 'simple'
+                    }
+
+                }
+        
+        Returns:
+            json: json response of API request
+        """
         url = self.api_url+'/monitors/.json'
         payload = {}
         if options.get('function'):
@@ -45,13 +71,13 @@ class Monitors(Base):
         if options.get('host'):
             payload['Monitor[Host]'] = options.get('host')
         if options.get('port'):
-            payload['Monitor[Port]'] = options.get('port')
+            payload['Monitor[Port]'] = str(options.get('port'))
         if options.get('path'):
             payload['Monitor[Path]'] = options.get('path')
         if options.get('width'):
-            payload['Monitor[Width]'] = options.get('width')
+            payload['Monitor[Width]'] = str(options.get('width'))
         if options.get('height'):
-            payload['Monitor[Height]'] = options.get('height')
+            payload['Monitor[Height]'] = str(options.get('height'))
 
         if options.get('raw'):
             for k in options.get('raw'):
@@ -61,6 +87,15 @@ class Monitors(Base):
             return self.api._make_request(url=url, payload=payload, type='post')
     
     def find(self, id=None, name=None):
+        """Given an id or name, returns matching monitor object
+        
+        Args:
+            id (int, optional): MonitorId of monitor. Defaults to None.
+            name (string, optional): Monitor name of monitor. Defaults to None.
+        
+        Returns:
+            :class:`pyzm.helpers.Monitor`: Matching monitor object
+        """
         if not id and not name:
             return None
         match = None

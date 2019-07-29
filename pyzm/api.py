@@ -219,25 +219,69 @@ class ZMApi (Base):
         return self.Events
 
     def states(self, options={}):
+        """Returns configured states
+        
+        Args:
+            options (dict, optional): Not used. Defaults to {}.
+        
+        Returns:
+            list of  :class:`pyzm.helpers.State`: list of states
+        """
         self.States = States(logger=self.logger,api=self)
         return self.States
     
     def restart(self):
+        """Restarts ZoneMinder
+        
+        Returns:
+            json: json value of restart command
+        """
         return self.set_state(state='restart')
     
     def stop(self):
+        """Stops ZoneMinder
+        
+        Returns:
+            json: json value of stop command
+        """
         return self.set_state(state='stop')
     
     def start(self):
+        """Starts ZoneMinder
+        
+        Returns:
+            json: json value of start command
+        """
         return self.set_state(state='start')
     
-    def set_state(self, state=None):
+    def set_state(self, state):
+        """Sets Zoneminder state to specific state 
+        
+        Args:
+            state (string): Name of state    
+        
+        Returns:
+            json: value of state change command
+        """
         if not state:
             return
         url = self.api_url +'/states/change/{}.json'.format(state)
         return self._make_request(url=url)
 
     def configs(self, options={}):
+        """Returns config values of ZM
+        
+            Args:
+                options (dict, optional): Defaults to {}.
+                options::
+
+                    {
+                        'force_reload': boolean # if True, reloads  
+                    }
+        
+        Returns:
+            :class:`pyzm.helpers.Configs`: ZM configs
+        """
         if options.get('force_reload') or not self.Configs:
-            self.Configs = Monitors(logger=self.logger,api=self)
+            self.Configs = Configs(logger=self.logger,api=self)
         return self.Configs
