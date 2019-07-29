@@ -14,7 +14,7 @@ URL = 'https://github.com/pliablepixels/pyzm/'
 AUTHOR_EMAIL = 'pliablepixels@gmail.com'
 AUTHOR = 'Pliable Pixels'
 LICENSE = 'GPL'
-INSTALL_REQUIRES=['psutil>=5.6.3', 'SQLAlchemy>=1.3.5', 'mysql-connector-python', 'requests>=2.18.4', 'dateparser>=0.7.1']
+INSTALL_REQUIRES=['psutil>=5.6.3', 'SQLAlchemy>=1.3.5', 'mysql-connector-python>=8.0.16', 'requests>=2.18.4', 'dateparser>=0.7.1','websocket-client>=0.56.0']
 
 
 here = os.path.abspath(os.path.dirname(__file__))

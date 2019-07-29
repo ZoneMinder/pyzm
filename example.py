@@ -1,6 +1,23 @@
 import pyzm.api as zmapi
 import sys,traceback
-import pyzm.ZMLog as zmlog #only if you want to log to ZM
+
+has_zmes = False
+has_zmlog = False
+
+try:
+    import pyzm.ZMLog as zmlog #only if you want to log to ZM
+    has_zmlog = True
+except ImportError as e:
+    print ('Could not import ZMLog, function will be disabled:'+str(e))
+    zmlog = None
+    
+
+try:
+    from pyzm.ZMEventNotification import ZMES
+    has_zmes = True
+except ImportError as e:
+    print ('Could not import ZMEventNotification, function will be disabled:'+str(e))
+   
 
 # Assuming you want to log to ZM
 # You can override default ZM Log settings
@@ -13,9 +30,27 @@ zm_log_override = {
     'log_debug_target': None
 }
 
+if has_zmlog:
+    zmlog.init(name='apitest',override=zm_log_override)
 
-zmlog.init(name='apitest',override=zm_log_override)
+if has_zmes:
+    i = input ('Test the Event Server? [y/N]')
+    if i=='y':
 
+        # put in values here
+        ES_URL = None
+        ES_USER = None
+        ES_PASSWORD = None
+        
+
+        es = ZMES({
+            'url':ES_URL,
+            'password': ES_PASSWORD,
+            'user': ES_USER,
+            'allow_untrusted': ALLOW_UNTRUSTED,
+            'logger': zmlog
+                
+        })
 
 cam_name='DemoVirtualCam1'
 
