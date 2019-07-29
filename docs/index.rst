@@ -7,7 +7,7 @@ Welcome to pyzm's documentation!
 ================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :caption: Contents:
 
    source/modules
