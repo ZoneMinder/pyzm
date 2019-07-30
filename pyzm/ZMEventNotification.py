@@ -1,3 +1,10 @@
+"""
+ZMEventNotification
+=====================
+Implements a python implementation of the ZM ES server. 
+
+"""
+
 import websocket
 import json
 import time
@@ -5,7 +12,7 @@ from pyzm.helpers.Base import Base
 import threading
 import ssl
 
-class ZMES(Base):
+class ZMEventNotification(Base):
     def __init__(self, options):
         """Instantiates a thread that connects to the ZM Notification Server
 

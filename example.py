@@ -14,7 +14,7 @@ except ImportError as e:
     
 
 try:
-    from pyzm.ZMEventNotification import ZMES
+    from pyzm.ZMEventNotification import ZMEventNotification as ZMES
     has_zmes = True
 except ImportError as e:
     print ('Could not import ZMEventNotification, function will be disabled:'+str(e))
