@@ -53,7 +53,13 @@ Logging
     :members:
     :special-members: __init__
     :undoc-members:
-    
+
+Event Notification
+---------------------
+.. automodule:: pyzm.ZMEventNotification
+    :members:
+    :special-members: __init__
+    :undoc-members:
 
 
 

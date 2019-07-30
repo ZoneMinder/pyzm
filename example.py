@@ -1,5 +1,5 @@
 import pyzm.api as zmapi
-import sys,traceback
+import getpass
 
 has_zmes = False
 has_zmlog = False
@@ -19,6 +19,13 @@ except ImportError as e:
     print ('Could not import ZMEventNotification, function will be disabled:'+str(e))
    
 
+def on_es_message(msg):
+    print (f'======> APP GOT MESSAGE FROM ES: {msg}')
+
+
+def on_es_error(err):
+    print (f'======> APP GOT ERROR  FROM ES: {err}') 
+
 # Assuming you want to log to ZM
 # You can override default ZM Log settings
 # programatically
@@ -36,21 +43,32 @@ if has_zmlog:
 if has_zmes:
     i = input ('Test the Event Server? [y/N]')
     if i=='y':
-
-        # put in values here
-        ES_URL = None
-        ES_USER = None
-        ES_PASSWORD = None
+        ES_URL=None
+        ES_USER=None
+        ES_PASSWORD=None
+        ALLOW_UNTRUSTED=False
         
+        if not ES_URL: ES_URL = input ('Enter ES URL (example wss://foo:9000):')
+        if not ES_USER: ES_USER = input ('Enter ES user (example admin):')
+        if not ES_PASSWORD: ES_PASSWORD = getpass.getpass('Enter ES password:')
 
         es = ZMES({
             'url':ES_URL,
             'password': ES_PASSWORD,
             'user': ES_USER,
             'allow_untrusted': ALLOW_UNTRUSTED,
-            'logger': zmlog
+            'logger': zmlog,
+            'on_es_message': on_es_message,
+            'on_es_error': on_es_error
                 
         })
+        # send a legit command
+        es.send({"event":"control","data":{"type":"filter","monlist":"1,2,5,6,7,8,9,10", "intlist":"0,0,0,0,0,0,0,0"}})
+
+        # send a bad command
+        es.send ('WHAT THE!')
+
+        input ('press a key to proceed with the rest...')
 
 cam_name='DemoVirtualCam1'
 
