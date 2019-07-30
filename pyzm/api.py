@@ -137,7 +137,7 @@ class ZMApi (Base):
             self.logger.Error ('Timezone API not found, relative timezones will be local time')
         
 
-    def _make_request(self, url=None, query={}, payload={}, type='get'):
+    def _make_request(self, url=None, query={}, payload={}, type='get', reauth=True):
         type = type.lower()
         if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
             query['token'] = self.access_token
@@ -171,8 +171,14 @@ class ZMApi (Base):
             r.raise_for_status()
             return r.json()
         except requests.exceptions.HTTPError as err:
-            self.logger.Error('Got API access error: {}'.format(err), 'error')
-            raise err
+            self.logger.Debug(1, 'Got API access error: {}'.format(err), 'error')
+            if err.response.status_code == 401 and reauth:
+                self.logger.Debug (1, 'Retrying login once')
+                self._login()
+                self.logger.Debug (1,'Retrying failed request')
+                return self._make_request(url, query, payload, type, reauth=False)
+            else:
+                raise err
 
 
     def monitors(self, options={}):
