@@ -2,9 +2,9 @@ What
 =====
 ZoneMinder Python API and Logger
 
-Documentation
-=================
-Latest documentation is available <a href='https://pyzm.readthedocs.io/en/latest/'>here</a>
+Documentation & Examples
+=========================
+Latest documentation is available <a href='https://pyzm.readthedocs.io/en/latest/'>here</a>. The documentation includes a full example.
 
 Features
 =========
