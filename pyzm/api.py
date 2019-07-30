@@ -6,6 +6,7 @@ Exposes login, monitors, events, etc. API
 """
 
 import requests
+import datetime
 from pyzm.helpers.Base import Base
 from pyzm.helpers.Monitors import Monitors
 from pyzm.helpers.Events import Events
@@ -34,6 +35,7 @@ class ZMApi (Base):
         self.refresh_token = ''
         self.access_token_expires = None
         self.refresh_token_expires = None
+        self.refresh_token_datetime = None
         self.legacy_credentials = None
         self.session = requests.Session()
         self.api_version = None
@@ -86,6 +88,23 @@ class ZMApi (Base):
         """
         return self.authenticated
 
+    def _relogin(self):
+        """ Used for 401. I could use _login too but decided to do a simpler fn
+        """
+        url = self.api_url+'/host/login.json'
+        if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
+            # use tokens
+            tr = (self.refresh_token_datetime - datetime.datetime.now()).total_seconds()
+
+
+            if (tr >= 60 * 5): # 5 mins grace
+                self.logger.Debug(1, 'Going to use refresh token as it still has {} minutes remaining'.format(tr/60))
+                self.options['token'] = self.refresh_token
+            else:
+                self.logger.Debug (1, 'Refresh token only has {}s of lifetime, going to use user/pass'.format(tr))
+                self.options['token'] = None
+        self._login()
+
     def _login(self):
         """This is called by the constructor. You are not expected to call this directly.
         
@@ -95,7 +114,7 @@ class ZMApi (Base):
         try:
             url = self.api_url+'/host/login.json'
             if self.options.get('token'):
-                self.logger.Debug(1,'Using token for login')
+                self.logger.Debug(1,'Using token for login [{}]'.format(self.options.get('token')))
                 data = {'token':self.options['token']}
             else:
                 self.logger.Debug (1,'using username/password for login')
@@ -104,7 +123,17 @@ class ZMApi (Base):
                 }
 
             r = self.session.post(url, data=data)
-            r.raise_for_status()
+            if r.status_code == 401 and self.options['token']:
+                self.logger.Debug (1, 'Token auth with refresh failed. Likely revoked, doing u/p login')
+                self.options['token'] = None
+                data={'user': self.options['user'],
+                    'pass': self.options['password']
+                }
+                r = self.session.post(url, data=data)
+                r.raise_for_status()
+            else:
+                r.raise_for_status()
+
             rj = r.json()
             self.api_version = rj.get('apiversion')
             self.zm_version = rj.get('version')
@@ -114,6 +143,8 @@ class ZMApi (Base):
                 self.refresh_token = rj.get('refresh_token','')
                 self.access_token_expires = int(rj.get('access_token_expires'))
                 self.refresh_token_expires = int(rj.get('refresh_token_expires'))
+                self.refresh_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.refresh_token_expires)
+                self.logger.Debug (1, 'Refresh token expires on:{} [{}s]'.format(self.refresh_token_datetime, self.refresh_token_expires))
             else:
                 self.logger.Info('Using old credentials API. Recommended you upgrade to token API')
                 self.legacy_credentials = rj.get('credentials')
@@ -174,7 +205,7 @@ class ZMApi (Base):
             self.logger.Debug(1, 'Got API access error: {}'.format(err), 'error')
             if err.response.status_code == 401 and reauth:
                 self.logger.Debug (1, 'Retrying login once')
-                self._login()
+                self._relogin()
                 self.logger.Debug (1,'Retrying failed request')
                 return self._make_request(url, query, payload, type, reauth=False)
             else:

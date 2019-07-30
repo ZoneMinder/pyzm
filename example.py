@@ -1,5 +1,6 @@
 import pyzm.api as zmapi
 import getpass
+import traceback
 
 has_zmes = False
 has_zmlog = False
@@ -72,6 +73,7 @@ if has_zmes:
 
 cam_name='DemoVirtualCam1'
 
+
 api_options = {
     'apiurl': 'https://demo.zoneminder.com/zm/api',
     'user': 'zmuser',
@@ -79,6 +81,9 @@ api_options = {
     'logger': zmlog # We connect the API to zmlog 
     #'logger': None # use none if you don't want to log to ZM
 }
+
+
+
 
 # lets init the API
 try:
@@ -108,6 +113,11 @@ event_filter = {
 
 es = zmapi.events(event_filter)
 print ('I got {} events'.format(len(es.list())))
+
+input ("Now revoke the access token in ZM and I'll try the same api again. Press ENTER when ready....(only applies to ZM 1.33+)")
+es = zmapi.events(event_filter)
+print ('repeat API - I got {} events'.format(len(es.list())))
+input ('press ENTER to continue')
 
 print ('Getting events for {} with filter: {}'.format(cam_name, event_filter))
 cam_events = ms.find(name=cam_name).events(options=event_filter)
