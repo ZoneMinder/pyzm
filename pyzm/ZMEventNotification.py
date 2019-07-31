@@ -93,7 +93,7 @@ class ZMEventNotification(Base):
         while True:
             self.logger.Info ('ZMESClient: ready to send/receive websocket messages')
             try:
-                val = self.ws.run_forever()
+                val = self.ws.run_forever(sslopt=sslopt)
                 if not val: break # keyboard
             except Exception as e:
                 self.logger.Error ('ZMESClient: Event Server Exception:' + str(e))

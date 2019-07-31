@@ -42,13 +42,13 @@ if has_zmlog:
     zmlog.init(name='apitest',override=zm_log_override)
 
 if has_zmes:
-    i = input ('Test the Event Server? [y/N]')
+    i = input ('Test the Event Server? [y/N]').lower()
     if i=='y':
         ES_URL=None
         ES_USER=None
         ES_PASSWORD=None
-        ALLOW_UNTRUSTED=False
-        
+        ALLOW_UNTRUSTED=True
+
         if not ES_URL: ES_URL = input ('Enter ES URL (example wss://foo:9000):')
         if not ES_USER: ES_USER = input ('Enter ES user (example admin):')
         if not ES_PASSWORD: ES_PASSWORD = getpass.getpass('Enter ES password:')
