@@ -14,6 +14,7 @@ from pyzm.helpers.States import States
 from pyzm.helpers.Configs import Configs
 
 
+
 class ZMApi (Base):
     def __init__(self,options={}):
         '''

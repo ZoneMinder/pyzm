@@ -1,6 +1,7 @@
 import pyzm.api as zmapi
 import getpass
 import traceback
+import pyzm.ZMMemory as zmmemory
 
 has_zmes = False
 has_zmlog = False
@@ -40,6 +41,32 @@ zm_log_override = {
 
 if has_zmlog:
     zmlog.init(name='apitest',override=zm_log_override)
+
+
+i = input ('Try monitor shared memory tests? [y/N]').lower()
+if i == 'y':
+    mid = int(input ('Enter monitor ID:'))
+    while True:
+        k = 'y'
+        try:
+            m = zmmemory.ZMMemory(mid=mid)
+            break
+        except Exception as e:
+            print ('Error initing: {}'.format(e))
+            k = input ('try again, or \'q\' to quit...')
+            if k == 'q': break
+
+
+    while True and k != 'q':
+        if m.is_valid():
+            print (m.get())
+        else:
+            print ('Memory not valid')
+            try:
+                m.reload()
+            except Exception as e:
+                print ('Error reloading: {}'.format(e))
+        k = input ('Try to read again [\'q\' to quit this test]')
 
 if has_zmes:
     i = input ('Test the Event Server? [y/N]').lower()

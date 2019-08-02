@@ -61,5 +61,12 @@ Event Notification
     :special-members: __init__
     :undoc-members:
 
+Memory
+-------
+.. automodule:: pyzm.ZMMemory
+    :members:
+    :special-members: __init__
+    :undoc-members:
+
 
 

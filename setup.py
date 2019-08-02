@@ -56,6 +56,7 @@ setup(name = NAME,
                     'pyzm.helpers.Configs',
                     'pyzm.ZMLog',
                     'pyzm.ZMEventNotification',
+                    'pyzm.ZMMemory',
                     ]
       )
 

@@ -14,6 +14,7 @@ Features
 - States
 - Configs
 - EventNotification callbacks
+- Mapped Memory access
 
 Limitations
 ============
