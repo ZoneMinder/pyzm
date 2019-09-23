@@ -13,7 +13,7 @@ import requests
 
 class Monitors(Base):
     def __init__(self,logger=None, api=None):
-        Base.__init__(self, logger)
+        super().__init__(logger)
         self.api = api
         self._load()
 

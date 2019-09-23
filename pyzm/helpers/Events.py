@@ -13,10 +13,10 @@ from pyzm.helpers.Event import Event
 import requests
 import dateparser
 
-class Events:
+class Events(Base):
     def __init__(self, logger=None, api=None, options=None):
        
-        Base.__init__(self, logger)
+        super().__init__(logger)
         self.api = api
         self.events = []
         self.pagination = {}

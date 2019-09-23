@@ -69,7 +69,7 @@ class ZMMemory(Base):
     }
 
     def __init__(self,api=None, path='/dev/shm', mid=None, logger=None):
-        Base.__init__(self, logger)
+        super().__init__(logger)
         self.api = api
 
         self.fhandle = None

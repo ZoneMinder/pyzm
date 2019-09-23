@@ -11,7 +11,7 @@ from pyzm.helpers.Base import Base
 
 class Event(Base):
     def __init__(self, event=None, api=None, logger=None):
-        Base.__init__(self, logger)
+        super().__init__(logger)
         self.event = event
         self.logger = logger
         self.api = api

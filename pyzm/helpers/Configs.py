@@ -11,7 +11,7 @@ import requests
 
 class Configs(Base):
     def __init__(self,logger=None, api=None):
-        Base.__init__(self, logger)
+        super().__init__(logger)
         self.api = api
         self._load()
 

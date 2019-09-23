@@ -33,7 +33,7 @@ class ZMEventNotification(Base):
             ValueError: if no server is provided
         """
 
-        Base.__init__(self, options.get('logger'))
+        super().__init__(options.get('logger'))
         if not options.get('url'):
             raise ValueError ('ZMESClient: No server specified')
         

@@ -12,7 +12,7 @@ from pyzm.helpers.Base import Base
 
 class Monitor(Base):
     def __init__(self, api=None, monitor=None, logger=None):
-        Base.__init__(self, logger)
+        super().__init__(logger)
         self.monitor = monitor
         self.api = api
     

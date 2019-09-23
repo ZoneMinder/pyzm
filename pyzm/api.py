@@ -27,7 +27,7 @@ class ZMApi (Base):
 
             Note: you can connect your own customer logging class to the API in which case all modules will use your custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.Base.SimpleLog` for method details.
         '''
-        Base.__init__(self, options.get('logger'))
+        super().__init__(options.get('logger'))
         self.api_url = options.get('apiurl')
         self.options = options
         

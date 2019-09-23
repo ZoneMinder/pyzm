@@ -12,7 +12,7 @@ from pyzm.helpers.Base import Base
 
 class State(Base):
     def __init__(self, api=None, state=None, logger=None):
-        Base.__init__(self, logger)
+        super().__init__(logger)
         self.state = state
         self.api = api
     
