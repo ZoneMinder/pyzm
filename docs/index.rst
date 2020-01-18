@@ -3,6 +3,14 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+Installation
+==================
+
+::
+
+  sudo -H pip install pyzm
+
+  
 Welcome to pyzm's documentation!
 ================================
 
