@@ -8,9 +8,9 @@ Installation
 
 ::
 
-  sudo -H pip install pyzm
+  sudo -H pip3 install pyzm
 
-  
+
 Welcome to pyzm's documentation!
 ================================
 
