@@ -7,6 +7,8 @@
 Welcome to pyzm's documentation!
 ================================
 
+`Github Repository <https://github.com/pliablepixels/pyzm>`__
+
 .. toctree::
    :maxdepth: 4
    :caption: Contents:
