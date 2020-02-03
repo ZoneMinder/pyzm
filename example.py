@@ -103,13 +103,12 @@ cam_name='DemoVirtualCam1'
 
 api_options = {
     'apiurl': 'https://demo.zoneminder.com/zm/api',
+    'portalurl': 'https://demo.zoneminder.com/zm',
     'user': 'zmuser',
     'password': 'zmpass',
-    'logger': zmlog # We connect the API to zmlog 
-    #'logger': None # use none if you don't want to log to ZM
+    #'logger': zmlog # We connect the API to zmlog 
+    'logger': None # use none if you don't want to log to ZM
 }
-
-
 
 
 # lets init the API
@@ -150,6 +149,12 @@ print ('Getting events for {} with filter: {}'.format(cam_name, event_filter))
 cam_events = ms.find(name=cam_name).events(options=event_filter)
 for e in cam_events.list():
     print ('Event:{} Cause:{} Notes:{}'.format(e.name(), e.cause(), e.notes()))
+
+print ('Now trying to download an image from the first event')
+e = cam_events.list()[0]
+print (e.name())
+e.download_image()
+e.download_video()
 
 print ('Getting event summaries')
 m = ms.find(name=cam_name)

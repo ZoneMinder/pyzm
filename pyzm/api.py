@@ -21,6 +21,7 @@ class ZMApi (Base):
         Options is a dict with the following keys:
 
             - apiurl - the full API URL (example https://server/zm/api)
+            - portalurl - the full portal URL (example https://server/zm). Only needed if you are downloading events/images
             - user - username
             - password - password
             - logger - (OPTIONAL) function used for logging. If none specified, a simple logger will be used that prints to console. You could instantiate and connect the :class:`pyzm.helpers.ZMLog` module here if you want to use ZM's logging.
@@ -29,6 +30,11 @@ class ZMApi (Base):
         '''
         super().__init__(options.get('logger'))
         self.api_url = options.get('apiurl')
+        self.portal_url = options.get('portalurl')
+        if not self.portal_url and self.api_url.endswith('/api'):
+            self.portal_url = self.api_url[:-len('/api')] 
+            self.logger.Debug ('Guessing portal URL is: {}'.format(self.portal_url))
+
         self.options = options
         
         self.authenticated = False
@@ -167,7 +173,15 @@ class ZMApi (Base):
             self.zm_tz = r.get('tz')
         except requests.exceptions.HTTPError as err:
             self.logger.Error ('Timezone API not found, relative timezones will be local time')
-        
+
+    def get_auth(self):
+        if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
+            return 'token='+self.access_token
+        else:
+            return self.legacy_credentials
+
+
+
 
     def _make_request(self, url=None, query={}, payload={}, type='get', reauth=True):
         type = type.lower()
