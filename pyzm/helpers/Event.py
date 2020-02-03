@@ -28,6 +28,32 @@ class Event(Base):
         """
         return self.event['Event']
     
+    def get_image_url(self,fid='snapshot'):
+        """Returns the image URL for the specified frame
+        
+        Args:
+            fid (str, optional): Default frame identification. Defaults to 'snapshot'.
+        
+        Returns:
+            string: URL for the image
+        """        
+        eid = self.id()
+        url = self.api.portal_url+'/index.php?view=image&eid={}&fid={}'.format(eid,fid)+'&'+self.api.get_auth()
+        return url
+
+    def get_video_url(self):
+        """Returms the video URL for the specified event
+        
+        Returns:
+            string: URL for the video file
+        """        
+        if not self.video_file():
+            self.logger.Error ('Event {} does not have a video file'.format(self.id()))
+            return None
+        eid = self.id()
+        url = self.api.portal_url+'/index.php?mode=mpeg&eid={}&view=view_video'.format(eid)+'&'+self.api.get_auth()
+        return url
+    
     def download_image(self, fid='snapshot', dir='.', show_progress=False):     
         """Downloads an image frame of the current event object
         
@@ -37,10 +63,8 @@ class Event(Base):
             show_progress (bool, optional): If enabled shows a progress bar (if possible). Defaults to False.
         """           
            
-        
-        eid = self.id()
-        url = self.api.portal_url+'/index.php?view=image&eid={}&fid={}'.format(eid,fid)+'&'+self.api.get_auth()
-        f =  self._download_file(url, str(eid)+'-'+fid+'.jpg', dir, show_progress)
+        url = self.get_image_url(fid)
+        f =  self._download_file(url, str(self.id())+'-'+fid+'.jpg', dir, show_progress)
         self.logger.Info('File downloaded to {}'.format(f))
 
     def download_video(self, dir='.', show_progress=False):
@@ -52,16 +76,10 @@ class Event(Base):
             show_progress (bool, optional): If enabled shows a progress bar (if possible). Defaults to False.
         """           
            
-        
-        if not self.video_file():
-            self.logger.Error ('Event {} does not have a video file'.format(self.id()))
+        url = self.get_video_url()
+        if not url:
             return None
-
-        eid = self.id()
-        
-
-        url = self.api.portal_url+'/index.php?mode=mpeg&eid={}&view=view_video'.format(eid)+'&'+self.api.get_auth()
-        f =  self._download_file(url, str(eid)+'-video'+'.mp4', dir, show_progress)
+        f =  self._download_file(url, str(self.id())+'-video'+'.mp4', dir, show_progress)
         self.logger.Info('File downloaded to {}'.format(f))
 
     def monitor_id(self):
