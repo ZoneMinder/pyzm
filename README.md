@@ -1,6 +1,12 @@
+<img src="https://raw.githubusercontent.com/pliablepixels/pyzm/master/images/pyzm.png"/>
+
 What
 =====
-ZoneMinder Python API and Logger
+Pythonic ZoneMinder wrapper
+- API
+- Event Server
+- Logger
+- Memory
 
 Documentation & Examples
 =========================
