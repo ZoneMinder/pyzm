@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/pliablepixels/pyzm/master/images/pyzm.png"/>
+<img src="https://raw.githubusercontent.com/pliablepixels/pyzm/master/images/pyzm.png" width="200"/>
 
 What
 =====
