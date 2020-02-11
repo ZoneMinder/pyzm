@@ -33,7 +33,7 @@ class ZMApi (Base):
         self.portal_url = options.get('portalurl')
         if not self.portal_url and self.api_url.endswith('/api'):
             self.portal_url = self.api_url[:-len('/api')] 
-            self.logger.Debug ('Guessing portal URL is: {}'.format(self.portal_url))
+            self.logger.Debug (1,'Guessing portal URL is: {}'.format(self.portal_url))
 
         self.options = options
         
