@@ -71,7 +71,7 @@ class ZMApi (Base):
                 zm_version: string # if status is 'ok'
             }
         """
-        if not authenticated:
+        if not self.authenticated:
             return {'status':'error', 'reason':'not authenticated'}
         return {
             'status': 'ok',
