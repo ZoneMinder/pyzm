@@ -154,7 +154,7 @@ def init(name=None, override={}):
         connected = False
         conn = None
         engine = None
-        syslog.syslog (syslog.LOG_ERR, format_string("Turning DB logging off. Could not connect to DB, message was:" + str(e)))
+        syslog.syslog (syslog.LOG_ERR, _format_string("Turning DB logging off. Could not connect to DB, message was:" + str(e)))
         config['log_level_db'] = levels['OFF']
         
     else:
@@ -201,7 +201,7 @@ def init(name=None, override={}):
             gid = grp.getgrnam(config['webgroup']).gr_gid
             os.chown(log_fname, uid,gid)
         except OSError as e:
-            syslog.syslog (syslog.LOG_ERR, format_string("Error opening file log:" + str(e)))
+            syslog.syslog (syslog.LOG_ERR, _format_string("Error opening file log:" + str(e)))
             log_fhandle = None
 
 
@@ -284,7 +284,7 @@ def _log(level, message, caller):
         if not connected:
             syslog.syslog (syslog.LOG_INFO, _format_string("Trying to reconnect"))
             if not reconnect():
-                syslog.syslog (syslog.LOG_ERR, format_string("reconnection failed, not writing to DB"))
+                syslog.syslog (syslog.LOG_ERR, _format_string("reconnection failed, not writing to DB"))
             return False
 
         log_string = '{level} [{pname}] [{msg}]'.format(level=level, pname=process_name, msg=message)
