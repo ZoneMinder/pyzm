@@ -24,6 +24,7 @@ class ZMApi (Base):
             - portalurl - the full portal URL (example https://server/zm). Only needed if you are downloading events/images
             - user - username
             - password - password
+            - disable_ssl_cert_check - if True will let you use self signed certs
             - logger - (OPTIONAL) function used for logging. If none specified, a simple logger will be used that prints to console. You could instantiate and connect the :class:`pyzm.helpers.ZMLog` module here if you want to use ZM's logging.
 
             Note: you can connect your own customer logging class to the API in which case all modules will use your custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.Base.SimpleLog` for method details.
@@ -45,6 +46,11 @@ class ZMApi (Base):
         self.refresh_token_datetime = None
         self.legacy_credentials = None
         self.session = requests.Session()
+        if options.get('disable_ssl_cert_check'):
+            self.session.verify = False
+            self.logger.Debug (1, 'Warning, SSL certificate check has been disbled')
+            from urllib3.exceptions import InsecureRequestWarning
+            requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
         self.api_version = None
         self.zm_version = None
         self.zm_tz = None
@@ -188,7 +194,7 @@ class ZMApi (Base):
         if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
             query['token'] = self.access_token
             # ZM 1.34 API bug, will be fixed soon
-            self.session = requests.Session()
+            # self.session = requests.Session()
     
         else:
             # credentials is already query formatted

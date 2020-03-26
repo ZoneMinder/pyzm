@@ -94,7 +94,7 @@ if has_zmes:
         es.send({"event":"control","data":{"type":"filter","monlist":"1,2,5,6,7,8,9,10", "intlist":"0,0,0,0,0,0,0,0"}})
 
         # send a bad command
-        es.send ('WHAT THE!')
+        es.send ('Hi From ES')
 
         input ('press a key to proceed with the rest...')
 
@@ -107,7 +107,8 @@ api_options = {
     'user': 'zmuser',
     'password': 'zmpass',
     #'logger': zmlog # We connect the API to zmlog 
-    'logger': None # use none if you don't want to log to ZM
+    'logger': None, # use none if you don't want to log to ZM,
+    #'disable_ssl_cert_check': True
 }
 
 
