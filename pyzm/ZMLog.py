@@ -260,7 +260,7 @@ def _format_string(msg, level='ERR'):
     log_string = '{level} [{pname}] [{msg}]'.format(level=level, pname=process_name, msg=msg)
     return (log_string)
 
-def _log(level, message, caller):
+def _log(level, message, caller, debug_level=1):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
 
     if not inited:
@@ -273,10 +273,14 @@ def _log(level, message, caller):
         caller = getframeinfo(stack()[idx][0])
         #print ('Called from {}:{}'.format(caller.filename, caller.lineno))
 
+    # If we are debug logging, show level too
+    disp_level=level
+    if level=='DBG':
+        disp_level = f'DBG-{debug_level}'
     # write to syslog
    
     if levels[level] <= config['log_level_syslog']:
-        log_string = '{level} [{pname}] [{msg}]'.format(level=level, pname=process_name, msg=message)
+        log_string = '{level} [{pname}] [{msg}]'.format(level=disp_level, pname=process_name, msg=message)
         syslog.syslog (priorities[level], log_string)
 
     # write to db
@@ -287,7 +291,7 @@ def _log(level, message, caller):
                 syslog.syslog (syslog.LOG_ERR, _format_string("reconnection failed, not writing to DB"))
             return False
 
-        log_string = '{level} [{pname}] [{msg}]'.format(level=level, pname=process_name, msg=message)
+        log_string = '{level} [{pname}] [{msg}]'.format(level=disp_level, pname=process_name, msg=message)
         component = process_name
         serverid = config['server_id']
         pid = pid
@@ -307,7 +311,7 @@ def _log(level, message, caller):
         timestamp = datetime.datetime.now().strftime('%x %H:%M:%S')
         # 07/15/19 10:10:14.050651 zmc_m8[4128].INF-zm_monitor.cpp/2516 [Driveway: images:218900 - Capturing at 3.70 fps, capturing bandwidth 98350bytes/sec]
         fnfl ='{}:{}'.format(os.path.split(caller.filename)[1], caller.lineno)
-        log_string = '{timestamp} {pname}[{pid}] {level} {fnfl} [{msg}]\n'.format(timestamp=timestamp, level=level, pname=process_name, pid=pid, msg=message, fnfl=fnfl)
+        log_string = '{timestamp} {pname}[{pid}] {level} {fnfl} [{msg}]\n'.format(timestamp=timestamp, level=disp_level, pname=process_name, pid=pid, msg=message, fnfl=fnfl)
         if log_fhandle: 
             log_fhandle.write(log_string)
             log_fhandle.flush()
@@ -341,7 +345,7 @@ def Debug(level, message,caller=None):
 
     
     if config['log_debug'] and level <= config['log_level_debug']:
-        _log('DBG', message,caller)
+        _log('DBG', message,caller, level)
 
 def Warning(message,caller=None):
     """Warning level ZM message

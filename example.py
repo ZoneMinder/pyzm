@@ -112,6 +112,7 @@ api_options = {
 }
 
 
+
 # lets init the API
 try:
     zmapi = zmapi.ZMApi(options=api_options)
@@ -131,9 +132,9 @@ for m in ms.list():
 print ("--------| Getting Events |-----------")
 print ("Getting events across all monitors")
 event_filter = {
-    'from': '2 hours ago', # this will use localtimezone, use 'tz' for other timezones
+    'from': '24 hours ago', # this will use localtimezone, use 'tz' for other timezones
     'object_only':False,
-    'min_alarmed_frames': 3,
+    'min_alarmed_frames': 1,
     'max_events':5,
     
 }
@@ -152,6 +153,7 @@ for e in cam_events.list():
     print ('Event:{} Cause:{} Notes:{}'.format(e.name(), e.cause(), e.notes()))
 
 print ('Now trying to download an image from the first event')
+print(cam_events.list())
 e = cam_events.list()[0]
 print (e.name())
 e.download_image()
@@ -169,44 +171,47 @@ states = zmapi.states()
 for state in states.list():
     print ('State:{}[{}], active={}, details={}'.format(state.name(), state.id(), state.active(), state.definition()))
 
-print ("--------| Setting Monitors |-----------")
-m = ms.find(name=cam_name)
-try:
-    old_function = m.function()
-    input ('Going to change state of {}[{}] to Monitor from {}'.format(m.name(),m.id(), old_function))
-    print (m.set_parameter(options={'function':'Monitor'}))
-    input ('Switching back to {}'.format(old_function))
-    print (m.set_parameter(options={'function':old_function}))
-except Exception as e:
-    print ('Error: {}'.format(str(e)))
+i = input ('Test Monitor State Change? [y/N]').lower()
+if i=='y':
+    print ("--------| Setting Monitors |-----------")
+    m = ms.find(name=cam_name)
+    try:
+        old_function = m.function()
+        input ('Going to change state of {}[{}] to Monitor from {}'.format(m.name(),m.id(), old_function))
+        print (m.set_parameter(options={'function':'Monitor'}))
+        input ('Switching back to {}'.format(old_function))
+        print (m.set_parameter(options={'function':old_function}))
+    except Exception as e:
+        print ('Error: {}'.format(str(e)))
 
-print ("--------| Setting Alarms |-----------")
-try:
-    input ('Arming {}, press enter'.format(m.name()))
-    print (m.arm())
-    input ('Disarming {}, press enter'.format(m.name()))
-    print (m.disarm())
-except Exception as e:
-    print ('Error: {}'.format(str(e)))
+    print ("--------| Setting Alarms |-----------")
+    try:
+        input ('Arming {}, press enter'.format(m.name()))
+        print (m.arm())
+        input ('Disarming {}, press enter'.format(m.name()))
+        print (m.disarm())
+    except Exception as e:
+        print ('Error: {}'.format(str(e)))
+
+i = input ('Test ZM State Changes? [y/N]').lower()
+if i=='y':
+    print ("--------| Setting States |-----------")
+    try:
+        input ('Stopping ZM press enter')
+        print (zmapi.stop())
+        input ('Starting ZM press enter')
+        print (zmapi.start())
+        for idx,state in enumerate(states.list()):
+            print ('{}:{}'.format(idx,state.name()))
+        i=int(input('enter state number to switch to:'))
+        name = states.list()[i].name()
+        print ('Changing state to: {}'.format(name))
+        print (zmapi.set_state(state=name))
+    except Exception as e:
+        print ('Error: {}'.format(str(e)))
 
 
-print ("--------| Setting States |-----------")
-try:
-    input ('Stopping ZM press enter')
-    print (zmapi.stop())
-    input ('Starting ZM press enter')
-    print (zmapi.start())
-    for idx,state in enumerate(states.list()):
-        print ('{}:{}'.format(idx,state.name()))
-    i=int(input('enter state number to switch to:'))
-    name = states.list()[i].name()
-    print ('Changing state to: {}'.format(name))
-    print (zmapi.set_state(state=name))
-except Exception as e:
-    print ('Error: {}'.format(str(e)))
-
-
-print ("--------| Configs |-----------")
+print ("--------| Configs Test |-----------")
 try:
     conf = zmapi.configs()
     print (conf.find(name='ZM_AUTH_HASH_LOGINS'))
