@@ -373,7 +373,16 @@ class ZMApi (Base):
             return
         url = self.api_url +'/states/change/{}.json'.format(state)
         return self._make_request(url=url)
-
+    
+    def running(self):
+        """Determines if ZoneMinder is running
+        
+        Returns:
+            json: json value of daemonCheck query
+        """
+        url = self.api_url + '/host/daemonCheck.json'
+        return self._make_request(url=url)
+    
     def configs(self, options={}):
         """Returns config values of ZM
         
