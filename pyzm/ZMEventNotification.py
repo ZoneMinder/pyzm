@@ -48,7 +48,7 @@ class ZMEventNotification(Base):
 
         self.worker_thread = threading.Thread(target=self._worker)
         self.worker_thread.start()
-        self.ready = False
+        self.connected = False
         self.logger.Info ('ZMESClient: Event Server init started')
         self.queue = []
     
@@ -62,10 +62,10 @@ class ZMEventNotification(Base):
                 https://zmeventnotification.readthedocs.io/en/latest/guides/developers.html
 
         """
-        if self.ready:
+        if self.connected:
             self.ws.send(json.dumps(msg))
         else:
-            self.logger.Debug (1,'ZMESClient: connection not yet ready, message queued[{}]: {}'.format(len(self.queue), msg))
+            self.logger.Debug (1,'ZMESClient: not yet connected, message queued[{}]: {}'.format(len(self.queue), msg))
             self.queue.append(msg)
 
 
@@ -91,7 +91,7 @@ class ZMEventNotification(Base):
                                         )
         self.ws._callback  = self._monkey_callback
         while True:
-            self.logger.Info ('ZMESClient: ready to send/receive websocket messages')
+            self.logger.Info ('ZMESClient: connected: ready to send/receive websocket messages')
             try:
                 val = self.ws.run_forever(sslopt=sslopt)
                 if not val: break # keyboard
@@ -118,8 +118,8 @@ class ZMEventNotification(Base):
         self.logger.Info('ZMESClient: Got message from ES: {}'.format(message))
         message = json.loads(message)
         if message.get('event') == 'auth' and message.get('status') == 'Success':
-            self.logger.Info ('ZMESClient: Auth accepted, ready state')
-            self.ready = True
+            self.logger.Info ('ZMESClient: Auth accepted, connected state')
+            self.connected = True
             while self.queue:
                 msg = self.queue.pop(0)
                 self.logger.Debug (1, 'Sending pending message:{}'.format(msg))
