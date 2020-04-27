@@ -46,12 +46,36 @@ class ZMEventNotification(Base):
         self.on_es_close = options.get('on_es_close')
         self.on_es_error = options.get('on_es_error')
 
-        self.worker_thread = threading.Thread(target=self._worker)
-        self.worker_thread.start()
-        self.connected = False
-        self.logger.Info ('ZMESClient: Event Server init started')
+        self.ws = None
         self.queue = []
+
+        self.connected = False
+        self.connect()
     
+    def connect(self):
+        """Connect to the ES
+        """
+        self.logger.Info('ZMESClient: Connecting to ES')
+        if not self.connected:
+            self._disconnect = False
+            self.worker_thread = threading.Thread(target=self._worker)
+            self.worker_thread.start()
+            self.logger.Info ('ZMESClient: Event Server init started')
+    
+    def disconnect(self):
+        """Disconnect from the ES
+        """
+        self.logger.Info('ZMESClient: Disconnecting from ES')
+        if self.ws != None:
+            self._disconnect = True
+            self.ws.keep_running = False
+            if self.worker_thread != None:
+                self.worker_thread.join(15)
+        # We have waited for the thread to finish
+        # We are now disconnected
+        self.connected = False
+        self._disconnect = False
+            
     def send(self, msg):
         """Send message to ES
         
@@ -86,11 +110,11 @@ class ZMEventNotification(Base):
         self.ws = websocket.WebSocketApp(self.url, 
                                         on_message = lambda ws,msg:  self._on_message(ws, msg), 
                                         on_error = lambda ws,msg:  self._on_error(ws,msg), 
-                                        on_close = lambda ws:  self._on_close(ws,msg),
+                                        on_close = lambda ws:  self._on_close(ws),
                                         on_open = lambda ws: self._on_open(ws)
                                         )
         self.ws._callback  = self._monkey_callback
-        while True:
+        while not self._disconnect:
             self.logger.Info ('ZMESClient: connected: ready to send/receive websocket messages')
             try:
                 val = self.ws.run_forever(sslopt=sslopt)
@@ -100,12 +124,17 @@ class ZMEventNotification(Base):
                 
                 #traceback.print_exc(file=sys.stdout)
 
+            if not self._disconnect:
+                self.logger.Error ('ZMESClient: run_forever() unexpectedly terminated' )
+                self.logger.Info('ZMESClient: Will reconnect after 10 secs...')
+                time.sleep(10)
 
-            self.logger.Error ('ZMESClient: run_forever() terminated' )
-            self.logger.Info('ZMESClient: Will reconnect after 10 secs...')
-            time.sleep(10)
-
-
+        # Not connected anymore
+        self.connected = False
+        self.ws.close()
+        self.ws = None
+        self.logger.Info('ZMESClient: Exiting Event Server thread, correctly disconnected')
+        
     def _on_open(self, ws):   
         self.logger.Info('ZMESClient: Sending auth info to ES')
         auth={"event":"auth","data":{"user":self.user,"password":self.password}}
