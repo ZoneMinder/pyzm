@@ -107,14 +107,15 @@ class ZMEventNotification(Base):
         if self.allow_untrusted:
             sslopt['cert_reqs'] = ssl.CERT_NONE
             self.logger.Warning('ZMESClient: Turning off certificate trust')
-        self.ws = websocket.WebSocketApp(self.url, 
+
+        while not self._disconnect:
+            self.ws = websocket.WebSocketApp(self.url, 
                                         on_message = lambda ws,msg:  self._on_message(ws, msg), 
                                         on_error = lambda ws,msg:  self._on_error(ws,msg), 
                                         on_close = lambda ws:  self._on_close(ws),
                                         on_open = lambda ws: self._on_open(ws)
                                         )
-        self.ws._callback  = self._monkey_callback
-        while not self._disconnect:
+            self.ws._callback  = self._monkey_callback
             self.logger.Info ('ZMESClient: connected: ready to send/receive websocket messages')
             try:
                 val = self.ws.run_forever(sslopt=sslopt)
@@ -124,15 +125,17 @@ class ZMEventNotification(Base):
                 
                 #traceback.print_exc(file=sys.stdout)
 
+            # The connection is aborted (intential or not)
+            self.connected = False
+            self.ws.close()
+            self.ws = None
+                        
             if not self._disconnect:
                 self.logger.Error ('ZMESClient: run_forever() unexpectedly terminated' )
                 self.logger.Info('ZMESClient: Will reconnect after 10 secs...')
                 time.sleep(10)
 
         # Not connected anymore
-        self.connected = False
-        self.ws.close()
-        self.ws = None
         self.logger.Info('ZMESClient: Exiting Event Server thread, correctly disconnected')
         
     def _on_open(self, ws):   
