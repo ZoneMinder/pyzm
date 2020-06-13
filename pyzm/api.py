@@ -39,6 +39,7 @@ class ZMApi (Base):
         self.options = options
         
         self.authenticated = False
+        self.auth_enabled = True
         self.access_token = ''
         self.refresh_token = ''
         self.access_token_expires = None
@@ -55,8 +56,9 @@ class ZMApi (Base):
         self.zm_version = None
         self.zm_tz = None
         
+     
         self._login()
-        
+     
         self.Monitors = Monitors(logger=options.get('logger'),api=self)
         self.Events = None
         self.Configs = Configs(logger=options.get('logger'), api=self)
@@ -129,14 +131,23 @@ class ZMApi (Base):
             if self.options.get('token'):
                 self.logger.Debug(1,'Using token for login [{}]'.format(self.options.get('token')))
                 data = {'token':self.options['token']}
-            else:
+                self.auth_enabled = True
+
+            elif self.options.get('user') and self.options.get('password'):
                 self.logger.Debug (1,'using username/password for login')
                 data={'user': self.options['user'],
                     'pass': self.options['password']
                 }
+                self.auth_enabled = True
 
+            else:
+                self.logger.Debug(1,'Not using auth')
+                self.auth_enabled = False
+                data = {}
+                url = self.api_url + '/host/getVersion.json'
+                
             r = self.session.post(url, data=data)
-            if r.status_code == 401 and self.options['token']:
+            if r.status_code == 401 and self.options.get('token') and self.auth_enabled:
                 self.logger.Debug (1, 'Token auth with refresh failed. Likely revoked, doing u/p login')
                 self.options['token'] = None
                 data={'user': self.options['user'],
@@ -150,19 +161,20 @@ class ZMApi (Base):
             rj = r.json()
             self.api_version = rj.get('apiversion')
             self.zm_version = rj.get('version')
-            if (self._versiontuple(self.api_version) >= self._versiontuple('2.0')):
-                self.logger.Debug(1,'Using new token API')
-                self.access_token = rj.get('access_token','')
-                self.refresh_token = rj.get('refresh_token','')
-                self.access_token_expires = int(rj.get('access_token_expires'))
-                self.refresh_token_expires = int(rj.get('refresh_token_expires'))
-                self.refresh_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.refresh_token_expires)
-                self.logger.Debug (1, 'Refresh token expires on:{} [{}s]'.format(self.refresh_token_datetime, self.refresh_token_expires))
-            else:
-                self.logger.Info('Using old credentials API. Recommended you upgrade to token API')
-                self.legacy_credentials = rj.get('credentials')
-                if (rj.get('append_password') == '1'):
-                    self.legacy_credentials = self.legacy_credentials + self.options['password']
+            if self.auth_enabled:
+                if (self._versiontuple(self.api_version) >= self._versiontuple('2.0')):
+                    self.logger.Debug(1,'Using new token API')
+                    self.access_token = rj.get('access_token','')
+                    self.refresh_token = rj.get('refresh_token','')
+                    self.access_token_expires = int(rj.get('access_token_expires'))
+                    self.refresh_token_expires = int(rj.get('refresh_token_expires'))
+                    self.refresh_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.refresh_token_expires)
+                    self.logger.Debug (1, 'Refresh token expires on:{} [{}s]'.format(self.refresh_token_datetime, self.refresh_token_expires))
+                else:
+                    self.logger.Info('Using old credentials API. Recommended you upgrade to token API')
+                    self.legacy_credentials = rj.get('credentials')
+                    if (rj.get('append_password') == '1'):
+                        self.legacy_credentials = self.legacy_credentials + self.options['password']
             self.authenticated = True
             #print (vars(self.session))
 
@@ -181,6 +193,9 @@ class ZMApi (Base):
             self.logger.Error ('Timezone API not found, relative timezones will be local time')
 
     def get_auth(self):
+        if not self.auth_enabled:
+            return ''
+
         if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
             return 'token='+self.access_token
         else:
@@ -191,20 +206,21 @@ class ZMApi (Base):
 
     def _make_request(self, url=None, query={}, payload={}, type='get', reauth=True):
         type = type.lower()
-        if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
-            query['token'] = self.access_token
-            # ZM 1.34 API bug, will be fixed soon
-            # self.session = requests.Session()
-    
-        else:
-            # credentials is already query formatted
-            lurl = url.lower()
-            if lurl.endswith('json') or lurl.endswith('/'):
-                qchar = '?'
+        if self.auth_enabled:
+            if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
+                query['token'] = self.access_token
+                # ZM 1.34 API bug, will be fixed soon
+                # self.session = requests.Session()
+        
             else:
-                qchar = '&'
-            url += qchar + self.legacy_credentials
-            
+                # credentials is already query formatted
+                lurl = url.lower()
+                if lurl.endswith('json') or lurl.endswith('/'):
+                    qchar = '?'
+                else:
+                    qchar = '&'
+                url += qchar + self.legacy_credentials
+                
         try:
             self.logger.Debug(1,'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
             if type=='get':

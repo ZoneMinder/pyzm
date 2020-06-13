@@ -276,7 +276,7 @@ def _log(level, message, caller, debug_level=1):
     # If we are debug logging, show level too
     disp_level=level
     if level=='DBG':
-        disp_level = f'DBG-{debug_level}'
+        disp_level = f'DBG{debug_level}'
     # write to syslog
    
     if levels[level] <= config['log_level_syslog']:

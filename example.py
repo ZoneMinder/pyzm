@@ -28,6 +28,8 @@ def on_es_message(msg):
 def on_es_error(err):
     print (f'======> APP GOT ERROR  FROM ES: {err}') 
 
+
+# ----------------- MAIN -------------------------
 # Assuming you want to log to ZM
 # You can override default ZM Log settings
 # programatically
@@ -42,6 +44,24 @@ zm_log_override = {
 if has_zmlog:
     zmlog.init(name='apitest',override=zm_log_override)
 
+
+
+cam_name='DemoVirtualCam1'
+api_options = {
+    'apiurl': 'https://demo.zoneminder.com/zm/api',
+    'portalurl': 'https://demo.zoneminder.com/zm',
+    'user': 'zmuser',
+    'password': 'zmpass',
+    #'logger': zmlog # We connect the API to zmlog 
+    'logger': None, # use none if you don't want to log to ZM,
+    #'disable_ssl_cert_check': True
+}
+
+
+
+print ('Running examples on {}'.format(api_options[
+    'apiurl'
+]))
 
 i = input ('Try monitor shared memory tests? [y/N]').lower()
 if i == 'y':
@@ -98,23 +118,13 @@ if has_zmes:
 
         input ('press a key to proceed with the rest...')
 
-cam_name='DemoVirtualCam1'
 
-
-api_options = {
-    'apiurl': 'https://demo.zoneminder.com/zm/api',
-    'portalurl': 'https://demo.zoneminder.com/zm',
-    'user': 'zmuser',
-    'password': 'zmpass',
-    #'logger': zmlog # We connect the API to zmlog 
-    'logger': None, # use none if you don't want to log to ZM,
-    #'disable_ssl_cert_check': True
-}
 
 
 
 # lets init the API
 try:
+   
     zmapi = zmapi.ZMApi(options=api_options)
 except Exception as e:
     print ('Error: {}'.format(str(e)))
@@ -154,11 +164,13 @@ for e in cam_events.list():
 
 print ('Now trying to download an image from the first event')
 print(cam_events.list())
-e = cam_events.list()[0]
-print (e.name())
-e.download_image()
-e.download_video()
-
+if cam_events.list():
+    e = cam_events.list()[0]
+    print (e.name())
+    e.download_image(dir='/tmp')
+    e.download_video(dir='/tmp')
+else:
+    print ('No events found')
 print ('Getting event summaries')
 m = ms.find(name=cam_name)
 
