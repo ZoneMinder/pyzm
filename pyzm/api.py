@@ -22,8 +22,8 @@ class ZMApi (Base):
 
             - apiurl - the full API URL (example https://server/zm/api)
             - portalurl - the full portal URL (example https://server/zm). Only needed if you are downloading events/images
-            - user - username
-            - password - password
+            - user - username (don't specify if no auth)
+            - password - password (don't specify if no auth)
             - disable_ssl_cert_check - if True will let you use self signed certs
             - logger - (OPTIONAL) function used for logging. If none specified, a simple logger will be used that prints to console. You could instantiate and connect the :class:`pyzm.helpers.ZMLog` module here if you want to use ZM's logging.
 
