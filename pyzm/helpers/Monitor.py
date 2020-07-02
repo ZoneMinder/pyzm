@@ -146,7 +146,7 @@ class Monitor(Base):
             payload['Monitor[Function]'] = options.get('function')
         if options.get('name'):
             payload['Monitor[Name]'] = options.get('name')
-        if options.get('enabled'):
+        if options.get('enabled') != None:
             enabled = '1' if options.get('enabled') else '0'
             payload['Monitor[Enabled]'] = enabled
 
