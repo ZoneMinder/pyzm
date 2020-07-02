@@ -2,6 +2,7 @@ import pyzm.api as zmapi
 import getpass
 import traceback
 import pyzm.ZMMemory as zmmemory
+import time
 
 has_zmes = False
 has_zmlog = False
@@ -111,9 +112,13 @@ if has_zmes:
                 
         })
         # send a legit command
+        
+        print ("Sending a valid login")
         es.send({"event":"control","data":{"type":"filter","monlist":"1,2,5,6,7,8,9,10", "intlist":"0,0,0,0,0,0,0,0"}})
-
+        print ("Sleeping for 3 seconds...")
+        time.sleep(3)
         # send a bad command
+        print ("Sending an invalid command")
         es.send ('Hi From ES')
 
         input ('press a key to proceed with the rest...')
