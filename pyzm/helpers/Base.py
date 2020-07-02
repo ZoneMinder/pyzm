@@ -28,6 +28,9 @@ class SimpleLog:
     def Info (self,message, caller=None):
         print ('[INFO] {}'.format( message))
 
+    def Warning (self,message, caller=None):
+        print ('[WARNING] {}'.format( message))
+
     def Error (self,message, caller=None):
         print ('[ERROR] {}'.format(message))
 
