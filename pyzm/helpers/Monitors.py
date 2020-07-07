@@ -57,7 +57,7 @@ class Monitors(Base):
         Returns:
             json: json response of API request
         """
-        url = self.api.url+'/monitors.json'
+        url = self.api.api_url +'/monitors.json'
         payload = {}
         if options.get('function'):
             payload['Monitor[Function]'] = options.get('function')
