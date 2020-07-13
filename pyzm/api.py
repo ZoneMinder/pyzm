@@ -239,7 +239,7 @@ class ZMApi (Base):
             r.raise_for_status()
             return r.json()
         except requests.exceptions.HTTPError as err:
-            self.logger.Debug(1, 'Got API access error: {}'.format(err), 'error')
+            self.logger.Debug(1, 'Got API access error: {}'.format(err))
             if err.response.status_code == 401 and reauth:
                 self.logger.Debug (1, 'Retrying login once')
                 self._relogin()

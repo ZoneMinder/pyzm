@@ -43,6 +43,7 @@ class Events(Base):
         url_filter=''
        
         tz = {}
+
         if options.get('tz'):
             tz = {'TIMEZONE': options.get('tz')}
             #print ('USING ',tz)

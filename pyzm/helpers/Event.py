@@ -19,7 +19,7 @@ class Event(Base):
         self.event = event
         self.logger = logger
         self.api = api
-        
+               
     def get(self):
         """Returns event object.
 
