@@ -5,7 +5,8 @@ import traceback
 import pyzm.ZMMemory as zmmemory
 import time
 
-
+use_zmlog = True
+use_zmes = True
 
 
 
@@ -13,20 +14,22 @@ has_zmes = False
 has_zmlog = False
 
 print ('Using pyzm version: {}'.format(pyzm.__version__))
-try:
-    import pyzm.ZMLog as zmlog #only if you want to log to ZM
-    has_zmlog = True
-except ImportError as e:
-    print ('Could not import ZMLog, function will be disabled:'+str(e))
-    zmlog = None
-    
+if use_zmlog:
+    try:
+        import pyzm.ZMLog as zmlog #only if you want to log to ZM
+        has_zmlog = True
+    except ImportError as e:
+        print ('Could not import ZMLog, function will be disabled:'+str(e))
+        zmlog = None
+        
 
-try:
-    from pyzm.ZMEventNotification import ZMEventNotification as ZMES
-    has_zmes = True
-except ImportError as e:
-    print ('Could not import ZMEventNotification, function will be disabled:'+str(e))
-   
+if use_zmes:
+    try:
+        from pyzm.ZMEventNotification import ZMEventNotification as ZMES
+        has_zmes = True
+    except ImportError as e:
+        print ('Could not import ZMEventNotification, function will be disabled:'+str(e))
+    
 
 def on_es_message(msg):
     print (f'======> APP GOT MESSAGE FROM ES: {msg}')
