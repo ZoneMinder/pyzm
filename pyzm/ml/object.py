@@ -64,8 +64,8 @@ class Object(Base):
         confidences=[]
 
         for idx,box in enumerate(b):
+            (sX,sY,eX,eY) = box
             if max_object_area:
-                (sX,sY,eX,eY) = box
                 object_area = abs((eX-sX)*(eY-sY))
                 if (object_area > max_object_area):
                     self.logger.Debug (1,'Ignoring object:{}, as it\'s area: {}px exceeds max_object_area of {}px'.format(l[idx], object_area, max_object_area))
