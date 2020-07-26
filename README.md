@@ -7,6 +7,7 @@ Pythonic ZoneMinder wrapper
 - Event Server
 - Logger
 - Memory
+- Machine Learning Modules
 
 Documentation & Examples
 =========================
@@ -21,6 +22,7 @@ Features
 - Configs
 - EventNotification callbacks
 - Mapped Memory access
+- Direct access to ML algorithms
 
 Limitations
 ============

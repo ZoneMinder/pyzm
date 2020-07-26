@@ -1,5 +1,5 @@
-pyzm - ZoneMinder API, logger and tools for python
-===================================================
+pyzm - ZoneMinder API, logger, machine learning and tools for python
+=====================================================================
 
 .. toctree::
    :maxdepth: 4

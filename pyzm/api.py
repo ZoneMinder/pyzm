@@ -130,13 +130,13 @@ class ZMApi (Base):
             url = self.api_url+'/host/login.json'
             if self.options.get('token'):
                 self.logger.Debug(1,'Using token for login [{}]'.format(self.options.get('token')))
-                data = {'token':self.options['token']}
+                data = {'token':self.options.get('token')}
                 self.auth_enabled = True
 
             elif self.options.get('user') and self.options.get('password'):
                 self.logger.Debug (1,'using username/password for login')
-                data={'user': self.options['user'],
-                    'pass': self.options['password']
+                data={'user': self.options.get('user'),
+                    'pass': self.options.get('password')
                 }
                 self.auth_enabled = True
 
@@ -150,8 +150,8 @@ class ZMApi (Base):
             if r.status_code == 401 and self.options.get('token') and self.auth_enabled:
                 self.logger.Debug (1, 'Token auth with refresh failed. Likely revoked, doing u/p login')
                 self.options['token'] = None
-                data={'user': self.options['user'],
-                    'pass': self.options['password']
+                data={'user': self.options.get('user'),
+                    'pass': self.options.get('password')
                 }
                 r = self.session.post(url, data=data)
                 r.raise_for_status()
@@ -174,7 +174,7 @@ class ZMApi (Base):
                     self.logger.Info('Using old credentials API. Recommended you upgrade to token API')
                     self.legacy_credentials = rj.get('credentials')
                     if (rj.get('append_password') == '1'):
-                        self.legacy_credentials = self.legacy_credentials + self.options['password']
+                        self.legacy_credentials = self.legacy_credentials + self.options.get('password')
             self.authenticated = True
             #print (vars(self.session))
 

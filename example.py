@@ -1,12 +1,18 @@
+import pyzm
 import pyzm.api as zmapi
 import getpass
 import traceback
 import pyzm.ZMMemory as zmmemory
 import time
 
+
+
+
+
 has_zmes = False
 has_zmlog = False
 
+print ('Using pyzm version: {}'.format(pyzm.__version__))
 try:
     import pyzm.ZMLog as zmlog #only if you want to log to ZM
     has_zmlog = True
@@ -38,14 +44,72 @@ zm_log_override = {
     'log_level_syslog' : 3,
     'log_level_db': -5,
     'log_debug': 1,
-    'log_level_file': -5,
+    #'log_level_file': -5,
     'log_debug_target': None
 }
 
 if has_zmlog:
     zmlog.init(name='apitest',override=zm_log_override)
+    print ("Log inited")
+   
+
+i = input ('Try machine learning tests? [y/N]').lower()
+if i == 'y':
+
+    import cv2
+    fname = input ('Enter full path to image file:')
+    if fname:
+        print (f'Reading {fname}')
+        img = cv2.imread(fname)
+    else:
+        print (f'Reading /tmp/image.jpg')
+        img = cv2.imread('/tmp/image.jpg')
+
+    i = input ('Try TPU tests? [y/N]').lower()
+    if i == 'y':
+        options = {
+            'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
+            'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
+            'object_min_confidence': 0.3
+        }
+        import pyzm.ml.coral_edgetpu as tpu
+        m = tpu.Tpu(options=options, logger=zmlog)
+        b,l,c = m.detect(img)
+        print (b,l,c)
+
+    i = input ('Try OpenCV tests? [y/N]').lower()
+    if i == 'y':
+        options = {
+            'object_weights':'/var/lib/zmeventnotification/models/yolov4/yolov4.weights',
+            'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
+            'object_config': '/var/lib/zmeventnotification/models/yolov4/yolov4.cfg',
+            'object_processor': 'cpu',
+            'object_min_confidence': 0.3
+        }
+        import pyzm.ml.yolo as yolo
+        m = yolo.Yolo(options=options)
+    
+        b,l,c = m.detect(img)
+        print (b,l,c)
+
+    i = input ('Try Face recognition tests? [y/N]').lower()
+    if i == 'y':
+        options = {
+            'known_images_path': '/var/lib/zmeventnotification/known_faces',
+            'face_recog_dist_threshold':0.6,
+            'unknown_face_name':'klingon',
+            'save_unknown_faces':'no',
+            'save_unknown_faces_leeway_pixels':100,
+            'unknown_images_path':'/var/lib/zmeventnotification/unknown_faces',
+            'face_detection_framework': 'dlib',
+            'face_recognition_framework': 'dlib',
 
 
+        }
+        import pyzm.ml.face as face
+        m = face.Face(options=options)
+        b,l,c = m.detect(img)
+        print (b,l,c)
 
 cam_name='DemoVirtualCam1'
 api_options = {

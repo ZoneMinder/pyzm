@@ -255,12 +255,12 @@ def close():
     syslog.closelog()
     if (log_fhandle): log_fhandle.close()
 
-def _format_string(msg, level='ERR'):
+def _format_string(message='', level='ERR'):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    log_string = '{level} [{pname}] [{msg}]'.format(level=level, pname=process_name, msg=msg)
+    log_string = '{level} [{pname}] [{message}]'.format(level=level, pname=process_name, message=message)
     return (log_string)
 
-def _log(level, message, caller, debug_level=1):
+def _log(level='DBG', message='', caller=None, debug_level=1):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
 
     if not inited:
@@ -316,7 +316,7 @@ def _log(level, message, caller, debug_level=1):
             log_fhandle.write(log_string)
             log_fhandle.flush()
 
-def Info(message,caller=None):
+def Info(message=None,caller=None):
     """Info level ZM message
     
     Args:
@@ -326,7 +326,7 @@ def Info(message,caller=None):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     _log('INF',message,caller)
 
-def Debug(level, message,caller=None):
+def Debug(level=1, message=None,caller=None):
     """Debug level ZM message
     
     Args:
@@ -347,7 +347,7 @@ def Debug(level, message,caller=None):
     if config['log_debug'] and level <= config['log_level_debug']:
         _log('DBG', message,caller, level)
 
-def Warning(message,caller=None):
+def Warning(message=None,caller=None):
     """Warning level ZM message
     
     Args:
@@ -357,7 +357,7 @@ def Warning(message,caller=None):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     _log('WAR',message,caller)
 
-def Error(message,caller=None):
+def Error(message=None,caller=None):
     """Error level ZM message
     
     Args:
@@ -367,7 +367,7 @@ def Error(message,caller=None):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     _log('ERR',message,caller)
     
-def Fatal(message,caller=None):
+def Fatal(message=None,caller=None):
     """Fatal level ZM message. Quits after logging
     
     Args:
@@ -379,7 +379,7 @@ def Fatal(message,caller=None):
     close()
     exit(-1)
 
-def Panic(message,caller=None):
+def Panic(message=None,caller=None):
     """Panic level ZM message. Quits after logging
     
     Args:
@@ -392,3 +392,7 @@ def Panic(message,caller=None):
     exit(-1)
 
 
+def Info(message=None,caller=None):
+def Debug(level=1, message=None,caller=None):
+def Error(message=None,caller=None):
+def Fatal(message=None,caller=None):

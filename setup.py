@@ -22,7 +22,6 @@ INSTALL_REQUIRES=[
     'dateparser>=0.7.1',
     'websocket-client>=0.56.0',
     'progressbar33'
-
     ]
 
 
@@ -66,6 +65,14 @@ setup(name = NAME,
                     'pyzm.ZMLog',
                     'pyzm.ZMEventNotification',
                     'pyzm.ZMMemory',
+
+                    'pyzm.ml.alpr',
+                    'pyzm.ml.face',
+                    'pyzm.ml.face_train',
+                    'pyzm.ml.object',
+                    'pyzm.ml.coral_edgetpu',
+                    'pyzm.ml.hog',
+                    'pyzm.ml.yolo'
                     ]
       )
 

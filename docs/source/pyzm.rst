@@ -69,4 +69,12 @@ Memory
     :undoc-members:
 
 
+Machine Learning
+------------------
+.. automodule:: pyzm.ml
+    :members:
+    :special-members: __init__
+    :undoc-members:
+
+
 

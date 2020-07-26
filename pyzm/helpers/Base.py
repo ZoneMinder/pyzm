@@ -10,6 +10,7 @@ to log messages including a simple console based print function if none is provi
 
 class Base:
     def __init__(self, logger):
+        #print ('core:logger is {}'.format(logger))
         if not logger:
             self.logger = SimpleLog()
             self.logger.Info ('Using simple log output (default)')
