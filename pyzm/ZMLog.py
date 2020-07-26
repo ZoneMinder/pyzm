@@ -392,7 +392,3 @@ def Panic(message=None,caller=None):
     exit(-1)
 
 
-def Info(message=None,caller=None):
-def Debug(level=1, message=None,caller=None):
-def Error(message=None,caller=None):
-def Fatal(message=None,caller=None):
