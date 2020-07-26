@@ -75,7 +75,7 @@ class Object(Base):
                 labels.append(l[idx])
                 confidences.append(c[idx])
             else:
-                self.logger.Debug (1,'Ignoring {} as conf. level {} is lower than {}'.format(l[idx],box,c[idx],self.options.get('object_min_confidence')))
+                self.logger.Debug (1,'Ignoring {} {} as conf. level {} is lower than {}'.format(l[idx],box,c[idx],self.options.get('object_min_confidence')))
        
         self.logger.Debug (2,'Returning filtered list of {} objects.'.format(len(boxes)))
         return boxes,labels,confidences
