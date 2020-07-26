@@ -140,7 +140,7 @@ class Face(Base):
             # create a set of non matches for each face found
             are_matches = [False] * len(face_locations)
             prediction_labels = [''] * len(face_locations)
-            self.logger.Debug ('No faces to match, so creating empty set')
+            self.logger.Debug (1,'No faces to match, so creating empty set')
 
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
