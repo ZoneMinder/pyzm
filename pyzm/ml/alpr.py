@@ -9,7 +9,7 @@ import subprocess
 from pyzm.helpers.Base import Base
 
 class AlprBase(Base):
-    def __init__(self, logger=None,options={}, alpr_options={}, url=None, apikey=None, tempdir='/tmp'):
+    def __init__(self, logger=None,options={}, url=None, apikey=None, tempdir='/tmp'):
         super().__init__(logger)
         if not apikey:
             self.logger.Debug (1,'No API key specified, hopefully you do not need one')
@@ -18,7 +18,7 @@ class AlprBase(Base):
         self.tempdir = tempdir
         self.url = url
         self.options = options
-        self.alpr_options = alpr_options
+        
 
     def setkey(self, key=None):
         self.apikey = key
@@ -68,23 +68,22 @@ class AlprBase(Base):
 
 
 class PlateRecognizer(AlprBase):
-    def __init__(self, url=None, apikey=None, options={}, alpr_options={}, tempdir='/tmp'):
+    def __init__(self, url=None, apikey=None, options={}, tempdir='/tmp'):
         """Wrapper class for platerecognizer.com
 
         Args:
             url (string, optional): URL for service. Defaults to None.
             apikey (string, optional): API key. Defaults to None.
             options (dict, optional): Config options. Defaults to {}.
-            alpr_options (dict, optional): Various ALPR options. Defaults to {}.
             tempdir (str, optional): Path to store image for analysis. Defaults to '/tmp'.
         """        
-        AlprBase.__init__(self, options=options,  alpr_options=alpr_options, url=url, apikey=apikey, tempdir=tempdir)
+        AlprBase.__init__(self, options=options, url=url, apikey=apikey, tempdir=tempdir)
         if not url:
             self.url = 'https://api.platerecognizer.com/v1'
 
         self.logger.Debug(
-            1,'PlateRecognizer ALPR initialized with options: {} and url: {}'.
-            format(alpr_options, self.url))
+            1,'PlateRecognizer ALPR initialized with url: {}'.
+            format(self.url))
         self.options = options
 
     def stats(self):
@@ -93,7 +92,7 @@ class PlateRecognizer(AlprBase):
         Returns:
             HTTP Response: HTTP response of statistics API
         """        
-        if self.alpr_options.get('alpr_api_type') != 'cloud':
+        if self.options.get('alpr_api_type') != 'cloud':
             self.logger.Debug (1,'local SDK does not provide stats')
             return {}
         try:
@@ -123,17 +122,16 @@ class PlateRecognizer(AlprBase):
         bbox = []
         labels = []
         confs = []
-        alpr_options = self.alpr_options
         self.prepare(object)
-        if alpr_options.get('stats') == 'yes':
+        if self.options.get('platerec_stats') == 'yes':
             self.logger.Debug(1,'Plate Recognizer API usage stats: {}'.format(
                 json.dumps(self.stats())))
         with open(self.filename, 'rb') as fp:
             try:
                 platerec_url = self.url
-                if self.alpr_options.get('alpr_api_type') == 'cloud':
+                if self.options.get('alpr_api_type') == 'cloud':
                     platerec_url += '/plate-reader'
-                payload = self.alpr_options.get('regions')
+                payload = self.options.get('platerec_regions')
                 response = requests.post(
                    platerec_url,
                     #self.url ,
@@ -164,8 +162,8 @@ class PlateRecognizer(AlprBase):
                 label = plates['plate']
                 dscore = plates['dscore']
                 score = plates['score']
-                if dscore >= alpr_options.get('min_dscore') and score >= alpr_options.get(
-                        'min_score'):
+                if dscore >= self.options.get('platerec_min_dscore') and score >= self.options.get(
+                        'platerec_min_score'):
                     x1 = round(int(plates['box']['xmin']) * xfactor)
                     y1 = round(int(plates['box']['ymin']) * yfactor)
                     x2 = round(int(plates['box']['xmax']) * xfactor)
@@ -176,32 +174,30 @@ class PlateRecognizer(AlprBase):
                 else:
                     self.logger.Debug(
                         1,'ALPR: discarding plate:{} because its dscore:{}/score:{} are not in range of configured dscore:{} score:{}'
-                        .format(label, dscore, score, alpr_options.get('min_dscore'),
-                                alpr_options.get('min_score')))
+                        .format(label, dscore, score, self.options.get('platerec_min_dscore'),
+                                self.options.get('platerec_min_score')))
 
         self.logger.Debug (2,'Exiting ALPR with labels:{}'.format(labels))
         return (bbox, labels, confs)
 
 
 class OpenAlpr(AlprBase):
-    def __init__(self, options={}, alpr_options={}, url=None, apikey=None, tempdir='/tmp'):
+    def __init__(self, options={}, url=None, apikey=None, tempdir='/tmp'):
         """Wrapper class for Open ALPR service
 
         Args:
             options (dict, optional): Various ALPR options. Defaults to {}.
-            alpr_options (dict, optional): Various ALPR options. Defaults to {}.
             url (string, optional): URL for service. Defaults to None.
             apikey (string, optional): API Key for service. Defaults to None.
             tempdir (str, optional): Temporary path to analyze image. Defaults to '/tmp'.
         """
-        AlprBase.__init__(self, url=url,options=options, alpr_options=alpr_options, apikey=apikey, tempdir=tempdir)
+        AlprBase.__init__(self, url=url,options=options, apikey=apikey, tempdir=tempdir)
         if not url:
             self.url = 'https://api.openalpr.com/v2/recognize'
 
         self.logger.Debug(
-            1,'Open ALPR initialized with options {} and url: {}'.
-            format(alpr_options, self.url))
-        self.alpr_options = alpr_options
+            1,'Open ALPR initialized with url: {}'.
+            format(self.url))
         self.options = options
 
     def detect(self, object):
@@ -221,15 +217,15 @@ class OpenAlpr(AlprBase):
      
         with open(self.filename, 'rb') as fp:
             try:
-                alpr_options = self.alpr_options
+               
                 params = ''
-                if alpr_options.get('country'):
-                    params = params + '&country=' + alpr_options.get('country')
-                if alpr_options.get('state'):
-                    params = params + '&state=' + alpr_options.get('state')
-                if alpr_options.get('recognize_vehicle'):
+                if self.options.get('openalpr_country'):
+                    params = params + '&country=' + self.options.get('oenalpr_country')
+                if self.options.get('openalpr_state'):
+                    params = params + '&state=' + self.options.get('openalpr_state')
+                if self.options.get('openalpr_recognize_vehicle'):
                     params = params + '&recognize_vehicle=' + \
-                        str(alpr_options.get('recognize_vehicle'))
+                        str(self.options.get('openalpr_recognize_vehicle'))
 
                 rurl = '{}?secret_key={}{}'.format(self.url, self.apikey,
                                                    params)
@@ -260,10 +256,10 @@ class OpenAlpr(AlprBase):
             for plates in response.get('results'):
                 label = plates['plate']
                 conf = float(plates['confidence']) / 100
-                if conf < options.get('min_confidence'):
+                if conf < options.get('openalpr_min_confidence'):
                     self.logger.Debug(
                         1,'OpenALPR: discarding plate: {} because detected confidence {} is less than configured min confidence: {}'
-                        .format(label, conf, alpr_options.get('min_confidence')))
+                        .format(label, conf, self.options.get('openalpr_min_confidence')))
                     continue
 
                 if plates.get(
@@ -335,10 +331,10 @@ class OpenAlprCmdLine(AlprBase):
             for plates in response.get('results'):
                 label = plates['plate']
                 conf = float(plates['confidence']) / 100
-                if conf < self.options.get('min_confidence'):
+                if conf < self.options.get('openalpr_cmdline_min_confidence'):
                     self.logger.Debug(
                         1,'OpenALPR cmd line: discarding plate: {} because detected confidence {} is less than configured min confidence: {}'
-                        .format(label, conf, options.get('min_confidence')))
+                        .format(label, conf, self.options.get('openalpr_cmdline_min_confidence')))
                     continue
                 
                 x1 = round(int(plates['coordinates'][0]['x']) * xfactor)
