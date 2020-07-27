@@ -188,7 +188,7 @@ class PlateRecognizer(AlprBase):
         (xfactor, yfactor) = self.getscale()
 
         if self.remove_temp:
-            os.remove(filename)
+            os.remove(self.filename)
 
         if response.get('results'):
             for plates in response.get('results'):
@@ -359,7 +359,7 @@ class OpenAlprCmdLine(AlprBase):
         rescale = False
 
         if self.remove_temp:
-            os.remove(filename)
+            os.remove(self.filename)
 
         if response.get('results'):
             for plates in response.get('results'):
