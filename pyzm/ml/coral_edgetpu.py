@@ -6,9 +6,12 @@ import re
 import cv2
 from pyzm.helpers.Base import Base
 
-from edgetpu.detection.engine import DetectionEngine
-from PIL import Image
 
+from PIL import Image
+from ilock import ILock
+import os
+
+from edgetpu.detection.engine import DetectionEngine
 
 # Class to handle Yolo based detection
 
@@ -20,8 +23,13 @@ class Tpu(Base):
         self.classes = {}
         self.options = options
         start = datetime.datetime.now()
-        self.logger.Debug (1,'TPU loading {}'.format(self.options.get('object_weights')))
-        self.model = DetectionEngine(self.options.get('object_weights'))
+        self.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
+        self.logger.Debug (1,'Waiting for TPU lock...')
+        with ILock('coral_edge_tpu_pyzm'):
+            
+            self.logger.Debug (1,'Lock acquired, TPU loading {}'.format(self.options.get('object_weights')))
+            self.model = DetectionEngine(self.options.get('object_weights'))
+        
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
             1,'TPU initialization (loading model from disk) took: {} milliseconds'
@@ -54,9 +62,17 @@ class Tpu(Base):
        
         start = datetime.datetime.now()
        
-        outs = self.model.detect_with_image(img, threshold=self.options.get('object_min_confidence'),
-        keep_aspect_ratio=True, relative_coord=False)
+        self.logger.Debug (1,'Waiting for TPU lock before detecting...')
+        with ILock('coral_edge_tpu_pyzm'):
+            self.logger.Debug (1,'Got TPU lock for detection...')
+            outs = self.model.detect_with_image(img, threshold=self.options.get('object_min_confidence'),
+            keep_aspect_ratio=True, relative_coord=False)
 
+
+        #str='[a] detected:car:91% h786p0j:90% --SPLIT--[{"type": "object", "label": "car", "box": [10, 79, 415, 423], "confidence": "91.02%"}, {"type": "licenseplate", "label": "h786p0j", "box": [147, 380, 289, 412], "confidence": "90.40%"}]'
+        #print (str)
+        #exit(0)
+        
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
             1,'Coral TPU detection took: {} milliseconds'.format(diff_time))

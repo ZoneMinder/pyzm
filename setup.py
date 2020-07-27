@@ -21,7 +21,8 @@ INSTALL_REQUIRES=[
     'requests>=2.18.4', 
     'dateparser>=0.7.1',
     'websocket-client>=0.56.0',
-    'progressbar33'
+    'progressbar33',
+    'ilock'
     ]
 
 
