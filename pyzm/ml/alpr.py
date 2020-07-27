@@ -79,11 +79,11 @@ class Alpr(AlprBase):
         self.alpr_obj = None
 
         if self.options.get('alpr_service') == 'plate_recognizer':   
-            self.alpr_obj = PlateRecognizer(options=self.options)
+            self.alpr_obj = PlateRecognizer(options=self.options, logger=logger)
         elif self.options.get('alpr_service') == 'open_alpr':   
-            self.alpr_obj = OpenAlpr(options=self.options)
+            self.alpr_obj = OpenAlpr(options=self.options, logger=logger)
         elif self.options.get('alpr_service') == 'open_alpr_cmline':   
-            self.alpr_obj = OpenAlprCmdLine(options=self.options)
+            self.alpr_obj = OpenAlprCmdLine(options=self.options, logger=logger)
                   
         else:
             raise ValueError('ALPR service "{}" not known'.format(self.options.get('alpr_service')))
@@ -98,14 +98,14 @@ class Alpr(AlprBase):
 
 class PlateRecognizer(AlprBase):
 
-    def __init__(self, options={}, tempdir='/tmp'):
+    def __init__(self, options={}, logger=None, tempdir='/tmp'):
         """Wrapper class for platerecognizer.com
 
         Args:
             options (dict, optional): Config options. Defaults to {}.
             tempdir (str, optional): Path to store image for analysis. Defaults to '/tmp'.
         """        
-        AlprBase.__init__(self, options=options,  tempdir=tempdir)
+        AlprBase.__init__(self, options=options,  tempdir=tempdir, logger=logger)
         
         url=self.options.get('alpr_url')
         apikey=self.options.get('alpr_key')
@@ -215,14 +215,14 @@ class PlateRecognizer(AlprBase):
 
 
 class OpenAlpr(AlprBase):
-    def __init__(self, options={}, tempdir='/tmp'):
+    def __init__(self, options={},logger=None, tempdir='/tmp'):
         """Wrapper class for Open ALPR service
 
         Args:
             options (dict, optional): Various ALPR options. Defaults to {}.
             tempdir (str, optional): Temporary path to analyze image. Defaults to '/tmp'.
         """
-        AlprBase.__init__(self, options=options, tempdir=tempdir)
+        AlprBase.__init__(self, options=options, logger=logger, tempdir=tempdir)
         if not url:
             self.url = 'https://api.openalpr.com/v2/recognize'
 
@@ -311,7 +311,7 @@ class OpenAlpr(AlprBase):
         return (bbox, labels, confs)
 
 class OpenAlprCmdLine(AlprBase):
-    def __init__(self, options={}, tempdir='/tmp'):
+    def __init__(self, options={}, logger=None, tempdir='/tmp'):
         """Wrapper class for OpenALPR command line utility
 
         Args:
@@ -319,7 +319,7 @@ class OpenAlprCmdLine(AlprBase):
             options (dict, optional): Various ALPR options. Defaults to {}.
             tempdir (str, optional): Temporary path to analyze image. Defaults to '/tmp'.
         """        
-        AlprBase.__init__(self, options=options, url='unused', apikey='unused', tempdir=tempdir)
+        AlprBase.__init__(self, options=options, logger=logger, tempdir=tempdir)
         
         cmd=self.options.get('openalpr_cmdline_binary')
 
