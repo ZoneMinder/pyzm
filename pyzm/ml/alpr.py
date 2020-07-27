@@ -36,7 +36,7 @@ class AlprBase(Base):
                 1,'Supplied object is not a file, assuming blob and creating file'
             )
             self.filename = self.tempdir + '/temp-plate-rec.jpg'
-            cv2.imwrite(filename, object)
+            cv2.imwrite(self.filename, object)
             self.remove_temp = True
         else:
             self.logger.Debug(1,f'supplied object is a file {object}')
