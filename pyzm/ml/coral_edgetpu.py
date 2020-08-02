@@ -8,7 +8,7 @@ from pyzm.helpers.Base import Base
 
 
 from PIL import Image
-from ilock import ILock
+import portalocker
 import os
 
 from edgetpu.detection.engine import DetectionEngine
@@ -22,14 +22,29 @@ class Tpu(Base):
         Base.__init__(self,logger)
         self.classes = {}
         self.options = options
-        start = datetime.datetime.now()
-        self.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
-        self.logger.Debug (1,'Waiting for TPU lock...')
-        with ILock('coral_edge_tpu_pyzm'):
-            
-            self.logger.Debug (1,'Lock acquired, TPU loading {}'.format(self.options.get('object_weights')))
-            self.model = DetectionEngine(self.options.get('object_weights'))
+       #self.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
         
+        self.processor='tpu'
+        self.lock_maximum=options.get(self.processor+'_max_processes' or 1)
+        self.lock_name='pyzm_'+self.processor+'_lock'
+        self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
+
+        self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+        self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
+        
+        try:
+            self.logger.Debug (1,'Waiting for TPU lock...')
+            self.lock.acquire()
+            self.logger.Debug (1,'Lock acquired, TPU loading {}'.format(self.options.get('object_weights')))
+            start = datetime.datetime.now()
+            self.model = DetectionEngine(self.options.get('object_weights'))
+            self.lock.release()
+            self.logger.Debug(1,'init TPU lock released')
+        except portalocker.AlreadyLocked:
+            self.logger.Error ('Timeout waiting for TPU lock for {} seconds'.format(self.lock_timeout))
+            raise ValueError ('Timeout waiting for TPU lock for {} seconds'.format(self.lock_timeout))
+            
+
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
             1,'TPU initialization (loading model from disk) took: {} milliseconds'
@@ -60,18 +75,19 @@ class Tpu(Base):
             .format(Width, Height))
    
        
-        start = datetime.datetime.now()
-       
-        self.logger.Debug (1,'Waiting for TPU lock before detecting...')
-        with ILock('coral_edge_tpu_pyzm'):
+        try:
+            self.logger.Debug (1,'Waiting for TPU lock...')
+            self.lock.acquire()
+            start = datetime.datetime.now()
             self.logger.Debug (1,'Got TPU lock for detection...')
             outs = self.model.detect_with_image(img, threshold=self.options.get('object_min_confidence'),
             keep_aspect_ratio=True, relative_coord=False)
-
-
-        #str='[a] detected:car:91% h786p0j:90% --SPLIT--[{"type": "object", "label": "car", "box": [10, 79, 415, 423], "confidence": "91.02%"}, {"type": "licenseplate", "label": "h786p0j", "box": [147, 380, 289, 412], "confidence": "90.40%"}]'
-        #print (str)
-        #exit(0)
+            self.lock.release()
+            self.logger.Debug(1,'Released TPU detection lock')
+        except portalocker.AlreadyLocked:
+            self.logger.Error ('Timeout waiting for TPU lock for {} seconds'.format(timeout))
+            raise ValueError ('Timeout waiting for TPU lock for {} seconds'.format(timeout))
+      
         
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(

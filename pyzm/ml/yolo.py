@@ -17,11 +17,66 @@ class Yolo(Base):
 
     def __init__(self, options={}, logger=None):
         super().__init__(logger)
-        self.initialize = True
         self.net = None
         self.classes = None
         self.options = options
-        self.logger.Debug (1,'Yolo inited')
+
+        config_file_abs_path = self.options.get('object_config')
+        weights_file_abs_path = self.options.get('object_weights')
+        
+        self.processor=self.options.get('object_processor') or 'cpu'
+        if self.processor == 'gpu':
+            (maj, minor, patch) = cv2.__version__.split('.')
+            min_ver = int(maj + minor)
+            if min_ver < 42:
+                self.logger.Error('Not setting CUDA backend for OpenCV DNN')
+                self.logger.Error(
+                    'You are using OpenCV version {} which does not support CUDA for DNNs. A minimum of 4.2 is required. See https://www.pyimagesearch.com/2020/02/03/how-to-use-opencvs-dnn-module-with-nvidia-gpus-cuda-and-cudnn/ on how to compile and install openCV 4.2'
+                    .format(cv2.__version__))
+                self.processor = 'cpu'
+        else:
+            self.logger.Debug (1, 'Using CPU for detection')
+
+        self.logger.Debug(1,'Initializing Yolo')
+        self.logger.Debug(2,'config:{}, weights:{}'.format(
+            config_file_abs_path, weights_file_abs_path))
+        self.populate_class_labels()
+
+       
+        self.lock_maximum=options.get(processor_name+'_max_processes' or 1)
+        self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
+        
+        self.lock_name='pyzm_'+self.processor+'_lock'
+        self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+        self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
+        
+        try:
+            self.logger.Debug (1,f'Waiting for {self.processor} lock...')
+            self.lock.acquire()
+            self.logger.Debug (1,f'Got {self.processor} lock for initialization...')
+            start = datetime.datetime.now()
+            self.net = cv2.dnn.readNet(weights_file_abs_path,
+                                    config_file_abs_path)
+            #self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
+            self.lock.release()
+            self.logger.Debug(1,'init lock released')
+            diff_time = (datetime.datetime.now() - start).microseconds / 1000
+            
+            if self.processor == 'gpu':
+                self.logger.Debug(
+                    1,'Setting CUDA backend for OpenCV. If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy')
+                self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+                self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+            
+            self.logger.Debug(
+                1,'YOLO initialization (loading model from disk) took: {} milliseconds'
+                .format(diff_time))
+                
+        except portalocker.AlreadyLocked:
+            self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
+            raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor,self.lock_timeout))
+    
+    
         
     def populate_class_labels(self):
         class_file_abs_path = self.options.get('object_labels')
@@ -49,58 +104,30 @@ class Yolo(Base):
             .format(Width, Height, modelW, modelH))
         scale = 0.00392  # 1/255, really. Normalize inputs.
 
-   
-        config_file_abs_path = self.options.get('object_config')
-        weights_file_abs_path = self.options.get('object_weights')
-
-        if self.initialize:
-            self.logger.Debug(1,'Initializing Yolo')
-            self.logger.Debug(2,'config:{}, weights:{}'.format(
-                config_file_abs_path, weights_file_abs_path))
+        try:
+            self.logger.Debug (1,f'Waiting for {self.processor} detection lock...')
+            self.lock.acquire()
+            self.logger.Debug (1,f'Got {self.processor} lock for detection')
             start = datetime.datetime.now()
-            self.populate_class_labels()
-            self.net = cv2.dnn.readNet(weights_file_abs_path,
-                                       config_file_abs_path)
-            #self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
-
-            if self.options.get('object_processor') == 'gpu':
-                (maj, minor, patch) = cv2.__version__.split('.')
-                min_ver = int(maj + minor)
-                if min_ver < 42:
-                    self.logger.Error('Not setting CUDA backend for OpenCV DNN')
-                    self.logger.Error(
-                        'You are using OpenCV version {} which does not support CUDA for DNNs. A minimum of 4.2 is required. See https://www.pyimagesearch.com/2020/02/03/how-to-use-opencvs-dnn-module-with-nvidia-gpus-cuda-and-cudnn/ on how to compile and install openCV 4.2'
-                        .format(cv2.__version__))
-                else:
-                    self.logger.Debug(
-                        1,'Setting CUDA backend for OpenCV. If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy'
-                    )
-                    self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-                    self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
-            else:
-                self.logger.Debug(1,"Not using CUDA backend")
-
+            ln = self.net.getLayerNames()
+            ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
+            blob = cv2.dnn.blobFromImage(image,
+                                        scale, (modelW, modelH), (0, 0, 0),
+                                        True,
+                                        crop=False)
+            
+            self.net.setInput(blob)
+            outs = self.net.forward(ln)
+            self.lock.release()
+            self.logger.Debug(1,'detect lock released')
             diff_time = (datetime.datetime.now() - start).microseconds / 1000
             self.logger.Debug(
-                1,'YOLO initialization (loading model from disk) took: {} milliseconds'
-                .format(diff_time))
-            self.initialize = False
+                1,'YOLO detection took: {} milliseconds'.format(diff_time))
 
-        start = datetime.datetime.now()
-        ln = self.net.getLayerNames()
-        ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
-        blob = cv2.dnn.blobFromImage(image,
-                                     scale, (modelW, modelH), (0, 0, 0),
-                                     True,
-                                     crop=False)
-        
-        self.net.setInput(blob)
-        outs = self.net.forward(ln)
-
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
-        self.logger.Debug(
-            1,'YOLO detection took: {} milliseconds'.format(diff_time))
-
+        except portalocker.AlreadyLocked:
+            self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
+            raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor,self.lock_timeout))
+      
         class_ids = []
         confidences = []
         boxes = []
