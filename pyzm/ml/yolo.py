@@ -6,7 +6,7 @@ import time
 import datetime
 import re
 from pyzm.helpers.Base import Base
-
+import portalocker
 # Class to handle Yolo based detection
 
 

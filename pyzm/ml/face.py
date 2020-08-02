@@ -14,7 +14,7 @@ import time
 import datetime
 from pyzm.helpers.Base import Base
 # Class to handle face recognition
-
+import portalocker
 
 class Face(Base):
     def __init__(self, logger=None, options={},upsample_times=1, num_jitters=0, model='hog'):
