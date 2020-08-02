@@ -25,7 +25,7 @@ class Tpu(Base):
        #self.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
         
         self.processor='tpu'
-        self.lock_maximum=options.get(self.processor+'_max_processes' or 1)
+        self.lock_maximum=options.get(self.processor+'_max_processes') or 1
         self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
 
