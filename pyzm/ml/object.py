@@ -46,7 +46,7 @@ class Object(Base):
         # Apply various object filtering rules
         max_object_area = 0
         if self.options.get('max_detection_size'):
-                self.logger.Debug(3,'Max object size found to be:'.format(self.options.get('max_detection_size')))
+                self.logger.Debug(3,'Max object size found to be: {}'.format(self.options.get('max_detection_size')))
                 # Let's make sure its the right size
                 m = re.match('(\d*\.?\d*)(px|%)?$', self.options.get('max_detection_size'),
                             re.IGNORECASE)
