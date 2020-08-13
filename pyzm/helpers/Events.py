@@ -50,7 +50,7 @@ class Events(Base):
         if options.get('from'):
             url_filter +=  '/StartTime >=:'+dateparser.parse(options.get('from'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('to'):
-            url_filter+=  '/EndTime <=:'+dateparser.parse(options.get('from'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+            url_filter+=  '/EndTime <=:'+dateparser.parse(options.get('to'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('mid'):
             url_filter+= '/MonitorId =:'+str(options.get('mid'))
         if options.get('min_alarmed_frames'):
