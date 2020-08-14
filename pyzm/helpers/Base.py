@@ -8,6 +8,8 @@ to log messages including a simple console based print function if none is provi
 
 """
 
+from datetime import datetime
+
 class Base:
     def __init__(self, logger):
         #print ('core:logger is {}'.format(logger))
@@ -24,21 +26,28 @@ class SimpleLog:
         pass
 
     def Debug (self,level, message, caller=None):
-        print ('[DEBUG {}] {}'.format(level, message))
+        dt = datetime.now().strftime("%b %d %Y %H:%M:%S")
+
+        print ('{} [DEBUG {}] {}'.format(dt, level, message))
 
     def Info (self,message, caller=None):
-        print ('[INFO] {}'.format( message))
+        dt = datetime.now().strftime("%b %d %Y %H:%M:%S")
+        print ('{} [INFO] {}'.format( dt, message))
 
     def Warning (self,message, caller=None):
-        print ('[WARNING] {}'.format( message))
+        dt = datetime.now().strftime("%b %d %Y %H:%M:%S")
+        print ('{}  [WARNING] {}'.format( dt, message))
 
     def Error (self,message, caller=None):
-        print ('[ERROR] {}'.format(message))
+        dt = datetime.now().strftime("%b %d %Y %H:%M:%S")
+        print ('{} [ERROR] {}'.format(dt, message))
 
     def Fatal (self,message, caller=None):
-        print ('[FATAL] {}'.format(message))
+        dt = datetime.now().strftime("%b %d %Y %H:%M:%S")
+        print ('{} [FATAL] {}'.format(dt, message))
         exit(-1)
 
     def Panic (self,message, caller=None):
-        print ('[PANIC] {}'.format(message))
+        dt = datetime.now().strftime("%b %d %Y %H:%M:%S")
+        print ('{} [PANIC] {}'.format(dt, message))
         exit(-2)
