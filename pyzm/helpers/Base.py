@@ -26,7 +26,7 @@ class SimpleLog:
         pass
 
     def Debug (self,level, message, caller=None):
-        dt = datetime.now().strftime("%b %d %Y %H:%M:%S")
+        dt = datetime.now().strftime("%b %d %Y %H:%M:%S.%f")
 
         print ('{} [DEBUG {}] {}'.format(dt, level, message))
 

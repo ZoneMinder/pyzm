@@ -178,11 +178,14 @@ class ZMApi (Base):
                 if (self._versiontuple(self.api_version) >= self._versiontuple('2.0')):
                     self.logger.Debug(1,'Using new token API')
                     self.access_token = rj.get('access_token','')
-                    self.refresh_token = rj.get('refresh_token','')
-                    self.access_token_expires = int(rj.get('access_token_expires'))
-                    self.refresh_token_expires = int(rj.get('refresh_token_expires'))
-                    self.refresh_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.refresh_token_expires)
-                    self.logger.Debug (1, 'Refresh token expires on:{} [{}s]'.format(self.refresh_token_datetime, self.refresh_token_expires))
+                    if rj.get('refresh_token'):
+                        self.refresh_token = rj.get('refresh_token')
+                    if (rj.get('access_token_expires')):
+                     self.access_token_expires = int(rj.get('access_token_expires'))
+                    if (rj.get('refresh_token_expires')):
+                        self.refresh_token_expires = int(rj.get('refresh_token_expires'))
+                        self.refresh_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.refresh_token_expires)
+                        self.logger.Debug (1, 'Refresh token expires on:{} [{}s]'.format(self.refresh_token_datetime, self.refresh_token_expires))
                 else:
                     self.logger.Info('Using old credentials API. Recommended you upgrade to token API')
                     self.legacy_credentials = rj.get('credentials')
@@ -256,7 +259,7 @@ class ZMApi (Base):
             if err.response.status_code == 401 and reauth:
                 self.logger.Debug (1, 'Retrying login once')
                 self._relogin()
-                self.logger.Debug (1,'Retrying failed request')
+                self.logger.Debug (1,'Retrying failed request again...')
                 return self._make_request(url, query, payload, type, reauth=False)
             else:
                 raise err

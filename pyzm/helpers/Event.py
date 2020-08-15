@@ -201,7 +201,7 @@ class Event(Base):
             if err.response.status_code == 401 and reauth:
                 self.logger.Debug (1, 'Retrying login once')
                 self._relogin()
-                self.logger.Debug (1,'Retrying failed request')
+                self.logger.Debug (1,'Retrying failed request again...')
                 return self._download_file(url, file_name, dest_dir, show_progress, reauth=False)
             else:
                 raise err
