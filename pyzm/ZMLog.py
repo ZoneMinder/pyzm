@@ -68,6 +68,7 @@ def init(name=None, override={}):
         override (dict, optional): Various parameters that can supercede standard ZM logs. Defaults to {}. The parameters that can be overriden are::
 
             {
+                'dump_console': False,
                 'conf_path': '/etc/zm',
                 'user' : None,
                 'password' : None,
@@ -110,7 +111,8 @@ def init(name=None, override={}):
         'log_debug_target' : '',
         'log_debug_file' :'',
         'server_id': 0,
-        'driver': 'mysql+mysqlconnector'
+        'driver': 'mysql+mysqlconnector',
+        'dump_console': False
     }
 
     # Round 1 of overrides, before we read params from DB
@@ -315,6 +317,9 @@ def _log(level='DBG', message='', caller=None, debug_level=1):
         if log_fhandle: 
             log_fhandle.write(log_string)
             log_fhandle.flush()
+
+    if config['dump_console']:
+        print (log_string)
 
 def Info(message=None,caller=None):
     """Info level ZM message
