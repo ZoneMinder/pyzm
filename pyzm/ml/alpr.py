@@ -36,11 +36,12 @@ class AlprBase(Base):
                 1,'Supplied object is not a file, assuming blob and creating file'
             )
             if self.options.get('resize') and self.options.get('resize') != 'no':
-                self.logger.Debug(2, 'resizing image blob')
+                self.logger.Debug(2, 'resizing image blob to {}'.format(self.options.get('resize')) )
                 obj_new = imutils.resize(object, width=min(int(self.options.get('resize')),
                                                object.shape[1]))
                 object = obj_new
-            self.filename = self.tempdir + '/temp-plate-rec.jpg'
+            # use png so there is no loss
+            self.filename = self.tempdir + '/temp-plate-rec.png'
             cv2.imwrite(self.filename, object)
             self.remove_temp = True
         else:
