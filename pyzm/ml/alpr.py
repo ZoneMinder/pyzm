@@ -35,10 +35,18 @@ class AlprBase(Base):
             self.logger.Debug(
                 1,'Supplied object is not a file, assuming blob and creating file'
             )
+            if self.options.get('resize') and self.options.get('resize') != 'no':
+                self.logger.Debug(2, 'resizing image blob')
+                obj_new = imutils.resize(object, width=min(int(self.options.get('resize')),
+                                               object.shape[1]))
+                object = obj_new
             self.filename = self.tempdir + '/temp-plate-rec.jpg'
             cv2.imwrite(self.filename, object)
             self.remove_temp = True
         else:
+            # If it is a file and zm_detect sent it, it would already be resized
+            # If it is a file and zm_detect did not send it, no need to adjust scales
+            # as there won't be a yolo/alpr size mismatch
             self.logger.Debug(1,f'supplied object is a file {object}')
             self.filename = object
            
@@ -185,7 +193,7 @@ class PlateRecognizer(AlprBase):
                 response = response.json()
                 self.logger.Debug(2,'ALPR JSON: {}'.format(response))
 
-        (xfactor, yfactor) = self.getscale()
+        #(xfactor, yfactor) = self.getscale()
 
         if self.remove_temp:
             os.remove(self.filename)
@@ -197,10 +205,10 @@ class PlateRecognizer(AlprBase):
                 score = plates['score']
                 if dscore >= self.options.get('platerec_min_dscore') and score >= self.options.get(
                         'platerec_min_score'):
-                    x1 = round(int(plates['box']['xmin']) * xfactor)
-                    y1 = round(int(plates['box']['ymin']) * yfactor)
-                    x2 = round(int(plates['box']['xmax']) * xfactor)
-                    y2 = round(int(plates['box']['ymax']) * yfactor)
+                    x1 = round(int(plates['box']['xmin']))
+                    y1 = round(int(plates['box']['ymin']))
+                    x2 = round(int(plates['box']['xmax']))
+                    y2 = round(int(plates['box']['ymax']))
                     labels.append(label)
                     bbox.append([x1, y1, x2, y2])
                     confs.append(plates['score'])
@@ -276,7 +284,7 @@ class OpenAlpr(AlprBase):
                 response = response.json()
                 self.logger.Debug(1,'OpenALPR JSON: {}'.format(response))
 
-        (xfactor, yfactor) = self.getscale()
+        #(xfactor, yfactor) = self.getscale()
 
         rescale = False
 
@@ -300,10 +308,10 @@ class OpenAlpr(AlprBase):
                         if veh[attribute]:
                             label = label + ',' + veh[attribute][0]['name']
 
-                x1 = round(int(plates['coordinates'][0]['x']) * xfactor)
-                y1 = round(int(plates['coordinates'][0]['y']) * yfactor)
-                x2 = round(int(plates['coordinates'][2]['x']) * xfactor)
-                y2 = round(int(plates['coordinates'][2]['y']) * yfactor)
+                x1 = round(int(plates['coordinates'][0]['x']))
+                y1 = round(int(plates['coordinates'][0]['y']))
+                x2 = round(int(plates['coordinates'][2]['x']))
+                y2 = round(int(plates['coordinates'][2]['y']))
                 labels.append(label)
                 bbox.append([x1, y1, x2, y2])
                 confs.append(conf)
@@ -354,7 +362,7 @@ class OpenAlprCmdLine(AlprBase):
             self.logger.Error ('Error parsing JSON from command line: {}'.format(e))
             response = {}
 
-        (xfactor, yfactor) = self.getscale()
+        #(xfactor, yfactor) = self.getscale()
 
         rescale = False
 
@@ -371,10 +379,10 @@ class OpenAlprCmdLine(AlprBase):
                         .format(label, conf, self.options.get('openalpr_cmdline_min_confidence')))
                     continue
                 
-                x1 = round(int(plates['coordinates'][0]['x']) * xfactor)
-                y1 = round(int(plates['coordinates'][0]['y']) * yfactor)
-                x2 = round(int(plates['coordinates'][2]['x']) * xfactor)
-                y2 = round(int(plates['coordinates'][2]['y']) * yfactor)
+                x1 = round(int(plates['coordinates'][0]['x']))
+                y1 = round(int(plates['coordinates'][0]['y']))
+                x2 = round(int(plates['coordinates'][2]['x']))
+                y2 = round(int(plates['coordinates'][2]['y']))
                 labels.append(label)
                 bbox.append([x1, y1, x2, y2])
                 confs.append(conf)
