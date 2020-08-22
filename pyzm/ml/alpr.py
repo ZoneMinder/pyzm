@@ -6,6 +6,7 @@ import imutils
 import json
 import base64
 import subprocess
+import uuid
 from pyzm.helpers.Base import Base
 
 class AlprBase(Base):
@@ -41,7 +42,7 @@ class AlprBase(Base):
                                                object.shape[1]))
                 object = obj_new
             # use png so there is no loss
-            self.filename = self.tempdir + '/temp-plate-rec.png'
+            self.filename = self.tempdir + '/'+str(uuid.uuid4())+'-alpr.png'
             cv2.imwrite(self.filename, object)
             self.remove_temp = True
         else:
