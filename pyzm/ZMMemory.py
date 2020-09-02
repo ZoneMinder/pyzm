@@ -52,26 +52,26 @@ shared_data => { type=>'SharedData', seq=>$mem_seq++, contents=> {
 
 class ZMMemory(Base):
 
-    alarm_state = {
-      'STATE_IDLE':0,
-      'STATE_PREALARM':1,
-      'STATE_ALARM':2,
-      'STATE_ALERT':3,
-      'STATE_TAPE':4,
-      'ACTION_GET':5,
-      'ACTION_SET':6,
-      'ACTION_RELOAD':7,
-      'ACTION_SUSPEND':8,
-      'ACTION_RESUME':9,
-      'TRIGGER_CANCEL':10,
-      'TRIGGER_ON':11,
-      'TRIGGER_OFF':12
-    }
 
     def __init__(self,api=None, path='/dev/shm', mid=None, logger=None):
         super().__init__(logger)
         self.api = api
 
+        self.alarm_state_stages = {
+        'STATE_IDLE':0,
+        'STATE_PREALARM':1,
+        'STATE_ALARM':2,
+        'STATE_ALERT':3,
+        'STATE_TAPE':4,
+        'ACTION_GET':5,
+        'ACTION_SET':6,
+        'ACTION_RELOAD':7,
+        'ACTION_SUSPEND':8,
+        'ACTION_RESUME':9,
+        'TRIGGER_CANCEL':10,
+        'TRIGGER_ON':11,
+        'TRIGGER_OFF':12
+        }
         self.fhandle = None
         self.mhandle = None
 
@@ -117,9 +117,9 @@ class ZMMemory(Base):
         Returns:
             bool: True if monitor is currently alarmed
         """
-        global alarm_state
+        
         d = self._read()
-        return d['shared_data']['state'] == alarm_state['STATE_ALARM']    
+        return int(d['shared_data']['state']) == self.alarm_state_stages['STATE_ALARM']    
     
     def alarm_state(self):
         """Returns alarm state
@@ -133,13 +133,14 @@ class ZMMemory(Base):
                 }
             
         """
-        global alarm_state
+        
         d = self._read()
         return {
             'id': d['shared_data']['state'],
-            'state':alarm_state(d['shared_data']['state'])
+            'state': list(self.alarm_state_stages.keys())[list(self.alarm_state_stages.values()).index(int( d['shared_data']['state']))]
         }        
     
+        
     def last_event(self):
         """Returns last event ID
         
@@ -183,7 +184,7 @@ class ZMMemory(Base):
                     }
                 }
         """
-        global alarm_state
+        
         d=self._read()
         return {
             'trigger_text': d['trigger_data'].get('trigger_text'),
@@ -191,7 +192,7 @@ class ZMMemory(Base):
             'trigger_cause': d['trigger_data'].get('trigger_cause'),
             'trigger_state': {
                 'id':d['trigger_data'].get('trigger_state'),
-                'state': alarm_state(d['trigger_data']['trigger_state'])
+                'state': d['trigger_data']['trigger_state']
             }
 
         }
