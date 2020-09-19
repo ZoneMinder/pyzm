@@ -92,7 +92,7 @@ class Alpr(AlprBase):
             self.alpr_obj = PlateRecognizer(options=self.options, logger=logger)
         elif self.options.get('alpr_service') == 'open_alpr':   
             self.alpr_obj = OpenAlpr(options=self.options, logger=logger)
-        elif self.options.get('alpr_service') == 'open_alpr_cmline':   
+        elif self.options.get('alpr_service') == 'open_alpr_cmdline':   
             self.alpr_obj = OpenAlprCmdLine(options=self.options, logger=logger)
                   
         else:
