@@ -253,7 +253,13 @@ class ZMApi (Base):
             #print (url, params)
             #r = requests.get(url, params=params)
             r.raise_for_status()
-            return r.json()
+
+            # Empty response, e.g. to DELETE requests, can't be parsed to json
+            # even if the content-type says it is application/json
+            if r.headers.get('content-type').startswith("application/json") and r.text:
+                return r.json()
+            return r.text
+
         except requests.exceptions.HTTPError as err:
             self.logger.Debug(1, 'Got API access error: {}'.format(err))
             if err.response.status_code == 401 and reauth:

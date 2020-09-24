@@ -82,6 +82,15 @@ class Event(Base):
         f =  self._download_file(url, str(self.id())+'-video'+'.mp4', dir, show_progress)
         self.logger.Info('File downloaded to {}'.format(f))
 
+    def delete(self):
+        """Deletes this event
+
+        Returns:
+            json: API response
+        """
+        url = self.api.api_url+'/events/{}.json'.format(self.id())
+        return self.api._make_request(url=url, type='delete')
+
     def monitor_id(self):
         """returns monitor ID of event object.
 
