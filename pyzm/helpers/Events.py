@@ -47,18 +47,22 @@ class Events(Base):
         if options.get('tz'):
             tz = {'TIMEZONE': options.get('tz')}
             #print ('USING ',tz)
-        if options.get('from'):
-            url_filter +=  '/StartTime >=:'+dateparser.parse(options.get('from'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
-        if options.get('to'):
-            url_filter+=  '/EndTime <=:'+dateparser.parse(options.get('to'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+        if options.get('starts-after'):
+            url_filter += '/StartTime >=:'+dateparser.parse(options.get('starts-after'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+        if options.get('starts-before'):
+            url_filter += '/StartTime <=:'+dateparser.parse(options.get('starts-before'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+        if options.get('ends-before'):
+            url_filter += '/EndTime <=:'+dateparser.parse(options.get('ends-before'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+        if options.get('ends-after'):
+            url_filter += '/EndTime >=:'+dateparser.parse(options.get('ends-after'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('mid'):
-            url_filter+= '/MonitorId =:'+str(options.get('mid'))
+            url_filter += '/MonitorId =:'+str(options.get('mid'))
         if options.get('min_alarmed_frames'):
-            url_filter+='/AlarmFrames >=:'+str(options.get('min_alarmed_frames'))
+            url_filter += '/AlarmFrames >=:'+str(options.get('min_alarmed_frames'))
         if options.get('max_alarmed_frames'):
-            url_filter+='/AlarmFrames <=:'+str(options.get('max_alarmed_frames'))
+            url_filter += '/AlarmFrames <=:'+str(options.get('max_alarmed_frames'))
         if options.get('object_only'):
-            url_filter+='/Notes REGEXP:detected:'
+            url_filter += '/Notes REGEXP:detected:'
 
         # catch all
         if options.get('raw_filter'):
