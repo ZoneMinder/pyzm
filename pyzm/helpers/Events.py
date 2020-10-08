@@ -47,10 +47,14 @@ class Events(Base):
         if options.get('tz'):
             tz = {'TIMEZONE': options.get('tz')}
             #print ('USING ',tz)
+        if options.get('from'):
+            url_filter += '/StartTime >=:'+dateparser.parse(options.get('from'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('starts-after'):
             url_filter += '/StartTime >=:'+dateparser.parse(options.get('starts-after'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('starts-before'):
             url_filter += '/StartTime <=:'+dateparser.parse(options.get('starts-before'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+        if options.get('to'):
+            url_filter += '/EndTime <=:'+dateparser.parse(options.get('to'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('ends-before'):
             url_filter += '/EndTime <=:'+dateparser.parse(options.get('ends-before'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('ends-after'):

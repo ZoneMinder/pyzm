@@ -297,10 +297,12 @@ class ZMApi (Base):
         
                 {
                     'tz': string # long form timezone (example America/New_York),
+                    'from': string # same as 'starts-after' - DEPRECATED, to be removed in future release!
                     'starts-after': string # minimum start time (including human readable
                                    # strings like '1 hour ago')
                     'starts-before': string # maximum start time (use in combination with
                                    # starts-after, to set a start window)
+                    'to': string # same as 'ends-before' - DEPRECATED, to be removed in future release!
                     'ends-before': string # maximum end time
                     'ends-after': string # minimum end time (use in combination with
                                    # ends-before, to set an end window)
