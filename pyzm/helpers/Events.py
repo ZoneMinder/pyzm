@@ -57,12 +57,11 @@ class Events(Base):
                 pass
         if options.get('to'):
             to_list = options.get('to').split(" to ", 1)
-            url_filter += '/EndTime <=:'+dateparser.parse(to_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
-            try:
-                url_filter += '/StartTime >=:' + dateparser.parse(to_list[1], settings=tz).strftime(
-                    '%Y-%m-%d %H:%M:%S')
-            except IndexError:
-                pass
+            if len(to_list) == 2:
+                url_filter += '/EndTime <=:'+dateparser.parse(to_list[1], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+                url_filter += '/EndTime >=:' + dateparser.parse(to_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                url_filter += '/EndTime <=:' + dateparser.parse(to_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('mid'):
             url_filter += '/MonitorId =:'+str(options.get('mid'))
         if options.get('min_alarmed_frames'):
