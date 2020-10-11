@@ -48,13 +48,12 @@ class Events(Base):
             tz = {'TIMEZONE': options.get('tz')}
             #print ('USING ',tz)
         if options.get('from'):
-            from_list = options.get('from').split(" to ", 1)
-            url_filter += '/StartTime >=:'+dateparser.parse(from_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
-            try:
-                url_filter += '/StartTime <=:' + dateparser.parse(from_list[1], settings=tz).strftime(
-                    '%Y-%m-%d %H:%M:%S')
-            except IndexError:
-                pass
+            from_list = options.get('to').split(" to ", 1)
+            if len(from_list) == 2:
+                url_filter += '/StartTime >=:'+dateparser.parse(from_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+                url_filter += '/StartTime <=:' + dateparser.parse(from_list[1], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                url_filter += '/StartTime >=:' + dateparser.parse(from_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('to'):
             to_list = options.get('to').split(" to ", 1)
             if len(to_list) == 2:
