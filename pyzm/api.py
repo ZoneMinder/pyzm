@@ -297,9 +297,9 @@ class ZMApi (Base):
         
                 {
                     'tz': string # long form timezone (example America/New_York),
-                    'from': string # minimum start time (including human readable
-                                   # strings like '1 hour ago')
-                    'to': string # maximum end time 
+                    'from': string # string # minimum start time (including human readable
+                                   # strings like '1 hour ago' or '10 minutes ago to 5 minutes ago' to create a range)
+                    'to': string # string # maximum end time
                     'mid': int # monitor id
                     'min_alarmed_frames': int # minimum alarmed frames
                     'max_alarmed_frames': int # maximum alarmed frames

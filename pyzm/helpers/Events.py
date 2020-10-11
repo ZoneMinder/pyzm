@@ -48,17 +48,27 @@ class Events(Base):
             tz = {'TIMEZONE': options.get('tz')}
             #print ('USING ',tz)
         if options.get('from'):
-            url_filter +=  '/StartTime >=:'+dateparser.parse(options.get('from'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+            from_list = options.get('to').split(" to ", 1)
+            if len(from_list) == 2:
+                url_filter += '/StartTime >=:'+dateparser.parse(from_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+                url_filter += '/StartTime <=:' + dateparser.parse(from_list[1], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                url_filter += '/StartTime >=:' + dateparser.parse(from_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('to'):
-            url_filter+=  '/EndTime <=:'+dateparser.parse(options.get('to'), settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+            to_list = options.get('to').split(" to ", 1)
+            if len(to_list) == 2:
+                url_filter += '/EndTime <=:'+dateparser.parse(to_list[1], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+                url_filter += '/EndTime >=:' + dateparser.parse(to_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                url_filter += '/EndTime <=:' + dateparser.parse(to_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('mid'):
-            url_filter+= '/MonitorId =:'+str(options.get('mid'))
+            url_filter += '/MonitorId =:'+str(options.get('mid'))
         if options.get('min_alarmed_frames'):
-            url_filter+='/AlarmFrames >=:'+str(options.get('min_alarmed_frames'))
+            url_filter += '/AlarmFrames >=:'+str(options.get('min_alarmed_frames'))
         if options.get('max_alarmed_frames'):
-            url_filter+='/AlarmFrames <=:'+str(options.get('max_alarmed_frames'))
+            url_filter += '/AlarmFrames <=:'+str(options.get('max_alarmed_frames'))
         if options.get('object_only'):
-            url_filter+='/Notes REGEXP:detected:'
+            url_filter += '/Notes REGEXP:detected:'
 
         # catch all
         if options.get('raw_filter'):
