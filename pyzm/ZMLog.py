@@ -264,7 +264,7 @@ def _format_string(message='', level='ERR'):
 
 def _log(level='DBG', message='', caller=None, debug_level=1):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-
+    log_string=''
     if not inited:
         raise ValueError ('Logs not initialized')
     # first stack element will be the wrapper log function
