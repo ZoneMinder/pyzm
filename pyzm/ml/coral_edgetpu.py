@@ -51,6 +51,21 @@ class Tpu(Base):
             .format(diff_time))
         self.populate_class_labels()
 
+    def acquire_lock(self):
+        try:
+            self.logger.Debug (1,'Waiting for TPU lock...')
+            self.lock.acquire()
+            self.logger.Debug (1,'Got TPU Lock')
+
+        except portalocker.AlreadyLocked:
+            self.logger.Error ('Timeout waiting for TPU lock for {} seconds'.format(self.lock_timeout))
+            raise ValueError ('Timeout waiting for TPU lock for {} seconds'.format(self.lock_timeout))
+
+    def release_lock(self):
+            self.lock.release()
+            self.logger.Debug (1,'Released TPU lock')
+
+
     def populate_class_labels(self):
         class_file_abs_path = self.options.get('object_labels')
         for row in open(class_file_abs_path):
@@ -61,38 +76,41 @@ class Tpu(Base):
     def get_classes(self):
         return self.classes
 
-
-    def detect(self, image=None):
-
+        
+    def detect(self, image=None, only_detect=False):
         Height, Width = image.shape[:2]
-
         img = image.copy()
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(img)
 
-        self.logger.Debug(1,
-            '|---------- TPU (input image: {}w*{}h) ----------|'
-            .format(Width, Height))
-   
-       
-        try:
-            self.logger.Debug (1,'Waiting for TPU lock...')
-            self.lock.acquire()
-            start = datetime.datetime.now()
-            self.logger.Debug (1,'Got TPU lock for detection...')
-            outs = self.model.detect_with_image(img, threshold=self.options.get('object_min_confidence'),
-            keep_aspect_ratio=True, relative_coord=False)
-            self.lock.release()
-            self.logger.Debug(1,'Released TPU detection lock')
-        except portalocker.AlreadyLocked:
-            self.logger.Error ('Timeout waiting for TPU lock for {} seconds'.format(timeout))
-            raise ValueError ('Timeout waiting for TPU lock for {} seconds'.format(timeout))
-      
+        if not only_detect:
+            self.logger.Debug(1,
+                '|---------- TPU (input image: {}w*{}h) ----------|'
+                .format(Width, Height))
+    
         
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
-        self.logger.Debug(
-            1,'Coral TPU detection took: {} milliseconds'.format(diff_time))
-
+            try:
+                self.logger.Debug (1,'Waiting for TPU lock...')
+                self.lock.acquire()
+                start = datetime.datetime.now()
+                self.logger.Debug (1,'Got TPU lock for detection...')
+                #outs = self.model.DetectWithImage(img, threshold=self.options.get('object_min_confidence'),
+                outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
+                keep_aspect_ratio=True, relative_coord=False)
+                self.lock.release()
+                self.logger.Debug(1,'Released TPU detection lock')
+            except portalocker.AlreadyLocked:
+                self.logger.Error ('Timeout waiting for TPU lock for {} seconds'.format(timeout))
+                raise ValueError ('Timeout waiting for TPU lock for {} seconds'.format(timeout))
+        
+            
+            diff_time = (datetime.datetime.now() - start).microseconds / 1000
+            self.logger.Debug(
+                1,'Coral TPU detection took: {} milliseconds'.format(diff_time))
+        else:
+            outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
+                keep_aspect_ratio=True, relative_coord=False)
+                
         bbox = []
         labels = []
         conf = []

@@ -22,7 +22,8 @@ INSTALL_REQUIRES=[
     'dateparser>=0.7.1',
     'websocket-client>=0.56.0',
     'progressbar33',
-    'portalocker>=2.0.0'
+    'portalocker>=2.0.0',
+    'imutils'
     ]
 
 

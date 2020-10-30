@@ -296,6 +296,7 @@ class ZMApi (Base):
             options (dict, optional): Various filters that will be applied to events. Defaults to {}. Available fields::
         
                 {
+                    'event_id': string # specific event ID to fetch
                     'tz': string # long form timezone (example America/New_York),
                     'from': string # string # minimum start time (including human readable
                                    # strings like '1 hour ago' or '10 minutes ago to 5 minutes ago' to create a range)

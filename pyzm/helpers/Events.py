@@ -44,6 +44,8 @@ class Events(Base):
        
         tz = {}
 
+        if options.get('event_id'):
+            url_filter += '/Id=:' + str(options.get('event_id'))
         if options.get('tz'):
             tz = {'TIMEZONE': options.get('tz')}
             #print ('USING ',tz)
@@ -77,6 +79,7 @@ class Events(Base):
 
         #print ('URL filter: ',url_filter)
         # tbd - no need for url_prefix in options
+    
         url_prefix = options.get('url_prefix',self.api.api_url + '/events/index' )
        
         url = url_prefix + url_filter +'.json'
