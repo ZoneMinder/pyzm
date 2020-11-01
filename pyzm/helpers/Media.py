@@ -3,6 +3,7 @@ Media
 ======
 Generic media class that can read frames from either
 a media file or via ZM APIs/index.php
+
 """
 
 from pyzm.helpers.Base import Base

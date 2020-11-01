@@ -1,4 +1,6 @@
-Example Program
----------------
+Example Program(s)
+------------------
 
-.. literalinclude:: ../example.py
+.. literalinclude:: ../../examples/example.py
+
+.. literalinclude:: ../../examples/stream.py
