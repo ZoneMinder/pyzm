@@ -1,6 +1,11 @@
 Example Program(s)
 ------------------
 
-.. literalinclude:: ../../examples/example.py
 
-.. literalinclude:: ../../examples/stream.py
+Various examples
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/example.py
+
+Detecting a video stream
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/stream.py
