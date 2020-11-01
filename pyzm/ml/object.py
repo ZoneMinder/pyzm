@@ -6,11 +6,10 @@ import time
 import datetime
 import re
 from pyzm.helpers.Base import Base
-import imutils
+from pyzm.helpers.Media import MediaStream
 
-from imutils.video import FileVideoStream
-from imutils.video import FPS
 import time
+import requests
 
 # Class to handle Yolo based detection
 
@@ -50,7 +49,9 @@ class Object(Base):
 
         Args:
             stream (string): location of media (file, url or event ID)
+            api (object): instance of the API if the stream need to route via ZM
             options (dict, optional): Various options that control the detection process. Defaults to {}:
+            - 'download': boolean # if True, will download video before analysis
             - 'start_frame' int # Which frame to start analysis. Default 1.
             - 'frame_skip': int # Number of frames to skip in video (example, 3 means process every 3rd frame)
             - 'max_frames' : int # Total number of frames to process before stopping
@@ -60,24 +61,33 @@ class Object(Base):
                 'first' # stop at first match (Default)
                 'most' # match the frame that has the highest number of detected objects
                 'most_unique' # match the frame that has the highest number of unique detected objects
+    
+            Returns:
+                boxes (array): list of bounding boxes for matched frame
+                labels (array): list of labels for matched frame
+                confidences (array): list of confidences for matched frame
+                id (int): frame id of matched frame
+                img (cv2 image): image grab of matched frame
+                all_matches (array of objects): list of boxes,labels,confidences of all frames matched
+
+            Note:
+            The same frames are not retrieved depending on whether you set
+            ``download`` to ``True`` or ``False``. When set to ``True``, we use
+            OpenCV's frame reading logic and when ``False`` we use ZoneMinder's image.php function
+            which uses time based approximation. Therefore, the retrieve different frame offsets, but I assume
+            they should be reasonably close.
             
         """
 
-        self.model.acquire_lock()
-        fvs = FileVideoStream(stream).start()    
-        time.sleep(1.0)
-        fps = FPS().start()
+        
 
-        start_frame = int(options.get('start_frame',1))
-        frame_skip = int(options.get('frame_skip', 1))
-        max_frames = int(options.get('max_frames', 0))
+              
+        self.model.acquire_lock()
+        
         match_strategy = options.get('strategy', 'first')
         match_pattern = re.compile(options.get('pattern', '.*'))
 
-        
-        frames_read = 0
-        frames_processed = 0
-
+        all_matches = []
         matched_b = []
         matched_l = []
         matched_c = []
@@ -85,27 +95,15 @@ class Object(Base):
         matched_frame_img = None
 
         start = datetime.datetime.now()
-        while fvs.more():
-            frame = fvs.read()
+        media = MediaStream(stream,'video', options )
+        while media.more():
+            frame = media.read()
             if frame is None:
-                self.logger.Debug(1,'Ran out of frames to read at {}'.format(frames_read))
+                self.logger.Debug(1,'Ran out of frames to read')
                 break
-            frames_read +=1
-            fps.update()
-            if frames_read < start_frame:
-                continue
-            if frames_read % frame_skip:
-               continue
-            if max_frames and frames_processed >= max_frames:
-                self.logger.Debug(1, 'Bailing as {} frames processed'.format(frames_processed))
-                break
-            
-            # The API expects non-raw images, so lets convert to jpg
-            # ret, jpeg = cv2.imencode('.jpg', frame)
-            frame = imutils.resize(frame,width=800)
-          
+                    
             b,l,c  =self.model.detect(image=frame, only_detect=True)
-            frames_processed +=1
+            #print ('LABELS {} BOXES {}'.format(l,b))
             f_b = []
             f_l = []
             f_c = []
@@ -118,6 +116,7 @@ class Object(Base):
                 f_l.append(label)
                 f_c.append(c[idx])
 
+
             l = f_l
             b = f_b
             c = f_c
@@ -125,35 +124,33 @@ class Object(Base):
             if not len(l):
                 continue
             #print ('Frame:{}, labels:{}'.format(frames_processed, l))
-            if match_strategy == 'first':
+            all_matches.append (
+                {
+                    'frame_id': media.get_last_read_frame(),
+                    'boxes': b,
+                    'labels': l,
+                    'confidences': c
+                }
+            )
+            if  ((match_strategy == 'first') 
+                or ((match_strategy == 'most') and (len(l) > len(matched_l))) 
+                or ((match_strategy == 'most_unique') and (len(set(l)) > len(set(matched_l))))):
                 matched_b = b
                 matched_c = c
                 matched_l = l
-                matched_frame_id = frames_read
+                matched_frame_id = media.get_last_read_frame()
                 matched_frame_img = frame
+            
+            if (match_strategy=='first'):
                 break
-            elif match_strategy == 'most':
-                if (len(l) > len(matched_l)):
-                    matched_b = b
-                    matched_c = c
-                    matched_l = l
-                    matched_frame_id = frames_read
-                    matched_frame_img = frame
-            elif match_strategy == 'most_unique':
-                 if (len(set(l)) > len(set(matched_l))):
-                    matched_b = b
-                    matched_c = c
-                    matched_l = l
-                    matched_frame_id = frames_read
-                    matched_frame_img = frame
-
+            
         # release resources
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
             1,'Coral TPU detection took: {} milliseconds to process {}'.format(diff_time, stream))
-        fvs.stop()
+        media.stop()
         self.model.release_lock()
-        return matched_b, matched_l, matched_c, matched_frame_id, matched_frame_img
+        return matched_b, matched_l, matched_c, matched_frame_id, matched_frame_img, all_matches
 
 
         

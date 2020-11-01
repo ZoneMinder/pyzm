@@ -61,11 +61,16 @@ class Event(Base):
             fid (str, optional): Frame ID. Defaults to 'snapshot'.
             dir (str, optional): Path to save the image to. Defaults to '.'.
             show_progress (bool, optional): If enabled shows a progress bar (if possible). Defaults to False.
+        
+        Returns:
+            string: path+filename of downloaded image
+        
         """           
            
         url = self.get_image_url(fid)
         f =  self._download_file(url, str(self.id())+'-'+fid+'.jpg', dir, show_progress)
         self.logger.Info('File downloaded to {}'.format(f))
+        return f
 
     def download_video(self, dir='.', show_progress=False):
         """Downloads a video mp4 of the current event object
@@ -74,6 +79,10 @@ class Event(Base):
         Args:
             dir (str, optional): Path to save the image to. Defaults to '.'.
             show_progress (bool, optional): If enabled shows a progress bar (if possible). Defaults to False.
+        
+        Returns:
+            string: path+filename of downloaded video
+        
         """           
            
         url = self.get_video_url()
@@ -81,6 +90,7 @@ class Event(Base):
             return None
         f =  self._download_file(url, str(self.id())+'-video'+'.mp4', dir, show_progress)
         self.logger.Info('File downloaded to {}'.format(f))
+        return f
 
     def delete(self):
         """Deletes this event

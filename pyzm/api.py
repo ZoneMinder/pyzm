@@ -208,6 +208,12 @@ class ZMApi (Base):
         except requests.exceptions.HTTPError as err:
             self.logger.Error ('Timezone API not found, relative timezones will be local time')
 
+    def get_apibase(self):
+        return self.api_url
+
+    def get_portalbase(self):
+        return self.portal_url
+
     def get_auth(self):
         if not self.auth_enabled:
             return ''

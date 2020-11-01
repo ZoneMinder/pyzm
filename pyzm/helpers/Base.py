@@ -19,11 +19,16 @@ class Base:
             
         else:
             self.logger = logger
+    
+    def get_logger(self):
+        return self.logger
 
 class SimpleLog:
     ' console based logging function that is used if no logging handler is passed'
     def __init__(self):
         self.dtformat = "%b %d %Y %H:%M:%S.%f"
+
+    
 
     def Debug (self,level, message, caller=None):
         dt = datetime.now().strftime(self.dtformat)
