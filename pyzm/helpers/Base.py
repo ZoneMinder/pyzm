@@ -14,7 +14,7 @@ class Base:
     def __init__(self, logger):
         #print ('core:logger is {}'.format(logger))
         if not logger:
-            self.logger = SimpleLog()
+            self.logger = ConsoleLog()
             self.logger.Info ('Using simple log output (default)')
             
         else:
@@ -23,17 +23,22 @@ class Base:
     def get_logger(self):
         return self.logger
 
-class SimpleLog:
+class ConsoleLog:
     ' console based logging function that is used if no logging handler is passed'
     def __init__(self):
         self.dtformat = "%b %d %Y %H:%M:%S.%f"
+        self.level = 5
 
-    
+    def set_level(self,level):
+        self.level = level
+
+    def get_level(self):
+        return self.level
 
     def Debug (self,level, message, caller=None):
-        dt = datetime.now().strftime(self.dtformat)
-
-        print ('{} [DBG {}] {}'.format(dt, level, message))
+        if level <= self.level:
+            dt = datetime.now().strftime(self.dtformat)
+            print ('{} [DBG {}] {}'.format(dt, level, message)) 
 
     def Info (self,message, caller=None):
         dt = datetime.now().strftime(self.dtformat)

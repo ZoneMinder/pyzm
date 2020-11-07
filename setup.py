@@ -65,6 +65,7 @@ setup(name = NAME,
                     'pyzm.helpers.State',
                     'pyzm.helpers.Configs',
                     'pyzm.helpers.Media',
+                    'pyzm.helpers.Utils',
 
                     'pyzm.ZMLog',
                     'pyzm.ZMEventNotification',

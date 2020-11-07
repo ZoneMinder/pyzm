@@ -57,6 +57,7 @@ class Object(Base):
             - 'max_frames' : int # Total number of frames to process before stopping
             - 'pattern': string # regexp for objects that will be matched. 'strategy' key below will be applied
                          to only objects that match this pattern
+            - 'frame_set': string with exact frames to use (comma separated)
             - 'strategy': string # various conditions to stop matching as below
                 'first' # stop at first match (Default)
                 'most' # match the frame that has the highest number of detected objects
