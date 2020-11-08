@@ -84,6 +84,7 @@ class Object(Base):
 
               
         self.model.acquire_lock()
+        self.options['auto_lock'] = False
         
         match_strategy = options.get('strategy', 'first')
         match_pattern = re.compile(options.get('pattern', '.*'))
@@ -103,7 +104,7 @@ class Object(Base):
                 self.logger.Debug(1,'Ran out of frames to read')
                 break
                     
-            b,l,c  =self.model.detect(image=frame, only_detect=True)
+            b,l,c  =self.model.detect(image=frame)
             #print ('LABELS {} BOXES {}'.format(l,b))
             f_b = []
             f_l = []
@@ -147,10 +148,11 @@ class Object(Base):
             
         # release resources
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
-        self.logger.Debug(
-            1,'Coral TPU detection took: {} milliseconds to process {}'.format(diff_time, stream))
-        media.stop()
         self.model.release_lock()
+
+        self.logger.Debug(
+            1,'Coral TPU detection (with image loads) took: {} milliseconds to process {}'.format(diff_time, stream))
+        media.stop()
         return matched_b, matched_l, matched_c, matched_frame_id, matched_frame_img, all_matches
 
 

@@ -35,13 +35,23 @@ api_options  = {
 '''
 
 zmapi = zmapi.ZMApi(options=api_options)
+
 ml_options = {
             'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
             'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
             'object_min_confidence': 0.3,
             'object_framework':'coral_edgetpu'
         }
-
+'''
+ml_options = {
+            'object_weights':'/var/lib/zmeventnotification/models/yolov4/yolov4.weights',
+            'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
+            'object_config': '/var/lib/zmeventnotification/models/yolov4/yolov4.cfg',
+            'object_min_confidence': 0.3,
+            'object_framework':'opencv',
+            'object_processor': 'gpu'
+        }
+'''
 
 
 stream_options = {

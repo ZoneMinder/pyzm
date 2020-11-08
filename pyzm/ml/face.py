@@ -2,6 +2,8 @@ import numpy as np
 
 import pyzm.ml.face_train as train
 import face_recognition
+import dlib
+
 import sys
 import os
 import cv2
@@ -20,6 +22,11 @@ class Face(Base):
     def __init__(self, logger=None, options={},upsample_times=1, num_jitters=0, model='hog'):
         super().__init__(logger)
 
+        if dlib.DLIB_USE_CUDA && dlib.cuda.get_num_devices() >=1 :
+            self.processor = 'gpu'
+        else:
+            self.processor = 'cpu'
+
         self.logger.Debug(
             1,'Initializing face recognition with model:{} upsample:{}, jitters:{}'
             .format(model, upsample_times, num_jitters))
@@ -29,6 +36,7 @@ class Face(Base):
         self.model = model
         self.knn = None
         self.options = options
+        self.is_locked = False
 
         if self.options.get('face_detection_framework') != 'dlib' and self.options.get('face_recognition_framework') != 'dlib':
             raise ValueError ('Error: As of now,only dlib is supported for face detection and recognition. Unkown {}/{}'.format(self.options.get('face_detection_framework'),self.options.get('face_recognition_framework')))
@@ -68,6 +76,32 @@ class Face(Base):
         except Exception as e:
             self.logger.Error ('Error loading KNN model: {}'.format(e))
 
+
+    def acquire_lock(self):
+        if self.is_locked:
+        self.logger.Debug (1, '{} Lock already acquired'.format(self.lock_name))
+        return
+        try:
+            self.logger.Debug (1,f'Waiting for {self.processor} lock...')
+            self.lock.acquire()
+            self.logger.Debug (1,f'Got {self.processor} lock for initialization...')
+           
+            self.lock.release()
+            self.logger.Debug(1,'init lock released')
+            diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        except portalocker.AlreadyLocked:
+            self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
+            raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
+
+
+    def release_lock(self):
+        if not self.is_locked:
+            self.logger.Debug (1, '{} Lock already released'.format(self.lock_name))
+            return
+        self.lock.release()
+        self.is_locked = False
+        self.logger.Debug (1,'Released lock')
+
     def get_classes(self):
         if self.knn:
             return self.knn.classes_
@@ -84,7 +118,7 @@ class Face(Base):
             rects.append([left, top, right, bottom])
         return rects
 
-    def detect(self, image):
+    def detect(self, image, only_detect=False):
 
         Height, Width = image.shape[:2]
         self.logger.Debug(
@@ -100,6 +134,9 @@ class Face(Base):
 
         # Find all the faces and face encodings in the target image
 
+        if self.options.get('auto_lock',True):
+            self.acquire_lock()
+
         start = datetime.datetime.now()
         face_locations = face_recognition.face_locations(
             rgb_image,
@@ -114,6 +151,10 @@ class Face(Base):
             rgb_image,
             known_face_locations=face_locations,
             num_jitters=self.num_jitters)
+        
+        if self.options.get('auto_lock',True):
+            self.release_lock()
+
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
             1,'Computing face recognition distances took {} milliseconds'.format(

@@ -20,11 +20,60 @@ class Yolo(Base):
         self.net = None
         self.classes = None
         self.options = options
+        self.is_locked = False
 
-        config_file_abs_path = self.options.get('object_config')
-        weights_file_abs_path = self.options.get('object_weights')
-        
+       
         self.processor=self.options.get('object_processor') or 'cpu'
+        self.lock_maximum=options.get(self.processor+'_max_processes') or 1
+        self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
+        
+        self.lock_name='pyzm_'+self.processor+'_lock'
+        self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+        self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
+        
+         
+    def acquire_lock(self):
+        if self.is_locked:
+            self.logger.Debug (1, '{} Lock already acquired'.format(self.lock_name))
+            return
+        try:
+            self.logger.Debug (1,f'Waiting for {self.processor} lock...')
+            self.lock.acquire()
+            self.logger.Debug (1,f'Got {self.processor} lock ..')
+           
+        except portalocker.AlreadyLocked:
+            self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
+            raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
+
+
+    def release_lock(self):
+        if not self.is_locked:
+            self.logger.Debug (1, '{} Lock already released'.format(self.lock_name))
+            return
+        self.lock.release()
+        self.is_locked = False
+        self.logger.Debug (1,'Released lock')
+
+
+        
+    def populate_class_labels(self):
+        class_file_abs_path = self.options.get('object_labels')
+        f = open(class_file_abs_path, 'r')
+        self.classes = [line.strip() for line in f.readlines()]
+
+    def get_classes(self):
+        return self.classes
+
+    def load_model(self):
+        self.logger.Debug (1, 'Loading Yolo model from disk')
+        start = datetime.datetime.now()
+        self.net = cv2.dnn.readNet(self.options.get('object_weights'),
+                                self.options.get('object_config'))
+        #self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
+        diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        self.logger.Debug(
+            1,'Yolo initialization (loading model from disk) took: {} milliseconds'
+            .format(diff_time))
         if self.processor == 'gpu':
             (maj, minor, patch) = cv2.__version__.split('.')
             min_ver = int(maj + minor)
@@ -37,54 +86,13 @@ class Yolo(Base):
         else:
             self.logger.Debug (1, 'Using CPU for detection')
 
-        self.logger.Debug(1,'Initializing Yolo')
-        self.logger.Debug(2,'config:{}, weights:{}'.format(
-            config_file_abs_path, weights_file_abs_path))
-        self.populate_class_labels()
-
-       
-        self.lock_maximum=options.get(self.processor+'_max_processes') or 1
-        self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
-        
-        self.lock_name='pyzm_'+self.processor+'_lock'
-        self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
-        self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
-        
-        try:
-            self.logger.Debug (1,f'Waiting for {self.processor} lock...')
-            self.lock.acquire()
-            self.logger.Debug (1,f'Got {self.processor} lock for initialization...')
-            start = datetime.datetime.now()
-            self.net = cv2.dnn.readNet(weights_file_abs_path,
-                                    config_file_abs_path)
-            #self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
-            self.lock.release()
-            self.logger.Debug(1,'init lock released')
-            diff_time = (datetime.datetime.now() - start).microseconds / 1000
-            
-            if self.processor == 'gpu':
-                self.logger.Debug(
-                    1,'Setting CUDA backend for OpenCV. If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy')
-                self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-                self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
-            
+        if self.processor == 'gpu':
             self.logger.Debug(
-                1,'YOLO initialization (loading model from disk) took: {} milliseconds'
-                .format(diff_time))
-                
-        except portalocker.AlreadyLocked:
-            self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
-            raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor,self.lock_timeout))
-    
-    
+                1,'Setting CUDA backend for OpenCV. If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy')
+            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
         
-    def populate_class_labels(self):
-        class_file_abs_path = self.options.get('object_labels')
-        f = open(class_file_abs_path, 'r')
-        self.classes = [line.strip() for line in f.readlines()]
-
-    def get_classes(self):
-        return self.classes
+        self.populate_class_labels()
 
     def get_output_layers(self):
         layer_names = self.net.getLayerNames()
@@ -99,35 +107,36 @@ class Yolo(Base):
         modelW = 416
         modelH = 416
 
+        if self.options.get('auto_lock',True):
+            self.acquire_lock()
+
+        if not self.net:
+            self.load_model()
+
         self.logger.Debug(
             1,'|---------- YOLO (input image: {}w*{}h, resized to: {}w*{}h) ----------|'
             .format(Width, Height, modelW, modelH))
         scale = 0.00392  # 1/255, really. Normalize inputs.
-
-        try:
-            self.logger.Debug (1,f'Waiting for {self.processor} detection lock...')
-            self.lock.acquire()
-            self.logger.Debug (1,f'Got {self.processor} lock for detection')
-            start = datetime.datetime.now()
-            ln = self.net.getLayerNames()
-            ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
-            blob = cv2.dnn.blobFromImage(image,
-                                        scale, (modelW, modelH), (0, 0, 0),
-                                        True,
-                                        crop=False)
             
-            self.net.setInput(blob)
-            outs = self.net.forward(ln)
-            self.lock.release()
-            self.logger.Debug(1,'detect lock released')
-            diff_time = (datetime.datetime.now() - start).microseconds / 1000
-            self.logger.Debug(
-                1,'YOLO detection took: {} milliseconds'.format(diff_time))
+        start = datetime.datetime.now()
+        ln = self.net.getLayerNames()
+        ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
+        blob = cv2.dnn.blobFromImage(image,
+                                    scale, (modelW, modelH), (0, 0, 0),
+                                    True,
+                                    crop=False)
+        
+        self.net.setInput(blob)
+        outs = self.net.forward(ln)
 
-        except portalocker.AlreadyLocked:
-            self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
-            raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor,self.lock_timeout))
-      
+        if self.options.get('auto_lock',True):
+            self.release_lock()
+            self.logger.Debug(1,'detect lock released')
+        diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        self.logger.Debug(
+            1,'YOLO detection took: {} milliseconds'.format(diff_time))
+
+    
         class_ids = []
         confidences = []
         boxes = []
