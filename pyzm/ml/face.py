@@ -22,7 +22,7 @@ class Face(Base):
     def __init__(self, logger=None, options={},upsample_times=1, num_jitters=0, model='hog'):
         super().__init__(logger)
 
-        if dlib.DLIB_USE_CUDA && dlib.cuda.get_num_devices() >=1 :
+        if dlib.DLIB_USE_CUDA and dlib.cuda.get_num_devices() >=1 :
             self.processor = 'gpu'
         else:
             self.processor = 'cpu'
@@ -37,6 +37,15 @@ class Face(Base):
         self.knn = None
         self.options = options
         self.is_locked = False
+
+        self.processor=self.options.get('object_processor') or 'cpu'
+        self.lock_maximum=options.get(self.processor+'_max_processes') or 1
+        self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
+        
+        self.lock_name='pyzm_'+self.processor+'_lock'
+        self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+        self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
+        
 
         if self.options.get('face_detection_framework') != 'dlib' and self.options.get('face_recognition_framework') != 'dlib':
             raise ValueError ('Error: As of now,only dlib is supported for face detection and recognition. Unkown {}/{}'.format(self.options.get('face_detection_framework'),self.options.get('face_recognition_framework')))
@@ -79,8 +88,8 @@ class Face(Base):
 
     def acquire_lock(self):
         if self.is_locked:
-        self.logger.Debug (1, '{} Lock already acquired'.format(self.lock_name))
-        return
+            self.logger.Debug (1, '{} Lock already acquired'.format(self.lock_name))
+            return
         try:
             self.logger.Debug (1,f'Waiting for {self.processor} lock...')
             self.lock.acquire()
@@ -88,7 +97,6 @@ class Face(Base):
            
             self.lock.release()
             self.logger.Debug(1,'init lock released')
-            diff_time = (datetime.datetime.now() - start).microseconds / 1000
         except portalocker.AlreadyLocked:
             self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
             raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
