@@ -52,15 +52,24 @@ class Events(Base):
         if options.get('from'):
             from_list = options.get('from').split(" to ", 1)
             if len(from_list) == 2:
-                url_filter += '/StartTime >=:'+dateparser.parse(from_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
-                url_filter += '/StartTime <=:' + dateparser.parse(from_list[1], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+                from_start = dateparser.parse(from_list[0], settings=tz)
+                from_end = dateparser.parse(from_list[1], settings=tz)
+                if from_start > from_end:
+                    from_start, from_end = from_end, from_start
+
+                url_filter += '/StartTime >=:'+from_start.strftime('%Y-%m-%d %H:%M:%S')
+                url_filter += '/StartTime <=:' + from_end.strftime('%Y-%m-%d %H:%M:%S')
             else:
                 url_filter += '/StartTime >=:' + dateparser.parse(from_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('to'):
             to_list = options.get('to').split(" to ", 1)
             if len(to_list) == 2:
-                url_filter += '/EndTime <=:'+dateparser.parse(to_list[1], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
-                url_filter += '/EndTime >=:' + dateparser.parse(to_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
+                to_start = dateparser.parse(to_list[0], settings=tz)
+                to_end = dateparser.parse(to_list[1], settings=tz)
+                if to_start > to_end:
+                    to_start, to_end = to_end, to_start
+                url_filter += '/EndTime <=:'+to_end.strftime('%Y-%m-%d %H:%M:%S')
+                url_filter += '/EndTime >=:' + to_start.strftime('%Y-%m-%d %H:%M:%S')
             else:
                 url_filter += '/EndTime <=:' + dateparser.parse(to_list[0], settings=tz).strftime('%Y-%m-%d %H:%M:%S')
         if options.get('mid'):
