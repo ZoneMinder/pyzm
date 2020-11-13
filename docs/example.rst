@@ -1,6 +1,9 @@
 Example Program(s)
 ------------------
 
+Simple event extraction example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/events.py
 
 Various examples
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
