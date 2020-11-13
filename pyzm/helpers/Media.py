@@ -28,6 +28,7 @@ class MediaStream(Base):
         self.api = self.options.get('api')
         self.frame_set = []
         self.next_frame_set_index = 0
+        
 
         if self.options.get('logger'):
             self.logger = options.get('logger')
@@ -62,7 +63,7 @@ class MediaStream(Base):
             else:
                 eid = self.stream
                 self.next_frameid_to_read = int(self.start_frame)
-                self.stream = '{}/index.php?view=image&width={}&eid={}'.format(self.api.get_portalbase(), 800, eid)
+                self.stream = '{}/index.php?view=image&width={}&eid={}'.format(self.api.get_portalbase(), self.options.get('resize', 800), eid)
                 if self.api.get_auth() != '':
                     self.stream += '&{}'.format(self.api.get_auth())
 
@@ -156,7 +157,7 @@ class MediaStream(Base):
                 self.logger.Debug(2, 'Processing frame:{}'.format(self.last_frameid_read))
                 self.frames_processed += 1
                 break
-            frame = imutils.resize(frame,width=800)
+            frame = imutils.resize(frame,width=self.options.get('resize', 800))
             return frame
         
         else: # image
@@ -169,7 +170,7 @@ class MediaStream(Base):
 
             response = requests.get(url)
             if self.frame_set:
-                self.last_frameid_read = self.frame_set[self.next_frameid_to_read]
+                self.last_frameid_read = self.frame_set[self.next_frame_set_index]
                 self.next_frame_set_index += 1
             else:
                 self.last_frameid_read = self.next_frameid_to_read

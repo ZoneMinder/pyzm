@@ -17,6 +17,9 @@ import datetime
 from pyzm.helpers.Base import Base
 # Class to handle face recognition
 import portalocker
+import re
+from pyzm.helpers.Media import MediaStream
+
 
 class Face(Base):
     def __init__(self, logger=None, options={},upsample_times=1, num_jitters=0, model='hog'):
@@ -33,12 +36,15 @@ class Face(Base):
 
         self.upsample_times = upsample_times
         self.num_jitters = num_jitters
-        self.model = model
+        if options.get('face_model'):
+            self.face_model = options.get('face_model')
+        else:
+            self.face_model = model
+       
         self.knn = None
         self.options = options
         self.is_locked = False
 
-        self.processor=self.options.get('object_processor') or 'cpu'
         self.lock_maximum=options.get(self.processor+'_max_processes') or 1
         self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
         
@@ -126,7 +132,9 @@ class Face(Base):
             rects.append([left, top, right, bottom])
         return rects
 
-    def detect(self, image, only_detect=False):
+    
+
+    def detect(self, image):
 
         Height, Width = image.shape[:2]
         self.logger.Debug(
@@ -141,14 +149,14 @@ class Face(Base):
         #rgb_image = image
 
         # Find all the faces and face encodings in the target image
-
+        print (self.options)
         if self.options.get('auto_lock',True):
             self.acquire_lock()
 
         start = datetime.datetime.now()
         face_locations = face_recognition.face_locations(
             rgb_image,
-            model=self.model,
+            model=self.face_model,
             number_of_times_to_upsample=self.upsample_times)
 
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
@@ -201,7 +209,7 @@ class Face(Base):
 
         for pred, loc, rec in zip(prediction_labels,
                                   face_locations, are_matches):
-            label = pred if rec else self.options.get('unknown_face_name')
+            label = pred if rec else self.options.get('unknown_face_name', 'unknown')
             if not rec and self.options.get('save_unknown_faces') == 'yes':
                 h, w, c = image.shape
                 x1 = max(loc[3] - self.options.get('save_unknown_faces_leeway_pixels'),
@@ -225,7 +233,7 @@ class Face(Base):
                             self.options.get('save_unknown_faces_leeway_pixels'), unf))
                 cv2.imwrite(unf, crop_img)
 
-            matched_face_rects.append((loc[3], loc[0], loc[1], loc[2]))
+            matched_face_rects.append([loc[3], loc[0], loc[1], loc[2]])
             matched_face_names.append(label)
             conf.append(1)
 
