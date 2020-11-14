@@ -47,15 +47,27 @@ api_options  = {
 zmapi = zmapi.ZMApi(options=api_options)
 
 ml_options = {
-    'sequence': 'object,face',
-
-    'object': {
+    'general': {
+        'model_sequence': 'object,face',
+        'same_model_sequence_strategy': 'most_unique'
+    },
+   
+    'object': [{
         'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
         'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
         'object_min_confidence': 0.3,
         'object_framework':'coral_edgetpu'
     },
-    'face': {
+    {
+        'object_config':'/var/lib/zmeventnotification/models/yolov4/yolov4.cfg',
+        'object_weights':'/var/lib/zmeventnotification/models/yolov4/yolov4.weights',
+        'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
+        'object_min_confidence': 0.3,
+        'object_framework':'opencv',
+        'object_processor': 'gpu'
+
+    }],
+    'face': [{
         'face_detection_framework': 'dlib',
         'known_images_path': '/var/lib/zmeventnotification/known_faces',
         'face_model': 'cnn',
@@ -63,7 +75,7 @@ ml_options = {
         'face_recog_dist_threshold': 0.6,
         'face_num_jitters': 1,
         'face_upsample_times':1
-    }
+    }]
             
 }
 
@@ -76,7 +88,7 @@ stream_options = {
         'api': zmapi,
         'download': False,
         'logger': logger,
-        'frame_set': 'snapshot,alarm,23,25,29,30',
+        'frame_set': 'snapshot,alarm'
         #'resize': 800
 }
 

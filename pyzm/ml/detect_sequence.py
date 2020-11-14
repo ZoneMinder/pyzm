@@ -10,22 +10,26 @@ import cv2
 class DetectSequence(Base):
     def __init__(self, logger=None, options={}):
         super().__init__(logger)
-        self.sequence = options.get('sequence', 'object').split(',')
-        self.object_model = None
-        self.face_model = None
-        self.alpr_model = None
+        self.model_sequence = options.get('general', {}).get('model_sequence', 'object').split(',')    
         self.ml_options = options
+        self.models = {}
 
-    def load_models(self):
-        for seq in self.sequence:
+    def load_models(self, sequences):
+        if not sequences:
+            sequences = self.model_sequence
+        for seq in sequences:
             if seq == 'object':
-                if not self.object_model:
-                    self.object_model = ObjDetect(options=self.ml_options.get(seq, {}))
+                self.models[seq] = []
+                for obj_seq in self.ml_options.get(seq):
+                    self.logger.Debug (2,'Loading model  type:{} with options:{}'.format(seq,obj_seq ))
+                    self.models[seq].append(ObjectDetect.Object(options=obj_seq))
             elif seq == 'face':
-                if not self.face_model:
-                    self.face_model = FaceDetect(options = self.ml_options.get(seq, {}))
-            else: 
-                self.logger.Error('Invalid model {}'.format(seq))
+                self.models[seq] = []
+                for face_seq in self.ml_options.get(seq):
+                    self.models[seq].append(FaceDetect.Face(options=face_seq))
+            else:
+                self.logger.Error ('Invalid model: {}'.format(seq))
+                raise ValueError ('Invalid model: {}'.format(seq))
 
     def detect_stream(self, stream, options={}):
         """Implements detection on a video stream
@@ -68,6 +72,7 @@ class DetectSequence(Base):
         stream_options = options
         match_strategy = options.get('strategy', 'first')
         match_pattern = re.compile(options.get('pattern', '.*'))
+        same_model_sequence_strategy = self.ml_options.get('general',{}).get('same_model_sequence_strategy','first')
         all_matches = []
         matched_b = []
         matched_l = []
@@ -76,13 +81,13 @@ class DetectSequence(Base):
         matched_frame_img = None
         manual_locking = False
 
-        if len(self.sequence) > 1:
+        if len(self.model_sequence) > 1:
             manual_locking = False
             self.logger.Debug(1,'Using automatic locking as we are switching between models')
         else:
             manual_locking = True
             self.logger.Debug(1,'Using manual locking as we are only using one model')
-            for seq in self.sequence:
+            for seq in self.model_sequence:
                 self.ml_options[seq]['auto_lock'] = False
             
 
@@ -96,34 +101,54 @@ class DetectSequence(Base):
             #fname = '/tmp/{}.jpg'.format(media.get_last_read_frame())
             #print (f'Writing to {fname}')
             #cv2.imwrite( fname ,frame)
-            b = []
-            l = []
-            c = []
-            for seq in self.sequence:
-                self.logger.Debug(3,'Running sequence: {}'.format(seq))
-                if seq == 'object':
-                    if not self.object_model:
-                        self.object_model = ObjectDetect.Object(options=self.ml_options.get(seq, {}))
-                        if manual_locking:
-                            self.object_model.acquire_lock()
-                    _b,_l,_c, = self.object_model.detect(image=frame)
-                    if (len(_l)):
-                        b.append(_b)
-                        l.append(_l)
-                        c.append(_c)
-                elif seq == 'face':
-                    if not self.face_model:
-                        self.face_model = FaceDetect.Face(options = self.ml_options.get(seq, {}))
-                        if manual_locking:
-                            self.face_model.acquire_lock()
-                    _b,_l,_c, = self.face_model.detect(image=frame)
-                    if (len(_l)):
-                        b.extend(_b)
-                        l.extend(_l)
-                        c.extend(_c)
-                  #  print (f'FACE: {b} {l} {c}')
+            b = l = c = []
+            
+            for seq in self.model_sequence:
+                self.logger.Debug(3,'============ Frame: {} Running {} model in sequence =================='.format(media.get_last_read_frame(),seq))
+                _b=_l=_c=[]
+                if not self.models.get(seq):
+                    self.load_models([seq])
+                    if manual_locking:
+                        self.models[seq].acquire_lock()
 
-           
+                _b_best_in_model = _l_best_in_model = _c_best_in_model = []
+                cnt = 1
+                for m in self.models[seq]:
+                    self.logger.Debug(3,'--------- Frame:{} Running variation: #{} -------------'.format(media.get_last_read_frame(),cnt))
+                    cnt +=1
+                    _b,_l,_c, = m.detect(image=frame)
+                    match = list(filter(match_pattern.match, _l))
+                    _tb = []
+                    _tl = []
+                    _tc = []
+                    for idx, label in enumerate(_l):
+                        if label not in match:
+                            continue
+                        _tb.append(_b[idx])
+                        _tl.append(label)
+                        _tc.append(_c[idx])
+                    _b = _tb
+                    _l = _tl
+                    _c = _tc
+                    self.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
+                   
+                    if  ((same_model_sequence_strategy == 'first') 
+                    or ((same_model_sequence_strategy == 'most') and (len(_l) > len(_l_best_in_model))) 
+                    or ((same_model_sequence_strategy == 'most_unique') and (len(set(_l)) > len(set(_l_best_in_model))))):
+                        _b_best_in_model = _b
+                        _l_best_in_model = _l
+                        _c_best_in_model = _c
+                    
+                    if (same_model_sequence_strategy=='first'):
+                        self.logger.Debug(3, 'breaking out of same model loop, as matches found and strategy is "first"')
+                        break
+
+                if (len(_l_best_in_model)):
+                    b.append(_b_best_in_model)
+                    l.append(_l_best_in_model)
+                    c.append(_c_best_in_model)
+            
+        
                 #print ('LABELS {} BOXES {}'.format(l,b))
                 f_b = []
                 f_l = []

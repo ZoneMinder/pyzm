@@ -40,6 +40,7 @@ class Yolo(Base):
             self.logger.Debug (1,f'Waiting for {self.processor} lock...')
             self.lock.acquire()
             self.logger.Debug (1,f'Got {self.processor} lock ..')
+            self.is_locked = True
            
         except portalocker.AlreadyLocked:
             self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
