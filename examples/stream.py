@@ -80,9 +80,9 @@ ml_options = {
 }
 
 stream_options = {
-        'frame_skip':3,
-        #'start_frame': 10,
-        #'max_frames':10,
+        'frame_skip':2,
+        'start_frame': 21,
+        'max_frames':10,
         'strategy': 'most_unique',
         #'pattern': '(person|car|truck)',
         'api': zmapi,
@@ -100,6 +100,6 @@ stream_options = {
 m = DetectSequence(options=ml_options)
 #m = ObjectDetect.Object(options=ml_options)
 b,l,c,f,_,a = m.detect_stream(stream=eid, options=stream_options)
-print(a)
-print (f'FRAME {f} with LABELS {l} {b} {c} ')
+print(f'ALL FRAMES: {a}\n\n')
+print (f'SELECTED FRAME {f} with LABELS {l} {b} {c} ')
 

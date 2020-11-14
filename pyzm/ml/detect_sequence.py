@@ -144,9 +144,9 @@ class DetectSequence(Base):
                         break
 
                 if (len(_l_best_in_model)):
-                    b.append(_b_best_in_model)
-                    l.append(_l_best_in_model)
-                    c.append(_c_best_in_model)
+                    b.extend(_b_best_in_model)
+                    l.extend(_l_best_in_model)
+                    c.extend(_c_best_in_model)
             
         
                 #print ('LABELS {} BOXES {}'.format(l,b))
@@ -176,20 +176,25 @@ class DetectSequence(Base):
                         'confidences': c
                     }
                 )
-                if  ((match_strategy == 'first') 
-                    or ((match_strategy == 'most') and (len(l) > len(matched_l))) 
-                    or ((match_strategy == 'most_unique') and (len(set(l)) > len(set(matched_l))))):
-                    matched_b = b
-                    matched_c = c
-                    matched_l = l
-                    matched_frame_id = media.get_last_read_frame()
-                    matched_frame_img = frame
-                
-                if (match_strategy=='first'):
-                    break
+
+
+          
+            matched_frame_img = frame
+            
+            if (match_strategy=='first'):
+                break
             
         # release resources
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
+
+        for item in all_matches:
+             if  ((match_strategy == 'first') 
+                or ((match_strategy == 'most') and (len(item['labels'] > len(matched_l))) 
+                or ((match_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l)))))):
+                matched_b =item['boxes']
+                matched_c = item['confidences']
+                matched_l  = item['labels']           
+                matched_frame_id = item['frame_id']
 
        
         if manual_locking:
