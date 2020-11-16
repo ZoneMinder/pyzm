@@ -279,10 +279,10 @@ def _log(level='DBG', message='', caller=None, debug_level=1):
     disp_level=level
     if level=='DBG':
         disp_level = f'DBG{debug_level}'
+    log_string = '{level} [{pname}] [{msg}]'.format(level=disp_level, pname=process_name, msg=message)
     # write to syslog
    
     if levels[level] <= config['log_level_syslog']:
-        log_string = '{level} [{pname}] [{msg}]'.format(level=disp_level, pname=process_name, msg=message)
         syslog.syslog (priorities[level], log_string)
 
     # write to db
@@ -342,6 +342,7 @@ def Debug(level=1, message=None,caller=None):
 
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     target = config['log_debug_target']
+
     if target:
         targets = [x.strip().lstrip('_') for x in target.split('|')]
         # if current name does not fall into debug targets don't log
@@ -351,7 +352,6 @@ def Debug(level=1, message=None,caller=None):
     
     if config['log_debug'] and level <= config['log_level_debug']:
         _log('DBG', message,caller, level)
-
 def Warning(message=None,caller=None):
     """Warning level ZM message
     
