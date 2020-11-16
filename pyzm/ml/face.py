@@ -149,7 +149,7 @@ class Face(Base):
         #rgb_image = image
 
         # Find all the faces and face encodings in the target image
-        print (self.options)
+        #prin (self.options)
         if self.options.get('auto_lock',True):
             self.acquire_lock()
 
