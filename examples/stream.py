@@ -90,7 +90,9 @@ ml_options = {
 
     'alpr': {
          'general':{
-            'same_model_sequence_strategy': 'first'
+            'same_model_sequence_strategy': 'first',
+            'pre_existing_labels':['car', 'motorbike', 'bus', 'truck', 'boat'],
+
         },
          'sequence': [{
             'alpr_api_type': 'cloud',

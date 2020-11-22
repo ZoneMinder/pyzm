@@ -86,6 +86,7 @@ class DetectSequence(Base):
         matched_frame_id = None
         matched_frame_img = None
         manual_locking = False
+        all_labels = [] # for pre_existing_labels match
 
         if len(self.model_sequence) > 1:
             manual_locking = False
@@ -111,6 +112,13 @@ class DetectSequence(Base):
             
             for seq in self.model_sequence:
                 self.logger.Debug(3,'============ Frame: {} Running {} model in sequence =================='.format(media.get_last_read_frame(),seq))
+                pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
+                if pre_existing_labels:
+                    self.logger.Debug(2,'Making sure we have matched one of {} in {} before we proceed'.format(pre_existing_labels, all_labels))
+                    if not any(x in all_labels for x in pre_existing_labels):
+                        self.logger.Debug(1,'Did not find pre existing labels defined, not running model')
+                        continue
+                
                 _b=_l=_c=[]
                 if not self.models.get(seq):
                     self.load_models([seq])
@@ -150,14 +158,12 @@ class DetectSequence(Base):
                     if (same_model_sequence_strategy=='first'):
                         self.logger.Debug(3, 'breaking out of same model loop, as matches found and strategy is "first"')
                         break
-
+                # end of same model sequence iteration
                 if (len(_l_best_in_model)):
                     b.extend(_b_best_in_model)
                     l.extend(_l_best_in_model)
                     c.extend(_c_best_in_model)
-            
         
-                #print ('LABELS {} BOXES {}'.format(l,b))
                 f_b = []
                 f_l = []
                 f_c = []
@@ -184,9 +190,8 @@ class DetectSequence(Base):
                         'confidences': c
                     }
                 )
-
-
-          
+                all_labels.extend(l)
+            # end of main sequence
             matched_frame_img = frame
             
             if (match_strategy=='first'):
