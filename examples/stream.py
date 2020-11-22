@@ -48,7 +48,7 @@ zmapi = zmapi.ZMApi(options=api_options)
 
 ml_options = {
     'general': {
-        'model_sequence': 'object,face',
+        'model_sequence': 'object,face,alpr',
         'same_model_sequence_strategy': 'most_unique'
     },
    
@@ -75,7 +75,18 @@ ml_options = {
         'face_recog_dist_threshold': 0.6,
         'face_num_jitters': 1,
         'face_upsample_times':1
+    }],
+
+    'alpr': [{
+        'alpr_api_type': 'cloud',
+        'alpr_service': 'plate_recognizer',
+        'alpr_key': utils.get(key='PLATEREC_ALPR_KEY', section='secrets', conf=conf),
+        'platrec_stats': 'no',
+        'platerec_min_dscore': 0.1,
+        'platerec_min_score': 0.2,
+       
     }]
+
             
 }
 

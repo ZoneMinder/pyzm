@@ -15,11 +15,18 @@ class AlprBase(Base):
         if not options.get('alpr_key'):
             self.logger.Debug (1,'No API key specified, hopefully you do not need one')
         self.apikey = options.get('alpr_key')
-        #print (self.apikey)
         self.tempdir = tempdir
         self.url = options.get('alpr_url')
         self.options = options
-        
+    
+    def acquire_lock(self):
+        pass
+
+    def release_lock(self):
+        pass
+
+    def load_model(self):
+        pass
 
     def setkey(self, key=None):
         self.apikey = key
@@ -28,7 +35,7 @@ class AlprBase(Base):
     def stats(self):
         self.logger.Debug(1,'stats not implemented in base class')
 
-    def detect(self, object):
+    def detect(self, image=None):
         self.logger.Debug(1,'detect not implemented in base class')
 
     def prepare(self, object):
@@ -98,8 +105,8 @@ class Alpr(AlprBase):
         else:
             raise ValueError('ALPR service "{}" not known'.format(self.options.get('alpr_service')))
 
-    def detect(self, object):
-        return self.alpr_obj.detect(object)
+    def detect(self, image=None):
+        return self.alpr_obj.detect(image)
 
     def stats(self):
         return self.alpr_obj.stats()
@@ -153,7 +160,7 @@ class PlateRecognizer(AlprBase):
             response = response.json()
         return response
 
-    def detect(self, object):
+    def detect(self, image=None):
         """Detects license plate using platerecognizer
 
         Args:
@@ -161,7 +168,8 @@ class PlateRecognizer(AlprBase):
 
         Returns:
             boxes, labels, confidences: 3 objects, containing bounding boxes, labels and confidences
-        """        
+        """    
+        object = image    
         bbox = []
         labels = []
         confs = []
@@ -177,6 +185,8 @@ class PlateRecognizer(AlprBase):
                 payload = self.options.get('platerec_regions')
                 response = requests.post(
                    platerec_url,
+                   timeout=15,
+
                     #self.url ,
                     files=dict(upload=fp),
                     data=payload,
@@ -241,7 +251,7 @@ class OpenAlpr(AlprBase):
             format(self.url))
         
 
-    def detect(self, object):
+    def detect(self, image=None):
         """Detection using OpenALPR
 
         Args:
@@ -249,7 +259,8 @@ class OpenAlpr(AlprBase):
 
         Returns:
             boxes, labels, confidences: 3 objects, containing bounding boxes, labels and confidences
-        """        
+        """  
+        object = image      
         bbox = []
         labels = []
         confs = []
@@ -340,7 +351,7 @@ class OpenAlprCmdLine(AlprBase):
             self.cmd = self.cmd + ' -j'
       
 
-    def detect(self, object):
+    def detect(self, image = None):
         """Detection using OpenALPR command line
 
         Args:
@@ -348,7 +359,8 @@ class OpenAlprCmdLine(AlprBase):
 
          Returns:
             boxes, labels, confidences: 3 objects, containing bounding boxes, labels and confidences
-        """             
+        """ 
+        object = image            
         bbox = []
         labels = []
         confs = []

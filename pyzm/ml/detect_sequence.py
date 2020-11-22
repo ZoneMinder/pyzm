@@ -1,6 +1,8 @@
 from pyzm.helpers.Base import Base
 import pyzm.ml.object as  ObjectDetect
 import pyzm.ml.face as FaceDetect
+import pyzm.ml.alpr as AlprDetect
+
 import re
 import datetime
 from pyzm.helpers.Media import MediaStream
@@ -27,6 +29,11 @@ class DetectSequence(Base):
                 self.models[seq] = []
                 for face_seq in self.ml_options.get(seq):
                     self.models[seq].append(FaceDetect.Face(options=face_seq))
+            elif seq == 'alpr':
+                self.models[seq] = []
+                for alpr_seq in self.ml_options.get(seq):
+                    self.models[seq].append(AlprDetect.Alpr(options=alpr_seq))
+
             else:
                 self.logger.Error ('Invalid model: {}'.format(seq))
                 raise ValueError ('Invalid model: {}'.format(seq))
