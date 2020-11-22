@@ -22,16 +22,16 @@ class DetectSequence(Base):
         for seq in sequences:
             if seq == 'object':
                 self.models[seq] = []
-                for obj_seq in self.ml_options.get(seq):
+                for obj_seq in self.ml_options.get(seq,{}).get('sequence'):
                     self.logger.Debug (2,'Loading model  type:{} with options:{}'.format(seq,obj_seq ))
                     self.models[seq].append(ObjectDetect.Object(options=obj_seq))
             elif seq == 'face':
                 self.models[seq] = []
-                for face_seq in self.ml_options.get(seq):
+                for face_seq in self.ml_options.get(seq,{}).get('sequence'):
                     self.models[seq].append(FaceDetect.Face(options=face_seq))
             elif seq == 'alpr':
                 self.models[seq] = []
-                for alpr_seq in self.ml_options.get(seq):
+                for alpr_seq in self.ml_options.get(seq,{}).get('sequence'):
                     self.models[seq].append(AlprDetect.Alpr(options=alpr_seq))
 
             else:
@@ -79,7 +79,6 @@ class DetectSequence(Base):
         stream_options = options
         match_strategy = options.get('strategy', 'first')
         match_pattern = re.compile(options.get('pattern', '.*'))
-        same_model_sequence_strategy = self.ml_options.get('general',{}).get('same_model_sequence_strategy','first')
         all_matches = []
         matched_b = []
         matched_l = []
@@ -120,6 +119,8 @@ class DetectSequence(Base):
 
                 _b_best_in_model = _l_best_in_model = _c_best_in_model = []
                 cnt = 1
+                same_model_sequence_strategy = self.ml_options.get(seq,{}).get('general',{}).get('same_model_sequence_strategy', 'first')
+                self.logger.Debug (3,'{} has a same_model_sequence strategy of {}'.format(seq, same_model_sequence_strategy))
                 for m in self.models[seq]:
                     self.logger.Debug(3,'--------- Frame:{} Running variation: #{} -------------'.format(media.get_last_read_frame(),cnt))
                     cnt +=1
