@@ -72,10 +72,11 @@ class ZMApi (Base):
      
         self._login()
      
-        self.Monitors = Monitors(logger=options.get('logger'),api=self)
+        #self.Monitors = Monitors(logger=options.get('logger'),api=self)
+        self.Monitors = None
         self.Events = None
-        self.Configs = Configs(logger=options.get('logger'), api=self)
-
+        #self.Configs = Configs(logger=options.get('logger'), api=self)
+        self.Configs = None
     def _versiontuple(self,v):
         #https://stackoverflow.com/a/11887825/1361529
         return tuple(map(int, (v.split("."))))
