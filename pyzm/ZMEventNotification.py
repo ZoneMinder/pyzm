@@ -141,7 +141,9 @@ class ZMEventNotification(Base):
     def _on_open(self, ws):   
         self.logger.Info('ZMESClient: Sending auth info to ES')
         auth={"event":"auth","data":{"user":self.user,"password":self.password}}
-        self.logger.Debug(1, 'ZMESClient: Auth info to be sent: {}'.format(auth))
+        dauth={"event":"auth","data":{"user":self.user,"password":'****'}}
+
+        self.logger.Debug(1, 'ZMESClient: Auth info to be sent: {}'.format(dauth))
         ws.send(json.dumps(auth))
 
         

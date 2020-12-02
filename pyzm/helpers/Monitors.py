@@ -18,7 +18,7 @@ class Monitors(Base):
         self._load()
 
     def _load(self,options={}):
-        self.logger.Debug(1,'Retrieving monitors via API')
+        self.logger.Debug(2,'Retrieving monitors via API')
         url = self.api.api_url +'/monitors.json'
         r = self.api._make_request(url=url)
         ms = r.get('monitors')

@@ -13,7 +13,7 @@ class AlprBase(Base):
     def __init__(self, logger=None,options={}, tempdir='/tmp'):
         super().__init__(logger)
         if not options.get('alpr_key'):
-            self.logger.Debug (1,'No API key specified, hopefully you do not need one')
+            self.logger.Debug (2,'No API key specified, hopefully you do not need one')
         self.apikey = options.get('alpr_key')
         self.tempdir = tempdir
         self.url = options.get('alpr_url')
@@ -56,7 +56,7 @@ class AlprBase(Base):
             # If it is a file and zm_detect sent it, it would already be resized
             # If it is a file and zm_detect did not send it, no need to adjust scales
             # as there won't be a yolo/alpr size mismatch
-            self.logger.Debug(1,f'supplied object is a file {object}')
+            self.logger.Debug(2,f'supplied object is a file {object}')
             self.filename = object
            
             self.remove_temp = False
@@ -175,7 +175,7 @@ class PlateRecognizer(AlprBase):
         confs = []
         self.prepare(object)
         if self.options.get('platerec_stats') == 'yes':
-            self.logger.Debug(1,'Plate Recognizer API usage stats: {}'.format(
+            self.logger.Debug(2,'Plate Recognizer API usage stats: {}'.format(
                 json.dumps(self.stats())))
         with open(self.filename, 'rb') as fp:
             try:
@@ -203,7 +203,7 @@ class PlateRecognizer(AlprBase):
                 )
             else:
                 response = response.json()
-                self.logger.Debug(2,'ALPR JSON: {}'.format(response))
+                self.logger.Debug(3,'ALPR JSON: {}'.format(response))
 
         #(xfactor, yfactor) = self.getscale()
 
@@ -221,7 +221,7 @@ class PlateRecognizer(AlprBase):
                     y1 = round(int(plates['box']['ymin']))
                     x2 = round(int(plates['box']['xmax']))
                     y2 = round(int(plates['box']['ymax']))
-                    labels.append(label)
+                    labels.append('alpr:{}'.format(label))
                     bbox.append([x1, y1, x2, y2])
                     confs.append(plates['score'])
                 else:
@@ -281,7 +281,7 @@ class OpenAlpr(AlprBase):
 
                 rurl = '{}?secret_key={}{}'.format(self.url, self.apikey,
                                                    params)
-                self.logger.Debug(1,'Trying OpenALPR with url:' + rurl)
+                self.logger.Debug(2,'Trying OpenALPR with url:' + rurl)
                 response = requests.post(rurl, files={'image': fp})
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
@@ -295,7 +295,7 @@ class OpenAlpr(AlprBase):
                 )
             else:
                 response = response.json()
-                self.logger.Debug(1,'OpenALPR JSON: {}'.format(response))
+                self.logger.Debug(2,'OpenALPR JSON: {}'.format(response))
 
         #(xfactor, yfactor) = self.getscale()
 
@@ -325,7 +325,7 @@ class OpenAlpr(AlprBase):
                 y1 = round(int(plates['coordinates'][0]['y']))
                 x2 = round(int(plates['coordinates'][2]['x']))
                 y2 = round(int(plates['coordinates'][2]['y']))
-                labels.append(label)
+                labels.append('alpr:{}'.format(label))
                 bbox.append([x1, y1, x2, y2])
                 confs.append(conf)
 
@@ -367,9 +367,9 @@ class OpenAlprCmdLine(AlprBase):
 
         self.prepare(object)
         self.cmd = self.cmd + ' ' + self.filename
-        self.logger.Debug (1,'OpenALPR CmdLine Executing: {}'.format(self.cmd))
+        self.logger.Debug (2,'OpenALPR CmdLine Executing: {}'.format(self.cmd))
         response = subprocess.check_output(self.cmd, shell=True)      
-        self.logger.Debug (1,'OpenALPR CmdLine Response: {}'.format(response))
+        self.logger.Debug (2,'OpenALPR CmdLine Response: {}'.format(response))
         try:
             response = json.loads(response)
         except ValueError as e:
@@ -397,7 +397,7 @@ class OpenAlprCmdLine(AlprBase):
                 y1 = round(int(plates['coordinates'][0]['y']))
                 x2 = round(int(plates['coordinates'][2]['x']))
                 y2 = round(int(plates['coordinates'][2]['y']))
-                labels.append(label)
+                labels.append('alpr:{}'.format(label))
                 bbox.append([x1, y1, x2, y2])
                 confs.append(conf)
 

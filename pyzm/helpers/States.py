@@ -18,7 +18,7 @@ class States(Base):
         self._load()
 
     def _load(self,options={}):
-        self.logger.Debug(1,'Retrieving states via API')
+        self.logger.Debug(2,'Retrieving states via API')
         url = self.api.api_url +'/states.json'
         r = self.api._make_request(url=url)
         states = r.get('states')

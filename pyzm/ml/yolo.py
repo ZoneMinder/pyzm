@@ -34,12 +34,12 @@ class Yolo(Base):
          
     def acquire_lock(self):
         if self.is_locked:
-            self.logger.Debug (1, '{} Lock already acquired'.format(self.lock_name))
+            self.logger.Debug(2, '{} Lock already acquired'.format(self.lock_name))
             return
         try:
-            self.logger.Debug (1,f'Waiting for {self.processor} lock...')
+            self.logger.Debug (2,f'Waiting for {self.processor} lock...')
             self.lock.acquire()
-            self.logger.Debug (1,f'Got {self.processor} lock ..')
+            self.logger.Debug (2,f'Got {self.processor} lock ..')
             self.is_locked = True
            
         except portalocker.AlreadyLocked:
@@ -49,11 +49,11 @@ class Yolo(Base):
 
     def release_lock(self):
         if not self.is_locked:
-            self.logger.Debug (1, '{} Lock already released'.format(self.lock_name))
+            self.logger.Debug (2, '{} Lock already released'.format(self.lock_name))
             return
         self.lock.release()
         self.is_locked = False
-        self.logger.Debug (1,'Released lock')
+        self.logger.Debug (2,'Released lock')
 
 
         
@@ -132,7 +132,7 @@ class Yolo(Base):
 
         if self.options.get('auto_lock',True):
             self.release_lock()
-            self.logger.Debug(1,'detect lock released')
+            self.logger.Debug(2,'detect lock released')
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
             1,'YOLO detection took: {} milliseconds'.format(diff_time))
@@ -169,7 +169,7 @@ class Yolo(Base):
                                    nms_threshold)
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
-            1,'YOLO NMS filtering took: {} milliseconds'.format(diff_time))
+            2,'YOLO NMS filtering took: {} milliseconds'.format(diff_time))
 
         bbox = []
         label = []

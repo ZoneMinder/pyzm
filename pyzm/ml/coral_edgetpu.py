@@ -37,12 +37,12 @@ class Tpu(Base):
 
     def acquire_lock(self):
         if self.is_locked:
-            self.logger.Debug (1, '{} Lock already acquired'.format(self.lock_name))
+            self.logger.Debug (2, '{} Lock already acquired'.format(self.lock_name))
             return
         try:
-            self.logger.Debug (1,'Waiting for TPU lock...')
+            self.logger.Debug (2,'Waiting for TPU lock...')
             self.lock.acquire()
-            self.logger.Debug (1,'Got TPU Lock')
+            self.logger.Debug (2,'Got TPU Lock')
             self.is_locked = True
 
         except portalocker.AlreadyLocked:
@@ -51,11 +51,11 @@ class Tpu(Base):
 
     def release_lock(self):
         if not self.is_locked:
-            self.logger.Debug (1, '{} Lock already released'.format(self.lock_name))
+            self.logger.Debug (2, '{} Lock already released'.format(self.lock_name))
             return
         self.lock.release()
         self.is_locked = False
-        self.logger.Debug (1,'Released TPU lock')
+        self.logger.Debug (2,'Released TPU lock')
 
 
     def populate_class_labels(self):

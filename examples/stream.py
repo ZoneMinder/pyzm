@@ -1,4 +1,4 @@
-import pyzm
+from pyzm import __version__ as pyzmversion
 import pyzm.api as zmapi
 import getpass
 import traceback
@@ -10,7 +10,7 @@ from pyzm.helpers.Base import ConsoleLog
 import pyzm.helpers.utils as utils
 import sys
 
-print ('Using pyzm version: {}'.format(pyzm.__version__))
+print ('Using pyzm version: {}'.format(pyzmversion))
 
 logger = ConsoleLog()
 logger.set_level(2)
@@ -44,12 +44,11 @@ api_options  = {
 }
 
 
-zmapi = zmapi.ZMApi(options=api_options)
-
+zmapi = zmapi.ZMApi(options=api_options, logger=logger)
 ml_options = {
     'general': {
         'model_sequence': 'object,face,alpr',
-    
+
     },
    
     'object': {
@@ -106,16 +105,16 @@ ml_options = {
 } # ml_options
 
 stream_options = {
-        'frame_skip':2,
-        'start_frame': 21,
-        'max_frames':10,
-        'strategy': 'most_unique',
+        #'frame_skip':2,
+        #'start_frame': 1,
+        #'max_frames':10,
+        'strategy': 'most_models',
+        #'strategy': 'first',
         #'pattern': '(person|car|truck)',
         'api': zmapi,
         'download': False,
-        'logger': logger,
-        'frame_set': 'snapshot,alarm'
-        #'resize': 800
+        'frame_set': 'snapshot,alarm',
+        'resize': 800
 }
 
 
@@ -123,9 +122,9 @@ stream_options = {
 
 #stream = '9130953'
 #stream = '165242'
-m = DetectSequence(options=ml_options)
+m = DetectSequence(options=ml_options, logger=logger)
 #m = ObjectDetect.Object(options=ml_options)
-b,l,c,f,_,a = m.detect_stream(stream=eid, options=stream_options)
-print(f'ALL FRAMES: {a}\n\n')
-print (f'SELECTED FRAME {f} with LABELS {l} {b} {c} ')
+matched_data,all_data = m.detect_stream(stream=eid, options=stream_options)
+print(f'ALL FRAMES: {all_data}\n\n')
+print (f"SELECTED FRAME {matched_data['frame_id']}, size {matched_data['image_dimensions']} with LABELS {matched_data['labels']} {matched_data['boxes']} {matched_data['confidences']}")
 

@@ -17,7 +17,7 @@ class Hog(Base):
         self.padding = self.options.get('padding')
         self.scale = float(self.options.get('scale'))
         self.meanShift = True if int(self.options.get('mean_shift')) > 0 else False
-        self.logger.Debug(1,'Initializing HOG')
+        self.logger.Debug(2,'Initializing HOG')
 
     def get_classes(self):
         return ['person']

@@ -39,7 +39,7 @@ class Events(Base):
         return int(self.pagination.get('count'))
 
     def _load(self, options={}):
-        self.logger.Debug(1,'Retrieving events via API')
+        self.logger.Debug(2,'Retrieving events via API')
         url_filter=''
        
         tz = {}

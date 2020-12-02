@@ -29,7 +29,7 @@ from pyzm.helpers.Configs import Configs
 
 
 class ZMApi (Base):
-    def __init__(self,options={}):
+    def __init__(self,options={}, logger=None):
         '''
         Options is a dict with the following keys:
 
@@ -42,12 +42,14 @@ class ZMApi (Base):
 
             Note: you can connect your own customer logging class to the API in which case all modules will use your custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.Base.SimpleLog` for method details.
         '''
-        super().__init__(options.get('logger'))
+        
+        l = logger or options.get('logger')
+        super().__init__(l)
         self.api_url = options.get('apiurl')
         self.portal_url = options.get('portalurl')
         if not self.portal_url and self.api_url.endswith('/api'):
             self.portal_url = self.api_url[:-len('/api')] 
-            self.logger.Debug (1,'Guessing portal URL is: {}'.format(self.portal_url))
+            self.logger.Debug (2,'Guessing portal URL is: {}'.format(self.portal_url))
 
         self.options = options
         
@@ -177,7 +179,7 @@ class ZMApi (Base):
             self.zm_version = rj.get('version')
             if self.auth_enabled:
                 if (self._versiontuple(self.api_version) >= self._versiontuple('2.0')):
-                    self.logger.Debug(1,'Using new token API')
+                    self.logger.Debug(2,'Using new token API')
                     self.access_token = rj.get('access_token','')
                     if rj.get('refresh_token'):
                         self.refresh_token = rj.get('refresh_token')
@@ -245,7 +247,7 @@ class ZMApi (Base):
                 url += qchar + self.legacy_credentials
                 
         try:
-            self.logger.Debug(1,'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
+            self.logger.Debug(2,'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
             if type=='get':
                 r = self.session.get(url, params=query)
             elif type=='post':

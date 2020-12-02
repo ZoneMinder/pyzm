@@ -39,7 +39,7 @@ class FaceTrain (Base):
             if (os.path.isfile(known_images_path + '/faces.pickle')):
                 # old version, we no longer want it. begone
                 self.logger.Debug(
-                    1,'removing old faces.pickle, we have moved to clustering')
+                    2,'removing old faces.pickle, we have moved to clustering')
                 os.remove(known_images_path + '/faces.pickle')
         except Exception as e:
             self.logger.Error('Error deleting old pickle file: {}'.format(e))

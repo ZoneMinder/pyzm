@@ -94,15 +94,15 @@ class Face(Base):
 
     def acquire_lock(self):
         if self.is_locked:
-            self.logger.Debug (1, '{} Lock already acquired'.format(self.lock_name))
+            self.logger.Debug (2, '{} Lock already acquired'.format(self.lock_name))
             return
         try:
-            self.logger.Debug (1,f'Waiting for {self.processor} lock...')
+            self.logger.Debug (2,f'Waiting for {self.processor} lock...')
             self.lock.acquire()
-            self.logger.Debug (1,f'Got {self.processor} lock for initialization...')
+            self.logger.Debug (2,f'Got {self.processor} lock for initialization...')
            
             self.lock.release()
-            self.logger.Debug(1,'init lock released')
+            self.logger.Debug(2,f'{self.processor} lock released')
         except portalocker.AlreadyLocked:
             self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
             raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
@@ -234,8 +234,8 @@ class Face(Base):
                 cv2.imwrite(unf, crop_img)
 
             matched_face_rects.append([loc[3], loc[0], loc[1], loc[2]])
-            matched_face_names.append(label)
+            matched_face_names.append('face:{}'.format(label))
             conf.append(1)
 
-        self.logger.Debug(1,f'FACE:Returning: {matched_face_rects}, {matched_face_names}, {conf}')
+        self.logger.Debug(3,f'FACE:Returning: {matched_face_rects}, {matched_face_names}, {conf}')
         return matched_face_rects, matched_face_names, conf
