@@ -7,7 +7,7 @@ import re
 import datetime
 from pyzm.helpers.Media import MediaStream
 import cv2
-
+import traceback
 from shapely.geometry import Polygon
 
 class DetectSequence(Base):
@@ -247,6 +247,7 @@ class DetectSequence(Base):
                             self.models[seq].acquire_lock()
                     except Exception as e:
                         self.logger.Error('Error loading model for {}:{}'.format(seq,e))
+                        self.logger.Debug(2,traceback.format_exc())
                         continue
 
                 same_model_sequence_strategy = self.ml_options.get(seq,{}).get('general',{}).get('same_model_sequence_strategy', 'first')
@@ -265,6 +266,8 @@ class DetectSequence(Base):
                         _b,_l,_c = m.detect(image=frame)
                     except Exception as e:
                         self.logger.Error ('Error running model: {}'.format(e))
+                        self.logger.Debug(2,traceback.format_exc())
+
                         continue
 
                     self.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))

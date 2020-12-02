@@ -11,7 +11,11 @@ from PIL import Image
 import portalocker
 import os
 
-from edgetpu.detection.engine import DetectionEngine
+from pycoral.adapters import common
+from pycoral.adapters import detect
+from pycoral.utils.dataset import read_label_file
+from pycoral.utils.edgetpu import make_interpreter
+#from edgetpu.detection.engine import DetectionEngine
 
 # Class to handle Yolo based detection
 
@@ -59,7 +63,7 @@ class Tpu(Base):
 
 
     def populate_class_labels(self):
-        class_file_abs_path = self.options.get('object_labels')
+        class_file_abs_path = self.options.get('object_labels')        
         for row in open(class_file_abs_path):
             # unpack the row and update the labels dictionary
             (classID, label) = row.strip().split(" ", maxsplit=1)
@@ -71,7 +75,13 @@ class Tpu(Base):
     def load_model(self):
         self.logger.Debug (1, 'Loading TPU model from disk')
         start = datetime.datetime.now()
-        self.model = DetectionEngine(self.options.get('object_weights'))
+
+        #self.model = DetectionEngine(self.options.get('object_weights'))
+        # Initialize the TF interpreter
+        self.model = make_interpreter(self.options.get('object_weights'))
+
+        self.model.allocate_tensors()
+
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
         self.logger.Debug(
             1,'TPU initialization (loading model from disk) took: {} milliseconds'
@@ -93,8 +103,14 @@ class Tpu(Base):
             '|---------- TPU (input image: {}w*{}h) ----------|'
             .format(Width, Height))
         start = datetime.datetime.now()
-        outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
-                keep_aspect_ratio=True, relative_coord=False)
+        
+        self.model.invoke()
+        _, scale = common.set_resized_input(
+            self.model, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
+        objs = detect.get_objects(self.model, self.options.get('object_min_confidence'), scale)
+      
+        #outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
+        #        keep_aspect_ratio=True, relative_coord=False)
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
 
         if self.options.get('auto_lock',True):
@@ -107,17 +123,16 @@ class Tpu(Base):
         labels = []
         conf = []
 
-        for out in outs:
-            box = out.bounding_box.flatten().astype("int")
-            (startX, startY, endX, endY) = box
+        for obj in objs:
+           # box = obj.bbox.flatten().astype("int")
             bbox.append([
-                    int(round(startX)),
-                    int(round(startY)),
-                    int(round(endX)),
-                    int(round(endY))
+                    int(round(obj.bbox.xmin)),
+                    int(round(obj.bbox.ymin)),
+                    int(round(obj.bbox.xmax)),
+                    int(round(obj.bbox.ymax))
                 ])
-            labels.append(self.classes[out.label_id])
-            conf.append(float(out.score))
+            labels.append(self.classes[obj.id])
+            conf.append(float(obj.score))
 
-            
+        self.logger.Debug(3,'Coral returning: {},{},{}'.format(bbox,labels,conf))
         return bbox, labels, conf
