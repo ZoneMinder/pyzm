@@ -13,7 +13,7 @@ import sys
 print ('Using pyzm version: {}'.format(pyzmversion))
 
 logger = ConsoleLog()
-logger.set_level(2)
+logger.set_level(5)
 
 if len(sys.argv) == 1:
     eid = input ('Enter event ID to analyze:')
