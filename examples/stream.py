@@ -119,9 +119,6 @@ stream_options = {
 
 
 
-
-#stream = '9130953'
-#stream = '165242'
 m = DetectSequence(options=ml_options, logger=logger)
 #m = ObjectDetect.Object(options=ml_options)
 matched_data,all_data = m.detect_stream(stream=eid, options=stream_options)

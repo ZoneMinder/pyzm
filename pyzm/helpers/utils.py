@@ -20,11 +20,11 @@ def get(key=None, section=None, conf=None):
     else:
         return None
 
-def draw_bbox(img,
-              bbox,
-              labels,
-              confidence,
-              polygons,
+def draw_bbox(image=None,
+              boxes=[],
+              labels=[],
+              confidences=[],
+              polygons=[],
               box_color=None,
               poly_color=(255,255,255),
               poly_thickness = 1,
@@ -40,11 +40,11 @@ def draw_bbox(img,
 
         
         # first draw the polygons, if any
-        newh, neww = img.shape[:2]
-        img = img.copy()
+        newh, neww = image.shape[:2]
+        image = image.copy()
         if poly_thickness:
             for ps in polygons:
-                cv2.polylines(img, [np.asarray(ps['value'])],
+                cv2.polylines(image, [np.asarray(ps['value'])],
                             True,
                             poly_color,
                             thickness=poly_thickness)
@@ -55,12 +55,12 @@ def draw_bbox(img,
         for i, label in enumerate(labels):
             #=g.logger.Debug (1,'drawing box for: {}'.format(label))
             box_color = bgr_slate_colors[i % arr_len]
-            if write_conf and confidence:
-                label += ' ' + str(format(confidence[i] * 100, '.2f')) + '%'
+            if write_conf and confidences:
+                label += ' ' + str(format(confidences[i] * 100, '.2f')) + '%'
             # draw bounding box around object
 
             #g.logger.Debug (1,"DRAWING RECT={},{} {},{}".format(bbox[i][0], bbox[i][1],bbox[i][2], bbox[i][3]))
-            cv2.rectangle(img, (bbox[i][0], bbox[i][1]), (bbox[i][2], bbox[i][3]),
+            cv2.rectangle(image, (boxes[i][0], boxes[i][1]), (boxes[i][2], boxes[i][3]),
                         box_color, 2)
 
             # write text
@@ -73,12 +73,12 @@ def draw_bbox(img,
             text_width_padded = text_size[0] + 4
             text_height_padded = text_size[1] + 4
 
-            r_top_left = (bbox[i][0], bbox[i][1] - text_height_padded)
-            r_bottom_right = (bbox[i][0] + text_width_padded, bbox[i][1])
-            cv2.rectangle(img, r_top_left, r_bottom_right, box_color, -1)
+            r_top_left = (boxes[i][0], boxes[i][1] - text_height_padded)
+            r_bottom_right = (boxes[i][0] + text_width_padded, boxes[i][1])
+            cv2.rectangle(image, r_top_left, r_bottom_right, box_color, -1)
             #cv2.putText(image, text, (x, y), font, font_scale, color, thickness)
             # location of text is botom left
-            cv2.putText(img, label, (bbox[i][0] + 2, bbox[i][1] - 2), font_type,
+            cv2.putText(image, label, (boxes[i][0] + 2, boxes[i][1] - 2), font_type,
                         font_scale, [255, 255, 255], font_thickness)
 
-        return img
+        return image
