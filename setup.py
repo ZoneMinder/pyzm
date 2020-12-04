@@ -23,7 +23,8 @@ INSTALL_REQUIRES=[
     'websocket-client>=0.56.0',
     'progressbar33',
     'portalocker>=2.0.0',
-    'imutils'
+    'imutils',
+    'shapely'
     ]
 
 
