@@ -158,18 +158,21 @@ class DetectSequence(Base):
             stream (string): location of media (file, url or event ID)
             api (object): instance of the API if the stream need to route via ZM
             options (dict, optional): Various options that control the detection process. Defaults to {}:
-            - download (boolean): if True, will download video before analysis. Defaults to False
-            - download_dir (string): directory where downloads will be kept (only applies to videos). Default is /tmp
-            - start_frame (int): Which frame to start analysis. Default 1.
-            - frame_skip: (int): Number of frames to skip in video (example, 3 means process every 3rd frame)
-            - max_frames (int): Total number of frames to process before stopping
-            - pattern (string): regexp for objects that will be matched. 'strategy' key below will be applied to only objects that match this pattern
-            - frame_set (string): comma separated frames to read. Example 'alarm,2,4,9,snapshot'
-            - strategy: (string): various conditions to stop matching as below
-                - 'most_models': Match the frame that has matched most models (does not include same model alternatives) (Default)
-                - 'first': Stop at first match 
-                - 'most': Match the frame that has the highest number of detected objects
-                - 'most_unique' Match the frame that has the highest number of unique detected objects
+
+                - download (boolean): if True, will download video before analysis. Defaults to False
+                - download_dir (string): directory where downloads will be kept (only applies to videos). Default is /tmp
+                - start_frame (int): Which frame to start analysis. Default 1.
+                - frame_skip: (int): Number of frames to skip in video (example, 3 means process every 3rd frame)
+                - max_frames (int): Total number of frames to process before stopping
+                - pattern (string): regexp for objects that will be matched. 'strategy' key below will be applied to only objects that match this pattern
+                - frame_set (string): comma separated frames to read. Example 'alarm,2,4,9,snapshot'
+                - strategy: (string): various conditions to stop matching as below
+               
+                    - 'most_models': Match the frame that has matched most models (does not include same model alternatives) (Default)
+                    - 'first': Stop at first match 
+                    - 'most': Match the frame that has the highest number of detected objects
+                    - 'most_unique' Match the frame that has the highest number of unique detected objects
+           
             - resize (int): Width to resize image, default 800
             - polygons(object): object # set of polygons that the detected image needs to intersect
             
