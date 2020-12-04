@@ -1,3 +1,13 @@
+"""
+DetectSequence
+=====================
+Primary entry point to invoke machine learning classes in pyzm
+It is recommended you only use DetectSequence methods and not
+lower level interfaces as they may change drastically.
+"""
+
+
+
 from pyzm.helpers.Base import Base
 import pyzm.ml.object as  ObjectDetect
 import pyzm.ml.face as FaceDetect
