@@ -71,9 +71,8 @@ Memory
 
 Machine Learning
 ------------------
-testing
 
-.. autoclass:: pyzm.ml.detect_sequence.DetectSequence
+.. automodule:: pyzm.ml.detect_sequence
     :members:
     :special-members: __init__
     :undoc-members:
