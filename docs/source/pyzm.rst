@@ -73,7 +73,7 @@ Machine Learning
 ------------------
 testing
 
-.. automodule:: pyzm.ml.detect_sequence
+.. autoclass:: pyzm.ml.detect_sequence.DetectSequence
     :members:
     :special-members: __init__
     :undoc-members:
