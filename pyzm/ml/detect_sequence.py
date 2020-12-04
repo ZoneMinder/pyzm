@@ -177,12 +177,16 @@ class DetectSequence(Base):
                 - polygons(object): object # set of polygons that the detected image needs to intersect
                 
         Returns:
-            box (array): list of bounding boxes for matched frame
-            label (array): list of labels for matched frame
-            confidence (array): list of confidences for matched frame
-            id (int): frame id of matched frame
-            img (cv2 image): image grab of matched frame
-            all_matches (array of objects): list of boxes,labels,confidences of all frames matched
+           - object: representing matched frame, consists of:
+
+            - box (array): list of bounding boxes for matched frame
+            - label (array): list of labels for matched frame
+            - confidence (array): list of confidences for matched frame
+            - id (int): frame id of matched frame
+            - img (cv2 image): image grab of matched frame
+
+           - array of objects:
+            - list of boxes,labels,confidences of all frames matched
 
         Note:
 
