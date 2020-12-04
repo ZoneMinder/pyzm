@@ -173,9 +173,9 @@ class DetectSequence(Base):
                     - 'most': Match the frame that has the highest number of detected objects
                     - 'most_unique' Match the frame that has the highest number of unique detected objects
            
-            - resize (int): Width to resize image, default 800
-            - polygons(object): object # set of polygons that the detected image needs to intersect
-            
+                - resize (int): Width to resize image, default 800
+                - polygons(object): object # set of polygons that the detected image needs to intersect
+                
             Returns:
                 box (array): list of bounding boxes for matched frame
                 label (array): list of labels for matched frame
