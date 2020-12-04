@@ -6,8 +6,6 @@ It is recommended you only use DetectSequence methods and not
 lower level interfaces as they may change drastically.
 """
 
-
-
 from pyzm.helpers.Base import Base
 import pyzm.ml.object as  ObjectDetect
 import pyzm.ml.face as FaceDetect
@@ -22,7 +20,92 @@ from shapely.geometry import Polygon
 
 class DetectSequence(Base):
     def __init__(self, logger=None, options={}):
+        """Initializes ML entry point with various parameters
 
+        Args:
+            - logger (object, optional): log handler to use
+            - options (dict): Variety of ML options. Best described by an example as below
+            
+                ::
+
+                    options = {
+                        'general': {
+                            # sequence of models you want to run for every specified frame
+                            'model_sequence': 'object,face,alpr' 
+                        },
+                    
+                        # We now specify all the config parameters per model_sequence entry
+                        'object': {
+                            'general':{
+                                # 'first' - When detecting objects, if there are multiple fallbacks, break out 
+                                # the moment we get a match using any object detection library. 
+                                # 'most' - run through all libraries, select one that has most object matches
+                                # 'most_unique' - run through all libraries, select one that has most unique object matches
+                                
+                                'same_model_sequence_strategy': 'first' # 'first' 'most', 'most_unique'
+                            },
+
+                            # within object, this is a sequence of object detection libraries. In this case,
+                            # I want to first try on my TPU and if it fails, try GPU
+                            'sequence': [{
+                                #First run on TPU
+                                'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
+                                'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
+                                'object_min_confidence': 0.3,
+                                'object_framework':'coral_edgetpu'
+                            },
+                            {
+                                # YoloV4 on GPU if TPU fails (because sequence strategy is 'first')
+                                'object_config':'/var/lib/zmeventnotification/models/yolov4/yolov4.cfg',
+                                'object_weights':'/var/lib/zmeventnotification/models/yolov4/yolov4.weights',
+                                'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
+                                'object_min_confidence': 0.3,
+                                'object_framework':'opencv',
+                                'object_processor': 'gpu'
+                            }]
+                        },
+
+                        # We repeat the same exercise with 'face' as it is next in model_sequence
+                        'face': {
+                            'general':{
+                                'same_model_sequence_strategy': 'first'
+                            },
+                            'sequence': [{
+                                'face_detection_framework': 'dlib',
+                                'known_images_path': '/var/lib/zmeventnotification/known_faces',
+                                'face_model': 'cnn',
+                                'face_train_model': 'cnn',
+                                'face_recog_dist_threshold': 0.6,
+                                'face_num_jitters': 1,
+                                'face_upsample_times':1
+                            }]
+                        },
+
+                        # We repeat the same exercise with 'alpr' as it is next in model_sequence
+                        'alpr': {
+                            'general':{
+                                'same_model_sequence_strategy': 'first',
+
+                                # This can be applied to any model. This means, don't run this model
+                                # unless a previous model detected one of these labels.
+                                # In this case, I'm not calling ALPR unless we've detected a vehile
+                                # bacause platerec has an API threshold 
+
+                                'pre_existing_labels':['car', 'motorbike', 'bus', 'truck', 'boat'],
+
+                            },
+                            'sequence': [{
+                                'alpr_api_type': 'cloud',
+                                'alpr_service': 'plate_recognizer',
+                                'alpr_key': g.config['alpr_key'],
+                                'platrec_stats': 'no',
+                                'platerec_min_dscore': 0.1,
+                                'platerec_min_score': 0.2,
+                            }]
+                        }
+                    } # ml_options
+ 
+        """
         if not logger:
             logger = options.get('logger')
 
@@ -35,7 +118,7 @@ class DetectSequence(Base):
         self.media = None
         self.has_rescaled = False
 
-    def load_models(self, sequences):
+    def _load_models(self, sequences):
         if not sequences:
             sequences = self.model_sequence
         for seq in sequences:
@@ -186,7 +269,7 @@ class DetectSequence(Base):
             - img (cv2 image): image grab of matched frame
 
            - array of objects:
-           
+
             - list of boxes,labels,confidences of all frames matched
 
         Note:
@@ -261,7 +344,7 @@ class DetectSequence(Base):
 
                 if not self.models.get(seq):
                     try:
-                        self.load_models([seq])
+                        self._load_models([seq])
                         if manual_locking:
                             self.models[seq].acquire_lock()
                     except Exception as e:
