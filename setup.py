@@ -15,16 +15,19 @@ AUTHOR_EMAIL = 'pliablepixels@gmail.com'
 AUTHOR = 'Pliable Pixels'
 LICENSE = 'GPL'
 INSTALL_REQUIRES=[
-    'psutil>=5.6.3', 
-    'SQLAlchemy>=1.3.5', 
+    'SQLAlchemy>=1.3.20', 
     'mysql-connector-python>=8.0.16', 
     'requests>=2.18.4', 
-    'dateparser>=0.7.1',
-    'websocket-client>=0.56.0',
-    'progressbar33',
+    'dateparser>=1.0.0',
+    'websocket-client>=0.57.0',
+    'progressbar2 >=3.53.1',
     'portalocker>=2.0.0',
-    'imutils',
-    'shapely'
+    'imutils >=0.5.3',
+    'Shapely >=1.7.0',
+    'numpy >=1.13.3',
+    'Pillow >=8.0.1',
+    'psutil >=5.7.3'
+    
     ]
 
 

@@ -166,5 +166,5 @@ texinfo_documents = [
 ]
 
 
-autodoc_mock_imports = ['cv2']
+autodoc_mock_imports = ['cv2', 'sklearn', 'face_recognition', 'pycoral', 'dlib', 'scikit_learn']
 
