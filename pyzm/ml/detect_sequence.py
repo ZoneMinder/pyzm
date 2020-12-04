@@ -186,6 +186,7 @@ class DetectSequence(Base):
             - img (cv2 image): image grab of matched frame
 
            - array of objects:
+           
             - list of boxes,labels,confidences of all frames matched
 
         Note:
