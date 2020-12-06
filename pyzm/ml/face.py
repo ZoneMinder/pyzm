@@ -234,7 +234,8 @@ class Face(Base):
                 cv2.imwrite(unf, crop_img)
 
             matched_face_rects.append([loc[3], loc[0], loc[1], loc[2]])
-            matched_face_names.append('face:{}'.format(label))
+            matched_face_names.append(label)
+            #matched_face_names.append('face:{}'.format(label))
             conf.append(1)
 
         self.logger.Debug(3,f'FACE:Returning: {matched_face_rects}, {matched_face_names}, {conf}')

@@ -73,7 +73,7 @@ class Tpu(Base):
         return self.classes
 
     def load_model(self):
-        self.logger.Debug (1, 'Loading TPU model from disk')
+        self.logger.Debug (1, '|--------- Loading TPU model from disk -------------|')
         start = datetime.datetime.now()
 
         #self.model = DetectionEngine(self.options.get('object_weights'))
@@ -104,9 +104,9 @@ class Tpu(Base):
             .format(Width, Height))
         start = datetime.datetime.now()
         
-        self.model.invoke()
         _, scale = common.set_resized_input(
             self.model, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
+        self.model.invoke()
         objs = detect.get_objects(self.model, self.options.get('object_min_confidence'), scale)
       
         #outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),

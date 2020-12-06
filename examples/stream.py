@@ -53,6 +53,7 @@ ml_options = {
    
     'object': {
         'general':{
+            'pattern':'car',
             'same_model_sequence_strategy': 'first' # also 'most', 'most_unique's
         },
         'sequence': [{
@@ -74,6 +75,7 @@ ml_options = {
     },
     'face': {
         'general':{
+            'pattern': 'godzilla',
             'same_model_sequence_strategy': 'first'
         },
         'sequence': [{
@@ -110,7 +112,6 @@ stream_options = {
         #'max_frames':10,
         'strategy': 'most_models',
         #'strategy': 'first',
-        #'pattern': '(person|car|truck)',
         'api': zmapi,
         'download': False,
         'frame_set': 'snapshot,alarm',

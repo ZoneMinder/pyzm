@@ -43,6 +43,7 @@ class DetectSequence(Base):
                                 # 'most_unique' - run through all libraries, select one that has most unique object matches
                                 
                                 'same_model_sequence_strategy': 'first' # 'first' 'most', 'most_unique'
+                                'pattern': '.*' # any pattern
                             },
 
                             # within object, this is a sequence of object detection libraries. In this case,
@@ -153,7 +154,7 @@ class DetectSequence(Base):
             xfactor, yfactor, newps))
         return newps
 
-    def _filter_patterns(self,box,label,conf, global_match_pattern, polygons):
+    def _filter_patterns(self,seq, box,label,conf, polygons):
         
         # remember this needs to occur after a frame
         # is read, otherwise we don't have dimensions
@@ -167,7 +168,7 @@ class DetectSequence(Base):
                 'name': 'full_image',
                 'value': [(0, 0), (oldw, 0), (oldw, oldh), (0, oldh)],
                 #'value': [(0, 0), (5, 0), (5, 5), (0, 5)],
-                'pattern': global_match_pattern
+                'pattern': None
 
             })
             self.logger.Debug(2,'No polygons, adding full image polygon: {}'.format(polygons[0]))
@@ -184,9 +185,7 @@ class DetectSequence(Base):
                 polygons[:] = self._rescale_polygons(polygons, neww / oldw, newh / oldh)
             
 
-        global_r = re.compile(global_match_pattern)
         doesIntersect = False
-        global_match = list(filter(global_r.match, label))
         new_label = [] 
         new_bbox =[]
         new_conf = []
@@ -200,17 +199,22 @@ class DetectSequence(Base):
 
             for p in polygons:
                 poly = Polygon(p['value'])
-                self.logger.Debug(3,"intersection: comparing object:{},{} to polygon:{}".format(label[idx],obj,poly))
+                self.logger.Debug(3,"intersection: comparing object:{},{} to polygon:{},{}".format(label[idx],obj,p['name'],poly))
 
                 if obj.intersects(poly):
-                    if  p['pattern'] != global_match_pattern:
+                    if  p['pattern']:
                         self.logger.Debug(3, '{} polygon/zone has its own pattern of {}, using that'.format(p['name'],p['pattern']))
                         r = re.compile(p['pattern'])
                         match = list(filter(r.match, label))
                     else:
-                        match = global_match
-                        
-                    if label[idx].startswith('face:') or label[idx].startswith('alpr:') or label[idx] in match:
+                        match_pattern = self.ml_options.get(seq,{}).get('general',{}).get('pattern', '.*')
+                        self.logger.Debug(3,'Using global match pattern: {}'.format(match_pattern))
+
+                        r = re.compile(match_pattern)
+                        match = list(filter(r.match, label))
+
+                    #if label[idx].startswith('face:') or label[idx].startswith('alpr:') or label[idx] in match:
+                    if label[idx] in match:
                         self.logger.Debug(3,'{} intersects object:{}[{}]'.format(
                             p['name'], label[idx], b))
                         new_label.append(label[idx])
@@ -313,7 +317,6 @@ class DetectSequence(Base):
         media = MediaStream(stream,'video', self.stream_options )
         self.media = media
 
-        global_match_pattern = self.stream_options.get('pattern', '.*')
         polygons = self.stream_options.get('polygons',[])
 
         
@@ -334,12 +337,13 @@ class DetectSequence(Base):
 
             # For each frame, loop across all models
             for seq in self.model_sequence:
+            
                 self.logger.Debug(1,'============ Frame: {} Running {} model in sequence =================='.format(self.media.get_last_read_frame(),seq))
                 pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
                 if pre_existing_labels:
                     self.logger.Debug(2,'Making sure we have matched one of {} in {} before we proceed'.format(pre_existing_labels, _labels_in_frame))
                     if not any(x in _labels_in_frame for x in pre_existing_labels):
-                        self.logger.Debug(1,'Did not find pre existing labels: {} defined, not running model'.format(pre_existing_labels))
+                        self.logger.Debug(1,'Did not find pre existing labels, not running model')
                         continue
 
                 if not self.models.get(seq):
@@ -380,7 +384,7 @@ class DetectSequence(Base):
                         _b_best_in_same_model = _b
                         _l_best_in_same_model = _l
                         _c_best_in_same_model = _c
-                    if (same_model_sequence_strategy=='first'):
+                    if (same_model_sequence_strategy=='first') and len(_b):
                         self.logger.Debug(3, 'breaking out of same model loop, as matches found and strategy is "first"')
                         break
                 # end of same model sequence iteration
@@ -388,7 +392,7 @@ class DetectSequence(Base):
                 # same model variations
 
                 # Now let's make sure the labels match our pattern
-                _b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model = self._filter_patterns(_b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model, global_match_pattern, polygons)
+                _b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model = self._filter_patterns(seq,_b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model, polygons)
                 if not len(_l_best_in_same_model):
                     continue
                 _labels_in_frame.extend(_l_best_in_same_model)
