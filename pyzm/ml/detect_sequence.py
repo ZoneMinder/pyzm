@@ -370,14 +370,17 @@ class DetectSequence(Base):
                     cnt +=1
                     try:
                         _b,_l,_c = m.detect(image=frame)
+                        self.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
+
                     except Exception as e:
                         self.logger.Error ('Error running model: {}'.format(e))
                         self.logger.Debug(2,traceback.format_exc())
-
                         continue
 
-                    self.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
-                   
+                     # Now let's make sure the labels match our pattern
+                    _b,_l,_c= self._filter_patterns(seq,_b,_l,_c, polygons)
+                    if not len(_l):
+                        continue
                     if  ((same_model_sequence_strategy == 'first') 
                     or ((same_model_sequence_strategy == 'most') and (len(_l) > len(_l_best_in_same_model))) 
                     or ((same_model_sequence_strategy == 'most_unique') and (len(set(_l)) > len(set(_l_best_in_same_model))))):
@@ -391,10 +394,6 @@ class DetectSequence(Base):
                 # at this state x_best_in_model contains the best match across 
                 # same model variations
 
-                # Now let's make sure the labels match our pattern
-                _b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model = self._filter_patterns(seq,_b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model, polygons)
-                if not len(_l_best_in_same_model):
-                    continue
                 _labels_in_frame.extend(_l_best_in_same_model)
                 _boxes_in_frame.extend(_b_best_in_same_model)
                 _confs_in_frame.extend(_c_best_in_same_model)
