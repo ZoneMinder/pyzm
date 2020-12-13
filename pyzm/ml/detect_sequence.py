@@ -189,6 +189,7 @@ class DetectSequence(Base):
         new_label = [] 
         new_bbox =[]
         new_conf = []
+        new_err = []
         for idx,b in enumerate(box):
             old_b = b
             it = iter(b)
@@ -221,21 +222,22 @@ class DetectSequence(Base):
                         new_bbox.append(old_b)
                         new_conf.append(conf[idx])
                     else:
-                        self.logger.Info(
-                            'discarding "{}" as it does not match your filters'.
-                            format(label[idx]))
+                        new_err.append(old_b)
+
                         self.logger.Debug(3,
                             '{} intersects object:{}[{}] but does NOT match your detect pattern filter'
                             .format(p['name'], label[idx], b))
                     doesIntersect = True
                     break
+
             # out of poly loop
             if not doesIntersect:
-                self.logger.Info(
-                    'object:{} at {} does not fall into any polygons, removing...'.
+                new_err.append(old_b)
+                self.logger.Info('object:{} at {} does not fall into any polygons, removing...'.
                     format(label[idx], obj))
         # out of primary bbox loop
-        return new_bbox, new_label, new_conf
+        #print ("NEW ERR IS {}".format(new_err))
+        return new_bbox, new_label, new_conf, new_err
 
 
     def detect_stream(self, stream, options={}):
@@ -292,6 +294,7 @@ class DetectSequence(Base):
         match_strategy = options.get('strategy', 'most_models')
         all_matches = []
         matched_b = []
+        matched_e = []
         matched_l = []
         matched_c = []
         matched_models = []
@@ -332,6 +335,7 @@ class DetectSequence(Base):
         
             _labels_in_frame = []
             _boxes_in_frame = []
+            _error_boxes_in_frame = []
             _confs_in_frame = []
             _models_in_frame = []
 
@@ -363,6 +367,8 @@ class DetectSequence(Base):
                 _b_best_in_same_model = []
                 _l_best_in_same_model = [] 
                 _c_best_in_same_model = []
+                _e_best_in_same_model = []
+
                 cnt = 1
                 # For each model, loop across different variations
                 for m in self.models[seq]:
@@ -378,7 +384,9 @@ class DetectSequence(Base):
                         continue
 
                      # Now let's make sure the labels match our pattern
-                    _b,_l,_c= self._filter_patterns(seq,_b,_l,_c, polygons)
+                    _b,_l,_c, _e = self._filter_patterns(seq,_b,_l,_c, polygons)
+                    if _e:
+                        _e_best_in_same_model.extend(_e)
                     if not len(_l):
                         continue
                     if  ((same_model_sequence_strategy == 'first') 
@@ -387,6 +395,7 @@ class DetectSequence(Base):
                         _b_best_in_same_model = _b
                         _l_best_in_same_model = _l
                         _c_best_in_same_model = _c
+                        _e_best_in_same_model = _e
                     if (same_model_sequence_strategy=='first') and len(_b):
                         self.logger.Debug(3, 'breaking out of same model loop, as matches found and strategy is "first"')
                         break
@@ -397,6 +406,7 @@ class DetectSequence(Base):
                 _labels_in_frame.extend(_l_best_in_same_model)
                 _boxes_in_frame.extend(_b_best_in_same_model)
                 _confs_in_frame.extend(_c_best_in_same_model)
+                _error_boxes_in_frame.extend(_e_best_in_same_model)
                 _models_in_frame.append(seq)
 
             # end of primary model sequence
@@ -404,6 +414,7 @@ class DetectSequence(Base):
                 {
                     'frame_id': self.media.get_last_read_frame(),
                     'boxes': _boxes_in_frame,
+                    'error_boxes': _error_boxes_in_frame,
                     'labels': _labels_in_frame,
                     'confidences': _confs_in_frame,
                     'models': _models_in_frame
@@ -416,6 +427,7 @@ class DetectSequence(Base):
                 break
         # end of while media loop   
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
+           
         #print ('*********** MATCH_STRATEGY {}'.format(match_strategy))
         for idx,item in enumerate(all_matches):
             if  ((match_strategy == 'first') or 
@@ -423,6 +435,7 @@ class DetectSequence(Base):
             ((match_strategy == 'most_models') and (len(item['models']) > len(matched_models))) or
             ((match_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l))))):
                 matched_b =item['boxes']
+                matched_e = item['error_boxes']
                 matched_c = item['confidences']
                 matched_l  = item['labels']            
                 matched_frame_id = item['frame_id']
@@ -440,6 +453,7 @@ class DetectSequence(Base):
 
         matched_data = {
             'boxes': matched_b,
+            'error_boxes': matched_e,
             'labels': matched_l,
             'confidences': matched_c,
             'frame_id': matched_frame_id,
