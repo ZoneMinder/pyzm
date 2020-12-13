@@ -88,8 +88,8 @@ class Yolo(Base):
             self.logger.Debug (1, 'Using CPU for detection')
 
         if self.processor == 'gpu':
-            self.logger.Debug(
-                1,'Setting CUDA backend for OpenCV. If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy')
+            self.logger.Debug( 2,'Setting CUDA backend for OpenCV')
+            self.logger.Debug( 3,'If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy')
             self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
             self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
         
