@@ -317,7 +317,7 @@ class DetectSequence(Base):
         
 
         start = datetime.datetime.now()
-        media = MediaStream(stream,'video', self.stream_options )
+        media = MediaStream(stream,'video', self.stream_options, logger=self.logger )
         self.media = media
 
         polygons = self.stream_options.get('polygons',[])
