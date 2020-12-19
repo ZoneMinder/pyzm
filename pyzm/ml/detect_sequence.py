@@ -444,10 +444,9 @@ class DetectSequence(Base):
                 matched_frame_img = matched_images[idx]
        
         if manual_locking:
-            if self.face_model:
-                self.face_model.release_lock()
-            if self.object_model:
-                self.object_model.release_lock()
+            for seq in self.model_sequence:
+                self.models[seq].release_lock()
+            
         self.logger.Debug(
             1,'detection (with image loads) took: {} milliseconds to process {}'.format(diff_time, stream))
         self.media.stop()
