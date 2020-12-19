@@ -355,7 +355,8 @@ class DetectSequence(Base):
                     try:
                         self._load_models([seq])
                         if manual_locking:
-                            self.models[seq].acquire_lock()
+                            for m in self.models[seq]
+                                m.acquire_lock()
                     except Exception as e:
                         self.logger.Error('Error loading model for {}:{}'.format(seq,e))
                         self.logger.Debug(2,traceback.format_exc())
@@ -445,7 +446,8 @@ class DetectSequence(Base):
        
         if manual_locking:
             for seq in self.model_sequence:
-                self.models[seq].release_lock()
+                for m in self.models[seq]
+                    m.release_lock()
             
         self.logger.Debug(
             1,'detection (with image loads) took: {} milliseconds to process {}'.format(diff_time, stream))
