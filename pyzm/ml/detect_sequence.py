@@ -122,6 +122,7 @@ class DetectSequence(Base):
     def _load_models(self, sequences):
         if not sequences:
             sequences = self.model_sequence
+        self.logger.Debug (3, "load_models: {}".format(sequences))
         for seq in sequences:
             if seq == 'object':
                 self.models[seq] = []

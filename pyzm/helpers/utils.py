@@ -8,17 +8,35 @@ from pyzm.helpers.Base import ConsoleLog
 from configparser import ConfigParser
 import cv2
 import numpy as np
+import re
 
 def read_config(file):
     config_file = ConfigParser(interpolation=None)
     config_file.read(file)
     return config_file
 
+# wtf is this?
 def get(key=None, section=None, conf=None):
     if conf.has_option(section, key):
         return conf.get(section, key)
     else:
         return None
+
+
+def template_fill(input_str=None, config=None, secrets=None):
+    class Formatter(dict):
+    def __missing__(self, key):
+        return "MISSING-{}".format(key)
+
+    res = input_str
+    if config:
+        #res = input_str.format_map(Formatter(config)).format_map(Formatter(config))
+        p = r'{{(\w+?)}}'
+        res = re.sub(p, lambda m: config.get(m.group(1), 'MISSING-{}'.format(m.group(1))), res)
+    if secrets:
+        p = r'!(\w+)'
+        res = re.sub(p, lambda m: secrets.get(m.group(1).lower(), 'MISSING-{}'.format(m.group(1).lower())), res)
+    return res
 
 def draw_bbox(image=None,
               boxes=[],
