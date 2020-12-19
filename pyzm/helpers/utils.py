@@ -25,8 +25,8 @@ def get(key=None, section=None, conf=None):
 
 def template_fill(input_str=None, config=None, secrets=None):
     class Formatter(dict):
-    def __missing__(self, key):
-        return "MISSING-{}".format(key)
+        def __missing__(self, key):
+            return "MISSING-{}".format(key)
 
     res = input_str
     if config:
