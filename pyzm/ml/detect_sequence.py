@@ -463,6 +463,8 @@ class DetectSequence(Base):
             #'type': matched_type,
             'image': matched_frame_img
         }
+        # if invoked again, we need to resize polys
+        self.has_rescaled = False
         return matched_data, all_matches
 
 
