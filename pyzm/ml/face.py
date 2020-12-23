@@ -24,6 +24,7 @@ from pyzm.helpers.Media import MediaStream
 class Face(Base):
     def __init__(self, logger=None, options={},upsample_times=1, num_jitters=0, model='hog'):
         super().__init__(logger)
+        self.logger.Debug (4, 'Face init params: {}'.format(options))
 
         if dlib.DLIB_USE_CUDA and dlib.cuda.get_num_devices() >=1 :
             self.processor = 'gpu'

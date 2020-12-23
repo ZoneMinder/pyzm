@@ -19,6 +19,8 @@ class AlprBase(Base):
         self.url = options.get('alpr_url')
         self.options = options
     
+        self.logger.Debug (4, 'ALPR init params: {}'.format(options))
+
     def acquire_lock(self):
         pass
 

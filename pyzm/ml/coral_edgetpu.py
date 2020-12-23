@@ -27,6 +27,8 @@ class Tpu(Base):
         self.classes = {}
         self.options = options
        #self.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
+
+        self.logger.Debug (4, 'TPU init params: {}'.format(options))
         
         self.processor='tpu'
         self.lock_maximum=options.get(self.processor+'_max_processes') or 1
@@ -108,6 +110,7 @@ class Tpu(Base):
             self.model, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
         self.model.invoke()
         objs = detect.get_objects(self.model, self.options.get('object_min_confidence'), scale)
+
       
         #outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
         #        keep_aspect_ratio=True, relative_coord=False)
