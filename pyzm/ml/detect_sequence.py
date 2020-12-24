@@ -122,13 +122,13 @@ class DetectSequence(Base):
     def _load_models(self, sequences):
         if not sequences:
             sequences = self.model_sequence
-        self.logger.Debug (3, "load_models: {}".format(sequences))
+        self.logger.Debug (3, "load_models (just init, actual load happens at first detect): {}".format(sequences))
         for seq in sequences:
             try:
                 if seq == 'object':
                     self.models[seq] = []
                     for obj_seq in self.ml_options.get(seq,{}).get('sequence'):
-                        self.logger.Debug (2,'Loading model  type:{} with options:{}'.format(seq,obj_seq ))
+                        self.logger.Debug (2,'Initializing model  type:{} with options:{}'.format(seq,obj_seq ))
                         self.models[seq].append(ObjectDetect.Object(options=obj_seq, logger=self.logger))
                 elif seq == 'face':
                     self.models[seq] = []
