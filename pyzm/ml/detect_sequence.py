@@ -124,23 +124,28 @@ class DetectSequence(Base):
             sequences = self.model_sequence
         self.logger.Debug (3, "load_models: {}".format(sequences))
         for seq in sequences:
-            if seq == 'object':
-                self.models[seq] = []
-                for obj_seq in self.ml_options.get(seq,{}).get('sequence'):
-                    self.logger.Debug (2,'Loading model  type:{} with options:{}'.format(seq,obj_seq ))
-                    self.models[seq].append(ObjectDetect.Object(options=obj_seq, logger=self.logger))
-            elif seq == 'face':
-                self.models[seq] = []
-                for face_seq in self.ml_options.get(seq,{}).get('sequence'):
-                    self.models[seq].append(FaceDetect.Face(options=face_seq, logger=self.logger))
-            elif seq == 'alpr':
-                self.models[seq] = []
-                for alpr_seq in self.ml_options.get(seq,{}).get('sequence'):
-                    self.models[seq].append(AlprDetect.Alpr(options=alpr_seq, logger=self.logger))
+            try:
+                if seq == 'object':
+                    self.models[seq] = []
+                    for obj_seq in self.ml_options.get(seq,{}).get('sequence'):
+                        self.logger.Debug (2,'Loading model  type:{} with options:{}'.format(seq,obj_seq ))
+                        self.models[seq].append(ObjectDetect.Object(options=obj_seq, logger=self.logger))
+                elif seq == 'face':
+                    self.models[seq] = []
+                    for face_seq in self.ml_options.get(seq,{}).get('sequence'):
+                        self.models[seq].append(FaceDetect.Face(options=face_seq, logger=self.logger))
+                elif seq == 'alpr':
+                    self.models[seq] = []
+                    for alpr_seq in self.ml_options.get(seq,{}).get('sequence'):
+                        self.models[seq].append(AlprDetect.Alpr(options=alpr_seq, logger=self.logger))
 
-            else:
-                self.logger.Error ('Invalid model: {}'.format(seq))
-                raise ValueError ('Invalid model: {}'.format(seq))
+                else:
+                    self.logger.Error ('Invalid model: {}'.format(seq))
+                    raise ValueError ('Invalid model: {}'.format(seq))
+            except Exception as e:
+                self.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
+                self.logger.Debug(2,traceback.format_exc())
+                continue            
     
     def _rescale_polygons(self, polygons, xfactor, yfactor):
         newps = []
