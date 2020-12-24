@@ -227,8 +227,6 @@ class ZMApi (Base):
             return self.legacy_credentials
 
 
-
-
     def _make_request(self, url=None, query={}, payload={}, type='get', reauth=True):
         type = type.lower()
         if self.auth_enabled:
@@ -250,6 +248,7 @@ class ZMApi (Base):
             self.logger.Debug(4,'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
             if type=='get':
                 r = self.session.get(url, params=query)
+
             elif type=='post':
                 r = self.session.post(url, data=payload, params=query)
             elif type=='put':
@@ -272,7 +271,8 @@ class ZMApi (Base):
             elif r.headers.get('content-type').startswith('image/'):
                 return r 
             else:
-                return r.text
+                raise ValueError ("unexpected content type {}".format(r.headers.get('content-type')))
+                #return r.text
 
         except requests.exceptions.HTTPError as err:
             self.logger.Debug(1, 'Got API access error: {}'.format(err))
@@ -281,8 +281,14 @@ class ZMApi (Base):
                 self._relogin()
                 self.logger.Debug (1,'Retrying failed request again...')
                 return self._make_request(url, query, payload, type, reauth=False)
-            else:
-                raise err
+        except ValueError as err:
+            self.logger.Debug(1, 'Got ValueError access error: {}'.format(err))
+            self.logger.Debug (1, 'Retrying login once')
+            self._relogin()
+            self.logger.Debug (1,'Retrying failed request again...')
+            return self._make_request(url, query, payload, type, reauth=False)
+        else:
+            raise err
 
 
     def monitors(self, options={}):
