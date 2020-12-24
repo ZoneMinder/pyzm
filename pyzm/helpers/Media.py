@@ -79,8 +79,8 @@ class MediaStream(Base):
                 #if self.options.get('resize') != 'no':
                 #    self.stream += '&width={}'.format(self.options.get('resize', self.default_resize))
 
-                if self.api.get_auth() != '':
-                    self.stream += '&{}'.format(self.api.get_auth())
+                #if self.api.get_auth() != '':
+                #    self.stream += '&{}'.format(self.api.get_auth())
 
                 self.logger.Debug(2,'Using URL {} for stream'.format(stream))
                 self.type = 'image'
@@ -210,8 +210,11 @@ class MediaStream(Base):
                 url = '{}&fid={}'.format(self.stream,self.next_frameid_to_read)
             
             self.logger.Debug (3, 'Reading {}'.format(url))
-
-            response = self.session.get(url)
+            response = None
+            if self.api:
+                response = self.api._make_request(url)
+            else:
+                response = self.session.get(url)
             if self.frame_set:
                 self.last_frameid_read = self.frame_set[self.next_frame_set_index]
                 self.next_frame_set_index += 1

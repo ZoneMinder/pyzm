@@ -247,7 +247,7 @@ class ZMApi (Base):
                 url += qchar + self.legacy_credentials
                 
         try:
-            self.logger.Debug(2,'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
+            self.logger.Debug(4,'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
             if type=='get':
                 r = self.session.get(url, params=query)
             elif type=='post':
@@ -265,9 +265,14 @@ class ZMApi (Base):
 
             # Empty response, e.g. to DELETE requests, can't be parsed to json
             # even if the content-type says it is application/json
+
+            
             if r.headers.get('content-type').startswith("application/json") and r.text:
                 return r.json()
-            return r.text
+            elif r.headers.get('content-type').startswith('image/'):
+                return r 
+            else:
+                return r.text
 
         except requests.exceptions.HTTPError as err:
             self.logger.Debug(1, 'Got API access error: {}'.format(err))
