@@ -31,7 +31,7 @@ class Yolo(Base):
         self.lock_name='pyzm_'+self.processor+'_lock'
         self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
         self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
-        self.model_height = self.options.get('model_width', 416)
+        self.model_height = self.options.get('model_height', 416)
         self.model_width = self.options.get('model_width', 416)
          
     def acquire_lock(self):
