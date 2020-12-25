@@ -120,6 +120,7 @@ class DetectSequence(Base):
         self.has_rescaled = False
 
     def _load_models(self, sequences):
+        #print (f'***** {sequences}')
         if not sequences:
             sequences = self.model_sequence
         self.logger.Debug (3, "load_models (just init, actual load happens at first detect): {}".format(sequences))
@@ -128,16 +129,30 @@ class DetectSequence(Base):
                 if seq == 'object':
                     self.models[seq] = []
                     for obj_seq in self.ml_options.get(seq,{}).get('sequence'):
-                        self.logger.Debug (2,'Initializing model  type:{} with options:{}'.format(seq,obj_seq ))
-                        self.models[seq].append(ObjectDetect.Object(options=obj_seq, logger=self.logger))
+                        try:
+                            self.logger.Debug (2,'Initializing model  type:{} with options:{}'.format(seq,obj_seq ))
+                            self.models[seq].append(ObjectDetect.Object(options=obj_seq, logger=self.logger))
+                        except Exception as e:
+                            self.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
+                            self.logger.Debug(2,traceback.format_exc())
+
                 elif seq == 'face':
                     self.models[seq] = []
                     for face_seq in self.ml_options.get(seq,{}).get('sequence'):
-                        self.models[seq].append(FaceDetect.Face(options=face_seq, logger=self.logger))
+                        try:
+                            self.models[seq].append(FaceDetect.Face(options=face_seq, logger=self.logger))
+                        except Exception as e:
+                            self.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
+                            self.logger.Debug(2,traceback.format_exc())
+
                 elif seq == 'alpr':
                     self.models[seq] = []
                     for alpr_seq in self.ml_options.get(seq,{}).get('sequence'):
-                        self.models[seq].append(AlprDetect.Alpr(options=alpr_seq, logger=self.logger))
+                        try:
+                            self.models[seq].append(AlprDetect.Alpr(options=alpr_seq, logger=self.logger))
+                        except Exception as e:
+                            self.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
+                            self.logger.Debug(2,traceback.format_exc())                        
 
                 else:
                     self.logger.Error ('Invalid model: {}'.format(seq))
@@ -382,6 +397,7 @@ class DetectSequence(Base):
                     self.logger.Debug(3,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
                     cnt +=1
                     try:
+                       
                         _b,_l,_c = m.detect(image=frame)
                         self.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
 

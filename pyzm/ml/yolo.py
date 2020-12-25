@@ -31,7 +31,8 @@ class Yolo(Base):
         self.lock_name='pyzm_'+self.processor+'_lock'
         self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
         self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
-        
+        self.model_height = self.options.get('model_width', 416)
+        self.model_width = self.options.get('model_width', 416)
          
     def acquire_lock(self):
         if self.is_locked:
@@ -106,8 +107,7 @@ class Yolo(Base):
     def detect(self, image=None):
 
         Height, Width = image.shape[:2]
-        modelW = 416
-        modelH = 416
+        
 
         if self.options.get('auto_lock',True):
             self.acquire_lock()
@@ -117,14 +117,14 @@ class Yolo(Base):
 
         self.logger.Debug(
             1,'|---------- YOLO (input image: {}w*{}h, resized to: {}w*{}h) ----------|'
-            .format(Width, Height, modelW, modelH))
+            .format(Width, Height, self.model_width, self.model_height))
         scale = 0.00392  # 1/255, really. Normalize inputs.
             
         start = datetime.datetime.now()
         ln = self.net.getLayerNames()
         ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
         blob = cv2.dnn.blobFromImage(image,
-                                    scale, (modelW, modelH), (0, 0, 0),
+                                    scale, (self.model_width, self.model_height), (0, 0, 0),
                                     True,
                                     crop=False)
         
