@@ -425,7 +425,7 @@ class DetectSequence(Base):
                         _l_best_in_same_model = _l
                         _c_best_in_same_model = _c
                         _e_best_in_same_model = _e
-                    if self.stream_options.get('save_analyzed_frames') and self.media.get_debug_filename():
+                    if _l_best_in_same_model and self.stream_options.get('save_analyzed_frames') and self.media.get_debug_filename():
                             d = self.stream_options.get('save_frames_dir','/tmp')
                             f = '{}/{}-analyzed-{}.jpg'.format(d,self.media.get_debug_filename(), media.get_last_read_frame())
                             self.logger.Debug (4, 'Saving analyzed frame: {}'.format(f))
