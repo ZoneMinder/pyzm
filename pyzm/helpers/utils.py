@@ -48,7 +48,8 @@ def draw_bbox(image=None,
               poly_thickness = 1,
               write_conf=True):
 
-        # g.logger.Debug (1,"DRAW BBOX={} LAB={}".format(bbox,labels))
+        
+        #print (1,"**************DRAW BBOX={} LAB={}".format(boxes,labels))
         slate_colors = [(39, 174, 96), (142, 68, 173), (0, 129, 254),
                         (254, 60, 113), (243, 134, 48), (91, 177, 47)]
         # if no color is specified, use my own slate
@@ -61,6 +62,8 @@ def draw_bbox(image=None,
         newh, neww = image.shape[:2]
         image = image.copy()
         if poly_thickness:
+            if not polygons:
+                polygons=[]
             for ps in polygons:
                 cv2.polylines(image, [np.asarray(ps['value'])],
                             True,
@@ -77,7 +80,7 @@ def draw_bbox(image=None,
                 label += ' ' + str(format(confidences[i] * 100, '.2f')) + '%'
             # draw bounding box around object
 
-            #g.logger.Debug (1,"DRAWING RECT={},{} {},{}".format(bbox[i][0], bbox[i][1],bbox[i][2], bbox[i][3]))
+            #print ("DRAWING COLOR={} RECT={},{} {},{}".format(box_color, boxes[i][0], boxes[i][1],boxes[i][2], boxes[i][3]))
             cv2.rectangle(image, (boxes[i][0], boxes[i][1]), (boxes[i][2], boxes[i][3]),
                         box_color, 2)
 

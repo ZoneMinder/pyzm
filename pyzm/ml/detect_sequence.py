@@ -10,6 +10,7 @@ from pyzm.helpers.Base import Base
 import pyzm.ml.object as  ObjectDetect
 import pyzm.ml.face as FaceDetect
 import pyzm.ml.alpr as AlprDetect
+import pyzm.helpers.utils as utils
 
 import re
 import datetime
@@ -279,6 +280,9 @@ class DetectSequence(Base):
                 - max_frames (int): Total number of frames to process before stopping
                 - pattern (string): regexp for objects that will be matched. 'strategy' key below will be applied to only objects that match this pattern
                 - frame_set (string): comma separated frames to read. Example 'alarm,2,4,9,snapshot'
+                - save_frames (boolean): If True, will save frames used in analysis. Default False
+                - save_analyzed_frames (boolean): If True, will save analyzed frames (with boxes). Default False
+                - save_frames_dir (string): Directory to save analyzed frames. Default /tmp
                 - strategy: (string): various conditions to stop matching as below
                
                     - 'most_models': Match the frame that has matched most models (does not include same model alternatives) (Default)
@@ -403,7 +407,6 @@ class DetectSequence(Base):
                        
                         _b,_l,_c = m.detect(image=frame)
                         self.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
-
                     except Exception as e:
                         self.logger.Error ('Error running model: {}'.format(e))
                         self.logger.Debug(2,traceback.format_exc())
@@ -422,6 +425,15 @@ class DetectSequence(Base):
                         _l_best_in_same_model = _l
                         _c_best_in_same_model = _c
                         _e_best_in_same_model = _e
+                    if self.stream_options.get('save_analyzed_frames') and self.media.get_debug_filename():
+                            d = self.stream_options.get('save_frames_dir','/tmp')
+                            f = '{}/{}-analyzed-{}.jpg'.format(d,self.media.get_debug_filename(), media.get_last_read_frame())
+                            self.logger.Debug (4, 'Saving analyzed frame: {}'.format(f))
+                            a = utils.draw_bbox(frame,_b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model,self.stream_options.get('polygons'))
+                            for _b in _e_best_in_same_model:
+                                cv2.rectangle(a, (_b[0], _b[1]), (_b[2], _b[3]),
+                                    (0,0,255), 1)
+                            cv2.imwrite(f,a)
                     if (same_model_sequence_strategy=='first') and len(_b):
                         self.logger.Debug(3, 'breaking out of same model loop, as matches found and strategy is "first"')
                         break

@@ -34,7 +34,7 @@ class MediaStream(Base):
         self.default_resize = 800
         self.is_deletable = False
         self.session = requests.Session()
-
+        self.debug_filename = None 
               
         if logger:
             self.logger = logger
@@ -62,6 +62,7 @@ class MediaStream(Base):
             
             # we can either download the event, or access it via ZM
             # indirection 
+            self.debug_filename = '{}-image'.format(self.stream)
             if self.options.get('download'):
                 self.logger.Debug(1,'Downloading event:{}'.format(self.stream))
                 es = self.api.events({'event_id': int(self.stream)})
@@ -101,6 +102,9 @@ class MediaStream(Base):
     
         if (self.type=='video'):
             self.logger.Debug (1, 'Starting video stream {}'.format(stream))
+            f,_=os.path.splitext(os.path.basename(self.stream))
+            self.debug_filename = '{}-image'.format(f)
+
             self.fvs = FileVideoStream(self.stream).start()
             time.sleep(1)
             self.logger.Debug (2, 'First load - skipping to frame {}'.format(self.start_frame))
@@ -117,7 +121,9 @@ class MediaStream(Base):
         else:
             self.logger.Debug (2,'No need to start streams, we are picking images from {}'.format(self.stream))
 
-
+    def get_debug_filename(self):
+        return self.debug_filename
+        
     def image_dimensions(self):
         return {
             'original': self.orig_h_w,
@@ -163,7 +169,7 @@ class MediaStream(Base):
             self.more_images_to_read = False
             if self.options.get('resize') != 'no':
                 frame = imutils.resize(frame,width=self.options.get('resize', self.default_resize))
-            self.resized_h_w = frame.shape[:2]            
+            self.resized_h_w = frame.shape[:2]  
             return frame
 
 
@@ -201,6 +207,12 @@ class MediaStream(Base):
                 frame = imutils.resize(frame,width=self.options.get('resize', self.default_resize))
             self.resized_h_w = frame.shape[:2]
 
+            if self.options.get('save_frames') and self.debug_filename:
+                d = self.options.get('save_frames_dir','/tmp')
+                fname = '{}/{}-{}.jpg'.format(d,self.debug_filename,self.last_frameid_read) 
+                self.logger.Debug (4, 'Saving image to {}'.format(fname))
+                cv2.imwrite(fname,frame)        
+
             return frame
         
         else: # image
@@ -232,6 +244,13 @@ class MediaStream(Base):
                     if self.options.get('resize') != 'no':
                         img = imutils.resize(img,width=self.options.get('resize', self.default_resize))
                     self.resized_h_w = img.shape[:2]
+
+                    if self.options.get('save_frames') and self.debug_filename:
+                        d = self.options.get('save_frames_dir','/tmp')
+                        fname = '{}/{}-{}.jpg'.format(d,self.debug_filename,self.last_frameid_read) 
+                        self.logger.Debug (4, 'Saving image to {}'.format(fname))
+                        cv2.imwrite(fname,img)        
+
                     return img
                 except Exception as e:
                     self.logger.Error ('Could not retrieve url {}: {}'.format(url,e))
