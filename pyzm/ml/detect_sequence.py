@@ -62,7 +62,10 @@ class DetectSequence(Base):
                                 'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
                                 'object_min_confidence': 0.3,
                                 'object_framework':'opencv',
-                                'object_processor': 'gpu'
+                                'object_processor': 'gpu',
+                                # These are optional below. Default is 416. Change if your model is trained for larger sizes
+                                'model_width': 416, 
+                                'model_height: 416
                             }]
                         },
 
