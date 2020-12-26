@@ -160,8 +160,8 @@ class Face(Base):
             model=self.face_model,
             number_of_times_to_upsample=self.upsample_times)
 
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
-        self.logger.Debug(1,'Finding faces took {} milliseconds'.format(diff_time))
+        diff_time = (datetime.datetime.now() - start)
+        self.logger.Debug(1,'Finding faces took {}'.format(diff_time))
 
         start = datetime.datetime.now()
         face_encodings = face_recognition.face_encodings(
@@ -172,9 +172,9 @@ class Face(Base):
         if self.options.get('auto_lock',True):
             self.release_lock()
 
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'Computing face recognition distances took {} milliseconds'.format(
+            1,'Computing face recognition distances took {}'.format(
                 diff_time))
 
         if not len(face_encodings):
@@ -200,9 +200,9 @@ class Face(Base):
             prediction_labels = [''] * len(face_locations)
             self.logger.Debug (1,'No faces to match, so creating empty set')
 
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'Matching recognized faces to known faces took {} milliseconds'.
+            1,'Matching recognized faces to known faces took {}'.
             format(diff_time))
 
         matched_face_names = []

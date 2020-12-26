@@ -495,10 +495,10 @@ class DetectSequence(Base):
                 for m in self.models[seq]:
                     m.release_lock()
 
-        diff_time= (datetime.datetime.now() - start).microseconds / 1000
+        diff_time= (datetime.datetime.now() - start)
 
         self.logger.Debug(
-            1,'detection (with image loads) took: {} milliseconds to process {}'.format(diff_time, stream))
+            1,'detection (with image loads) took: {}  to process {}'.format(diff_time, stream))
         self.media.stop()
 
         matched_data = {

@@ -124,7 +124,7 @@ stream_options = {
 }
 
 
-input ('Enter...')
+#input ('Enter...')
 m = DetectSequence(options=ml_options, logger=logger)
 #m = ObjectDetect.Object(options=ml_options)
 matched_data,all_data = m.detect_stream(stream=eid, options=stream_options)

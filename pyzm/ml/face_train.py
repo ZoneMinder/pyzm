@@ -20,9 +20,9 @@ class FaceTrain (Base):
         self.options = options
         start = datetime.datetime.now()
         
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'Face Recognition library load time took: {} milliseconds'.format(
+            1,'Face Recognition library load time took: {} '.format(
                 diff_time))
 
 
@@ -134,6 +134,6 @@ class FaceTrain (Base):
             pickle.dump(knn, f)
             f.close()
             self.logger.Debug(1,'wrote encoding file: {}'.format(encoding_file_name))
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'Face Recognition training took: {} milliseconds'.format(diff_time))
+            1,'Face Recognition training took: {}'.format(diff_time))

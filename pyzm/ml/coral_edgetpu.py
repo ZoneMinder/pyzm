@@ -84,9 +84,9 @@ class Tpu(Base):
 
         self.model.allocate_tensors()
 
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'TPU initialization (loading model from disk) took: {} milliseconds'
+            1,'TPU initialization (loading model from disk) took: {}'
             .format(diff_time))
         
     def detect(self, image=None):
@@ -114,13 +114,13 @@ class Tpu(Base):
       
         #outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
         #        keep_aspect_ratio=True, relative_coord=False)
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
+        diff_time = (datetime.datetime.now() - start)
 
         if self.options.get('auto_lock',True):
             self.release_lock()
 
         self.logger.Debug(
-            1,'Coral TPU detection took: {} milliseconds'.format(diff_time))
+            1,'Coral TPU detection took: {}'.format(diff_time))
       
         bbox = []
         labels = []
