@@ -319,7 +319,7 @@ class DetectSequence(Base):
         
 
         self.stream_options = options
-        match_strategy = options.get('strategy', 'most_models')
+        model_match_strategy = self.ml_options.get('model_match_strategy', 'most_models')
         all_matches = []
         matched_b = []
         matched_e = []
@@ -461,17 +461,17 @@ class DetectSequence(Base):
             )
             matched_images.append(frame.copy())
             
-            if (match_strategy=='first'):
+            if (model_match_strategy=='first'):
                 break
         # end of while media loop   
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
            
-        #print ('*********** MATCH_STRATEGY {}'.format(match_strategy))
+        #print ('*********** MATCH_STRATEGY {}'.format(model_match_strategy))
         for idx,item in enumerate(all_matches):
-            if  ((match_strategy == 'first') or 
-            ((match_strategy == 'most') and (len(item['labels']) > len(matched_l))) or
-            ((match_strategy == 'most_models') and (len(item['models']) > len(matched_models))) or
-            ((match_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l))))):
+            if  ((model_match_strategy == 'first') or 
+            ((model_match_strategy == 'most') and (len(item['labels']) > len(matched_l))) or
+            ((model_match_strategy == 'most_models') and (len(item['models']) > len(matched_models))) or
+            ((model_match_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l))))):
                 matched_b =item['boxes']
                 matched_e = item['error_boxes']
                 matched_c = item['confidences']
