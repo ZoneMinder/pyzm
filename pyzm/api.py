@@ -292,8 +292,7 @@ class ZMApi (Base):
                 return self._make_request(url, query, payload, type, reauth=False)
             else:
                 raise err
-        else:
-            raise err
+       
 
 
     def monitors(self, options={}):
