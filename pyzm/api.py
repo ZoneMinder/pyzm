@@ -265,7 +265,6 @@ class ZMApi (Base):
             # Empty response, e.g. to DELETE requests, can't be parsed to json
             # even if the content-type says it is application/json
 
-            
             if r.headers.get('content-type').startswith("application/json") and r.text:
                 return r.json()
             elif r.headers.get('content-type').startswith('image/'):
@@ -273,7 +272,9 @@ class ZMApi (Base):
             else:
                 # A non 0 byte response will usually mean its an image eid request that needs re-login
                 if r.headers.get('content-length') != '0':
-                    raise ValueError ("Non zero response that is not an image or json: {}".format(r.headers.get('content-type')))
+                    raise ValueError ("RELOGIN")
+                else:
+                    raise ValueError ("EMPTY_IMAGE")
                 #return r.text
 
         except requests.exceptions.HTTPError as err:
@@ -284,14 +285,19 @@ class ZMApi (Base):
                 self.logger.Debug (1,'Retrying failed request again...')
                 return self._make_request(url, query, payload, type, reauth=False)
         except ValueError as err:
-            if reauth:
-                self.logger.Debug(1, 'Got ValueError access error: {}'.format(err))
-                self.logger.Debug (1, 'Retrying login once')
-                self._relogin()
-                self.logger.Debug (1,'Retrying failed request again...')
-                return self._make_request(url, query, payload, type, reauth=False)
-            else:
-                raise err
+            err_msg = '{}'.format(err)
+            if err_msg == "RELOGIN":
+                if reauth:
+                    self.logger.Debug(1, 'Got ValueError access error: {}'.format(err))
+                    self.logger.Debug (1, 'Retrying login once')
+                    self._relogin()
+                    self.logger.Debug (1,'Retrying failed request again...')
+                    return self._make_request(url, query, payload, type, reauth=False)
+                else:
+                    raise err
+            elif err_msg == "EMPTY_IMAGE":
+                raise ValueError ("Likely bad image index")
+        
        
 
 

@@ -49,7 +49,9 @@ class Face(Base):
         self.lock_maximum=options.get(self.processor+'_max_processes') or 1
         self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
         
-        self.lock_name='pyzm_'+self.processor+'_lock'
+        #self.lock_name='pyzm_'+self.processor+'_lock'
+        self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
+
         self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
         self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         
