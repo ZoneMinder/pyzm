@@ -32,7 +32,8 @@ class DetectSequence(Base):
                     options = {
                         'general': {
                             # sequence of models you want to run for every specified frame
-                            'model_sequence': 'object,face,alpr' 
+                            'model_sequence': 'object,face,alpr' ,
+
                         },
                     
                         # We now specify all the config parameters per model_sequence entry
@@ -278,13 +279,14 @@ class DetectSequence(Base):
                 - start_frame (int): Which frame to start analysis. Default 1.
                 - frame_skip: (int): Number of frames to skip in video (example, 3 means process every 3rd frame)
                 - max_frames (int): Total number of frames to process before stopping
-                - pattern (string): regexp for objects that will be matched. 'strategy' key below will be applied to only objects that match this pattern
-                - frame_set (string): comma separated frames to read. Example 'alarm,2,4,9,snapshot'
+                - pattern (string): regexp for objects that will be matched. 'frame_strategy' key below will be applied to only objects that match this pattern
+                - frame_set (string): comma separated frames to read. Example 'alarm,21,31,41,snapshot'
+                  Note that if you are specifying frame IDs and using ZM, remember that ZM has a frame buffer
+                  Default is 20, I think. So you may want to start at frame 21.
                 - save_frames (boolean): If True, will save frames used in analysis. Default False
                 - save_analyzed_frames (boolean): If True, will save analyzed frames (with boxes). Default False
                 - save_frames_dir (string): Directory to save analyzed frames. Default /tmp
-                - strategy: (string): various conditions to stop matching as below
-               
+                - frame_strategy: (string): various conditions to stop matching as below
                     - 'most_models': Match the frame that has matched most models (does not include same model alternatives) (Default)
                     - 'first': Stop at first match 
                     - 'most': Match the frame that has the highest number of detected objects
@@ -319,7 +321,7 @@ class DetectSequence(Base):
         
 
         self.stream_options = options
-        model_match_strategy = self.ml_options.get('model_match_strategy', 'most_models')
+        frame_strategy = self.stream_options.get('frame_strategy', 'most_models' )
         all_matches = []
         matched_b = []
         matched_e = []
@@ -368,8 +370,8 @@ class DetectSequence(Base):
             _models_in_frame = []
 
             # For each frame, loop across all models
+            found = False
             for seq in self.model_sequence:
-            
                 self.logger.Debug(1,'============ Frame: {} Running {} model in sequence =================='.format(self.media.get_last_read_frame(),seq))
                 pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
                 if pre_existing_labels:
@@ -440,38 +442,47 @@ class DetectSequence(Base):
                 # end of same model sequence iteration
                 # at this state x_best_in_model contains the best match across 
                 # same model variations
-
-                _labels_in_frame.extend(_l_best_in_same_model)
-                _boxes_in_frame.extend(_b_best_in_same_model)
-                _confs_in_frame.extend(_c_best_in_same_model)
-                _error_boxes_in_frame.extend(_e_best_in_same_model)
-                _models_in_frame.append(seq)
+                if _l_best_in_same_model:
+                    found = True
+                    _labels_in_frame.extend(_l_best_in_same_model)
+                    _boxes_in_frame.extend(_b_best_in_same_model)
+                    _confs_in_frame.extend(_c_best_in_same_model)
+                    _error_boxes_in_frame.extend(_e_best_in_same_model)
+                    _models_in_frame.append(seq)
+                    if (frame_strategy == 'first'):
+                        self.logger.Debug (2, 'Breaking out of main model loop as strategy is first')
+                        break
+                else:
+                    self.logger.Debug(2,'We did not find any {} matches in frame: {}'.format(seq,self.media.get_last_read_frame()))
 
             # end of primary model sequence
-            all_matches.append (
-                {
-                    'frame_id': self.media.get_last_read_frame(),
-                    'boxes': _boxes_in_frame,
-                    'error_boxes': _error_boxes_in_frame,
-                    'labels': _labels_in_frame,
-                    'confidences': _confs_in_frame,
-                    'models': _models_in_frame
-                    
-                }
-            )
-            matched_images.append(frame.copy())
-            
-            if (model_match_strategy=='first'):
-                break
+            if found:
+                all_matches.append (
+                    {
+                        'frame_id': self.media.get_last_read_frame(),
+                        'boxes': _boxes_in_frame,
+                        'error_boxes': _error_boxes_in_frame,
+                        'labels': _labels_in_frame,
+                        'confidences': _confs_in_frame,
+                        'models': _models_in_frame
+                        
+                    }
+                )
+                matched_images.append(frame.copy())
+                if (frame_strategy == 'first'):
+                    self.logger.Debug(2,'Frame strategy is first, breaking out of frame loop')
+                    break
+                
+               
         # end of while media loop   
         diff_time = (datetime.datetime.now() - start).microseconds / 1000
            
         #print ('*********** MATCH_STRATEGY {}'.format(model_match_strategy))
         for idx,item in enumerate(all_matches):
-            if  ((model_match_strategy == 'first') or 
-            ((model_match_strategy == 'most') and (len(item['labels']) > len(matched_l))) or
-            ((model_match_strategy == 'most_models') and (len(item['models']) > len(matched_models))) or
-            ((model_match_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l))))):
+            if  ((frame_strategy == 'first') or 
+            ((frame_strategy == 'most') and (len(item['labels']) > len(matched_l))) or
+            ((frame_strategy == 'most_models') and (len(item['models']) > len(matched_models))) or
+            ((frame_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l))))):
                 matched_b =item['boxes']
                 matched_e = item['error_boxes']
                 matched_c = item['confidences']
