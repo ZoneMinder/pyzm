@@ -475,7 +475,6 @@ class DetectSequence(Base):
                 
                
         # end of while media loop   
-        diff_time = (datetime.datetime.now() - start).microseconds / 1000
            
         #print ('*********** MATCH_STRATEGY {}'.format(model_match_strategy))
         for idx,item in enumerate(all_matches):
@@ -495,7 +494,9 @@ class DetectSequence(Base):
             for seq in self.model_sequence:
                 for m in self.models[seq]:
                     m.release_lock()
-            
+
+        diff_time= (datetime.datetime.now() - start).microseconds / 1000
+
         self.logger.Debug(
             1,'detection (with image loads) took: {} milliseconds to process {}'.format(diff_time, stream))
         self.media.stop()
