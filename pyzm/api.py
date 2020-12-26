@@ -271,7 +271,9 @@ class ZMApi (Base):
             elif r.headers.get('content-type').startswith('image/'):
                 return r 
             else:
-                raise ValueError ("unexpected content type {}".format(r.headers.get('content-type')))
+                # A non 0 byte response will usually mean its an image eid request that needs re-login
+                if r.headers.get('content-length') != '0':
+                    raise ValueError ("Non zero response that is not an image or json: {}".format(r.headers.get('content-type')))
                 #return r.text
 
         except requests.exceptions.HTTPError as err:
@@ -282,11 +284,14 @@ class ZMApi (Base):
                 self.logger.Debug (1,'Retrying failed request again...')
                 return self._make_request(url, query, payload, type, reauth=False)
         except ValueError as err:
-            self.logger.Debug(1, 'Got ValueError access error: {}'.format(err))
-            self.logger.Debug (1, 'Retrying login once')
-            self._relogin()
-            self.logger.Debug (1,'Retrying failed request again...')
-            return self._make_request(url, query, payload, type, reauth=False)
+            if reauth:
+                self.logger.Debug(1, 'Got ValueError access error: {}'.format(err))
+                self.logger.Debug (1, 'Retrying login once')
+                self._relogin()
+                self.logger.Debug (1,'Retrying failed request again...')
+                return self._make_request(url, query, payload, type, reauth=False)
+            else:
+                raise err
         else:
             raise err
 

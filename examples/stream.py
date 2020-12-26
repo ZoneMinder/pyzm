@@ -116,7 +116,7 @@ stream_options = {
         #'strategy': 'first',
         'api': zmapi,
         'download': False,
-        'frame_set': 'snapshot,alarm',
+        'frame_set': '7000,1000,snapshot,alarm',
         'resize': 800,
         'save_frames': False,
         'save_analyzed_frames': True,
@@ -124,7 +124,7 @@ stream_options = {
 }
 
 
-
+input ('Enter...')
 m = DetectSequence(options=ml_options, logger=logger)
 #m = ObjectDetect.Object(options=ml_options)
 matched_data,all_data = m.detect_stream(stream=eid, options=stream_options)

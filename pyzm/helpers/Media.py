@@ -123,7 +123,7 @@ class MediaStream(Base):
 
     def get_debug_filename(self):
         return self.debug_filename
-        
+
     def image_dimensions(self):
         return {
             'original': self.orig_h_w,
@@ -223,10 +223,23 @@ class MediaStream(Base):
             
             self.logger.Debug (3, 'Reading {}'.format(url))
             response = None
-            if self.api:
-                response = self.api._make_request(url)
-            else:
-                response = self.session.get(url)
+            try:
+                if self.api:
+                    response = self.api._make_request(url)
+                else:
+                    response = self.session.get(url)
+            except Exception as e:
+                if self.frame_set:
+                    if self.next_frame_set_index < len(self.frame_set):
+                        self.logger.Error('Error reading frame: {}, but moving to next frame_set'.format(url))
+                        self.last_frameid_read = self.frame_set[self.next_frame_set_index]
+                        self.next_frame_set_index += 1
+                        return self.read()
+                    else:
+                        self.more_images_to_read = False
+                        self.next_frameid_to_read = 0
+                        return None 
+                        
             if self.frame_set:
                 self.last_frameid_read = self.frame_set[self.next_frame_set_index]
                 self.next_frame_set_index += 1
@@ -235,7 +248,7 @@ class MediaStream(Base):
                 self.next_frameid_to_read +=self.frame_skip
 
             self.frames_processed +=1 
-            if response.status_code == 200:
+            if response and response.status_code == 200:
                 try:
                     img = np.asarray(bytearray(response.content), dtype='uint8')
                     img = cv2.imdecode (img, cv2.IMREAD_COLOR)
@@ -255,6 +268,7 @@ class MediaStream(Base):
                 except Exception as e:
                     self.logger.Error ('Could not retrieve url {}: {}'.format(url,e))
                     return None
+          
             else:
                 self.more_images_to_read = False
                 self.next_frameid_to_read = 0
