@@ -14,6 +14,7 @@ import imutils
 from imutils.video import FileVideoStream
 import time
 import os
+import random
 
 class MediaStream(Base):
     def __init__(self, stream=None, type='video', options={}, logger=None):
@@ -35,6 +36,7 @@ class MediaStream(Base):
         self.is_deletable = False
         self.session = requests.Session()
         self.debug_filename = None 
+
               
         if logger:
             self.logger = logger
@@ -50,7 +52,8 @@ class MediaStream(Base):
         self.start_frame = int(options.get('start_frame',1))
         self.frame_skip = int(options.get('frame_skip', 1))
         self.max_frames = int(options.get('max_frames', 0))
-
+        self.contig_frames_before_error = int(options.get('contig_frames_before_error',5))
+        self.frames_before_error = 0
         
         
         if self.stream.isnumeric(): 
@@ -179,9 +182,15 @@ class MediaStream(Base):
                 self.frames_read +=1
 
                 if frame is None:
-                    self.logger.Error ('Error reading frames')
-                    return
+                    self.frames_before_error +=1
+                    if (self.frames_before_error >= self.contig_frames_before_error):
+                        self.logger.Error ('Error reading frames')
+                        return
+                    else:
+                        self.logger.Debug (1, 'Error reading frame: {} of max {} contiguous errors'.format(self.frames_before_error, self.contig_frames_before_error))
+                        continue
 
+                self.frames_before_error = 0
                 self.orig_h_w = frame.shape[:2]
                 if self.frame_set and (self.frames_read != int(self.frame_set[self.next_frame_set_index])):
                     continue
@@ -248,7 +257,8 @@ class MediaStream(Base):
                 self.next_frameid_to_read +=self.frame_skip
 
             self.frames_processed +=1 
-            if response and response.status_code == 200:
+            if response and response.status_code == 200: # and random.randint(0,5)==1:
+                self.frames_before_error = 0
                 try:
                     img = np.asarray(bytearray(response.content), dtype='uint8')
                     img = cv2.imdecode (img, cv2.IMREAD_COLOR)
@@ -270,6 +280,13 @@ class MediaStream(Base):
                     return None
           
             else:
+                self.frames_before_error +=1
+                if (self.frames_before_error >= self.contig_frames_before_error):
+                    self.logger.Error ('Error reading frames')
+                    return None
+                else:
+                    self.logger.Debug (1, 'Error reading frame: {} of max {} contiguous errors'.format(self.frames_before_error, self.contig_frames_before_error))
+                    return self.read()
                 self.more_images_to_read = False
                 self.next_frameid_to_read = 0
                 return None 

@@ -111,17 +111,18 @@ ml_options = {
 
 stream_options = {
         #'frame_skip':2,
-        #'start_frame': 1,
-        #'max_frames':10,
+        #'start_frame': 21,
+        #'max_frames':20,
         'strategy': 'most_models',
         #'strategy': 'first',
         'api': zmapi,
         'download': False,
-        'frame_set': '7000,1000,snapshot,alarm',
-        'resize': 'no',
+        'frame_set': 'snapshot,alarm,25,35,45',
+        'resize': 800,
         'save_frames': False,
-        'save_analyzed_frames': True,
-        'save_frames_dir': '/tmp'
+        'save_analyzed_frames': False,
+        'save_frames_dir': '/tmp',
+        'contig_frames_before_error': 5
 }
 
 

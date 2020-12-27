@@ -212,7 +212,7 @@ class Yolo(Base):
             label.append(str(self.classes[class_ids[i]]))
             conf.append(confidences[i])
            
-         if downscaled:
+        if downscaled:
             self.logger.Debug (2,'Scaling image back up to {}'.format(Width))
             image = old_image
             for box in bbox:
