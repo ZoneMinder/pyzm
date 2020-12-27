@@ -119,7 +119,7 @@ class Yolo(Base):
             self.load_model()
 
         self.logger.Debug(
-            1,'|---------- YOLO (input image: {}w*{}h, resized to: {}w*{}h) ----------|'
+            1,'|---------- YOLO (input image: {}w*{}h, model resize dimensions: {}w*{}h) ----------|'
             .format(Width, Height, self.model_width, self.model_height))
         scale = 0.00392  # 1/255, really. Normalize inputs.
             
