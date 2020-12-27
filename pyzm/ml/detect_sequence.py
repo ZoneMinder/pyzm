@@ -67,7 +67,7 @@ class DetectSequence(Base):
                                 'object_processor': 'gpu',
                                 # These are optional below. Default is 416. Change if your model is trained for larger sizes
                                 'model_width': 416, 
-                                'model_height: 416
+                                'model_height': 416
                             }]
                         },
 
