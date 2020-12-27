@@ -9,6 +9,7 @@ import subprocess
 import uuid
 from pyzm.helpers.Base import Base
 
+
 class AlprBase(Base):
     def __init__(self, logger=None,options={}, tempdir='/tmp'):
         super().__init__(logger)
@@ -45,9 +46,9 @@ class AlprBase(Base):
             self.logger.Debug(
                 1,'Supplied object is not a file, assuming blob and creating file'
             )
-            if self.options.get('resize') and self.options.get('resize') != 'no':
-                self.logger.Debug(2, 'resizing image blob to {}'.format(self.options.get('resize')) )
-                obj_new = imutils.resize(object, width=min(int(self.options.get('resize')),
+            if self.options.get('max_size'):
+                self.logger.Debug(2, 'resizing image blob to {}'.format(self.options.get('max_size')) )
+                obj_new = imutils.resize(object, width=min(int(self.options.get('max_size')),
                                                object.shape[1]))
                 object = obj_new
             # use png so there is no loss

@@ -77,7 +77,7 @@ ml_options = {
     },
     'face': {
         'general':{
-            'pattern': 'godzilla',
+            'pattern': '.*',
             'same_model_sequence_strategy': 'first'
         },
         'sequence': [{
@@ -87,7 +87,8 @@ ml_options = {
             'face_train_model': 'cnn',
             'face_recog_dist_threshold': 0.6,
             'face_num_jitters': 1,
-            'face_upsample_times':1
+            'face_upsample_times':1,
+            'max_size': 800
         }]
     },
 
@@ -117,7 +118,7 @@ stream_options = {
         'api': zmapi,
         'download': False,
         'frame_set': '7000,1000,snapshot,alarm',
-        'resize': 800,
+        'resize': 'no',
         'save_frames': False,
         'save_analyzed_frames': True,
         'save_frames_dir': '/tmp'

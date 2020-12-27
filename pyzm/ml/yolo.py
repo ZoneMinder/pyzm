@@ -108,9 +108,21 @@ class Yolo(Base):
         return output_layers
 
     def detect(self, image=None):
-
         Height, Width = image.shape[:2]
-        
+        downscaled =  False
+        upsize_xfactor = None
+        upsize_yfactor = None
+        max_size = self.options.get('max_size', Width)
+        old_image = None
+
+        if Width > max_size:
+            downscaled = True
+            self.logger.Debug (2, 'Scaling image down to max size: {}'.format(max_size))
+            old_image = image.copy()
+            image = imutils.resize(image,width=max_size)
+            newHeight, newWidth = image.shape[:2]
+            upsize_xfactor = Width/newWidth
+            upsize_yfactor = Height/newHeight        
 
         if self.options.get('auto_lock',True):
             self.acquire_lock()
@@ -121,6 +133,8 @@ class Yolo(Base):
         self.logger.Debug(
             1,'|---------- YOLO (input image: {}w*{}h, model resize dimensions: {}w*{}h) ----------|'
             .format(Width, Height, self.model_width, self.model_height))
+
+        
         scale = 0.00392  # 1/255, really. Normalize inputs.
             
         start = datetime.datetime.now()
@@ -198,5 +212,13 @@ class Yolo(Base):
             label.append(str(self.classes[class_ids[i]]))
             conf.append(confidences[i])
            
+         if downscaled:
+            self.logger.Debug (2,'Scaling image back up to {}'.format(Width))
+            image = old_image
+            for box in bbox:
+                box[0] = round (box[0] * upsize_xfactor)
+                box[1] = round (box[1] * upsize_yfactor)
+                box[2] = round (box[2] * upsize_xfactor)
+                box[3] = round (box[3] * upsize_yfactor)
         
         return bbox, label, conf

@@ -77,6 +77,10 @@ class DetectSequence(Base):
                                 'same_model_sequence_strategy': 'first'
                             },
                             'sequence': [{
+                                # if max_size is specified, not matter what
+                                # the resize value in stream_options, it will be rescaled down to this
+                                # value if needed
+                                'max_size':800, 
                                 'face_detection_framework': 'dlib',
                                 'known_images_path': '/var/lib/zmeventnotification/known_faces',
                                 'face_model': 'cnn',
@@ -406,7 +410,6 @@ class DetectSequence(Base):
                     self.logger.Debug(3,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
                     cnt +=1
                     try:
-                       
                         _b,_l,_c = m.detect(image=frame)
                         self.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
                     except Exception as e:

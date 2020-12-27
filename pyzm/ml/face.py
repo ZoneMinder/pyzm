@@ -19,7 +19,7 @@ from pyzm.helpers.Base import Base
 import portalocker
 import re
 from pyzm.helpers.Media import MediaStream
-
+import imutils
 
 class Face(Base):
     def __init__(self, logger=None, options={},upsample_times=1, num_jitters=0, model='hog'):
@@ -143,6 +143,22 @@ class Face(Base):
         self.logger.Debug(
             1,'|---------- Face recognition (input image: {}w*{}h) ----------|'.
             format(Width, Height))
+
+        downscaled =  False
+        upsize_xfactor = None
+        upsize_yfactor = None
+        max_size = self.options.get('max_size', Width)
+        old_image = None
+
+        if Width > max_size:
+            downscaled = True
+            self.logger.Debug (2, 'Scaling image down to max size: {}'.format(max_size))
+            old_image = image.copy()
+            image = imutils.resize(image,width=max_size)
+            newHeight, newWidth = image.shape[:2]
+            upsize_xfactor = Width/newWidth
+            upsize_yfactor = Height/newHeight
+
         labels = []
         classes = []
         conf = []
@@ -210,6 +226,20 @@ class Face(Base):
         matched_face_names = []
         matched_face_rects = []
 
+        if downscaled:
+            self.logger.Debug (2,'Scaling image back up to {}'.format(Width))
+            image = old_image
+            new_face_locations = []
+            for loc in face_locations:
+                a,b,c,d=loc
+                a = round(a * upsize_yfactor)
+                b = round(b * upsize_xfactor)
+                c = round(c * upsize_yfactor)
+                d = round(d * upsize_xfactor)
+                new_face_locations.append((a,b,c,d))
+            face_locations = new_face_locations
+
+
         for pred, loc, rec in zip(prediction_labels,
                                   face_locations, are_matches):
             label = pred if rec else self.options.get('unknown_face_name', 'unknown')
@@ -236,6 +266,7 @@ class Face(Base):
                             self.options.get('save_unknown_faces_leeway_pixels'), unf))
                 cv2.imwrite(unf, crop_img)
 
+            
             matched_face_rects.append([loc[3], loc[0], loc[1], loc[2]])
             matched_face_names.append(label)
             #matched_face_names.append('face:{}'.format(label))
