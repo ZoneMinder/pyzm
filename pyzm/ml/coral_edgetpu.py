@@ -31,9 +31,9 @@ class Tpu(Base):
         self.logger.Debug (4, 'TPU init params: {}'.format(options))
         
         self.processor='tpu'
-        self.lock_maximum=options.get(self.processor+'_max_processes') or 1
+        self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
-        self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
+        self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
 
         self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
         self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
@@ -109,7 +109,7 @@ class Tpu(Base):
         _, scale = common.set_resized_input(
             self.model, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
         self.model.invoke()
-        objs = detect.get_objects(self.model, self.options.get('object_min_confidence'), scale)
+        objs = detect.get_objects(self.model, float(self.options.get('object_min_confidence')), scale)
 
       
         #outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),

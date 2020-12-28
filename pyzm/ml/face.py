@@ -46,8 +46,8 @@ class Face(Base):
         self.options = options
         self.is_locked = False
 
-        self.lock_maximum=options.get(self.processor+'_max_processes') or 1
-        self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
+        self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
+        self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
         
         #self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)

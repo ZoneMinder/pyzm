@@ -311,7 +311,7 @@ class OpenAlpr(AlprBase):
             for plates in response.get('results'):
                 label = plates['plate']
                 conf = float(plates['confidence']) / 100
-                if conf < options.get('openalpr_min_confidence'):
+                if conf < float(options.get('openalpr_min_confidence')):
                     self.logger.Debug(
                         1,'OpenALPR: discarding plate: {} because detected confidence {} is less than configured min confidence: {}'
                         .format(label, conf, self.options.get('openalpr_min_confidence')))
@@ -390,7 +390,7 @@ class OpenAlprCmdLine(AlprBase):
             for plates in response.get('results'):
                 label = plates['plate']
                 conf = float(plates['confidence']) / 100
-                if conf < self.options.get('openalpr_cmdline_min_confidence'):
+                if conf < float(self.options.get('openalpr_cmdline_min_confidence')):
                     self.logger.Debug(
                         1,'OpenALPR cmd line: discarding plate: {} because detected confidence {} is less than configured min confidence: {}'
                         .format(label, conf, self.options.get('openalpr_cmdline_min_confidence')))

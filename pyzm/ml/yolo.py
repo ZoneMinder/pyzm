@@ -26,8 +26,8 @@ class Yolo(Base):
         self.logger.Debug (4, 'Yolo init params: {}'.format(options))
 
         self.processor=self.options.get('object_processor') or 'cpu'
-        self.lock_maximum=options.get(self.processor+'_max_processes') or 1
-        self.lock_timeout = options.get(self.processor+'_max_lock_wait') or 120
+        self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
+        self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
         
         #self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
@@ -164,8 +164,8 @@ class Yolo(Base):
         conf_threshold = 0.2
 
         # first nms filter out with a yolo confidence of 0.2 (or less)
-        if self.options.get('object_min_confidence') < conf_threshold:
-            conf_threshold = self.options.get('object_min_confidence')
+        if float(self.options.get('object_min_confidence')) < conf_threshold:
+            conf_threshold = float(self.options.get('object_min_confidence'))
 
         for out in outs:
             for detection in out:
