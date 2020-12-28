@@ -245,15 +245,15 @@ class Face(Base):
             label = pred if rec else self.options.get('unknown_face_name', 'unknown')
             if not rec and self.options.get('save_unknown_faces') == 'yes':
                 h, w, c = image.shape
-                x1 = max(loc[3] - self.options.get('save_unknown_faces_leeway_pixels'),
-                         0)
-                y1 = max(loc[0] - self.options.get('save_unknown_faces_leeway_pixels'),
-                         0)
+                x1 = max(loc[3] - int(self.options.get('save_unknown_faces_leeway_pixels'),
+                         0))
+                y1 = max(loc[0] - int(self.options.get('save_unknown_faces_leeway_pixels'),
+                         0))
 
-                x2 = min(loc[1] + self.options.get('save_unknown_faces_leeway_pixels'),
-                         w)
-                y2 = min(loc[2] + self.options.get('save_unknown_faces_leeway_pixels'),
-                         h)
+                x2 = min(loc[1] + int(self.options.get('save_unknown_faces_leeway_pixels'),
+                         w))
+                y2 = min(loc[2] + int(self.options.get('save_unknown_faces_leeway_pixels'),
+                         h))
                 #print (image)
                 crop_img = image[y1:y2, x1:x2]
                 # crop_img = image
