@@ -31,8 +31,8 @@ class FaceTrain (Base):
         known_images_path = self.options.get('known_images_path')
         train_model = self.options.get('face_train_model')
         knn_algo = self.options.get('face_recog_knn_algo')
-        upsample_times = self.options.get('face_upsample_times')
-        num_jitters = self.options.get('face_num_jitters')
+        upsample_times = int(self.options.get('face_upsample_times',1))
+        num_jitters = int(self.options.get('face_num_jitters'),0)
 
         encoding_file_name = known_images_path + '/faces.dat'
         try:
