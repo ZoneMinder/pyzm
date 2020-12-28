@@ -239,12 +239,13 @@ class MediaStream(Base):
                     response = self.session.get(url)
             except Exception as e:
                 if self.frame_set:
+                    self.next_frame_set_index += 1
                     if self.next_frame_set_index < len(self.frame_set):
                         self.logger.Error('Error reading frame: {}, but moving to next frame_set'.format(url))
                         self.last_frameid_read = self.frame_set[self.next_frame_set_index]
-                        self.next_frame_set_index += 1
                         return self.read()
                     else:
+                        self.logger.Error('Error reading frame: {} and no more frames to read'.format(url))
                         self.more_images_to_read = False
                         self.next_frameid_to_read = 0
                         return None 
