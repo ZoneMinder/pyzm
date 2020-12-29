@@ -60,6 +60,8 @@ class ZMApi (Base):
         self.access_token_expires = None
         self.refresh_token_expires = None
         self.refresh_token_datetime = None
+        self.access_token_datetime = None
+
         self.legacy_credentials = None
         self.session = requests.Session()
         if options.get('disable_ssl_cert_check'):
@@ -118,6 +120,19 @@ class ZMApi (Base):
             boolean -- True if Login API worked
         """
         return self.authenticated
+
+
+    # called in _make_request to avoid 401s if possible
+    def _refresh_tokens_if_needed(self):
+        if not (self.access_token_expires and self.refresh_token_expires):
+            return
+        tr = (self.access_token_datetime - datetime.datetime.now()).total_seconds()
+        if (tr >= 60*5): # 5 mins grace 
+            self.logger.Debug(3, 'No need to relogin as access token still has {} minutes remaining'.format(tr/60))
+            return
+        else:
+            self._relogin()
+              
 
     def _relogin(self):
         """ Used for 401. I could use _login too but decided to do a simpler fn
@@ -184,7 +199,9 @@ class ZMApi (Base):
                     if rj.get('refresh_token'):
                         self.refresh_token = rj.get('refresh_token')
                     if (rj.get('access_token_expires')):
-                     self.access_token_expires = int(rj.get('access_token_expires'))
+                        self.access_token_expires = int(rj.get('access_token_expires'))
+                        self.access_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.access_token_expires)
+                        self.logger.Debug (1, 'Access token expires on:{} [{}s]'.format(self.access_token_datetime, self.access_token_expires))
                     if (rj.get('refresh_token_expires')):
                         self.refresh_token_expires = int(rj.get('refresh_token_expires'))
                         self.refresh_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.refresh_token_expires)
@@ -228,6 +245,8 @@ class ZMApi (Base):
 
 
     def _make_request(self, url=None, query={}, payload={}, type='get', reauth=True):
+
+        self._refresh_tokens_if_needed()
         type = type.lower()
         if self.auth_enabled:
             if self._versiontuple(self.api_version) >= self._versiontuple('2.0'):
