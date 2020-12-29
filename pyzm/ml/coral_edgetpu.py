@@ -98,26 +98,31 @@ class Tpu(Base):
         if self.options.get('auto_lock',True):
             self.acquire_lock()
 
-        if not self.model:
-           self.load_model()
+        try:
+            if not self.model:
+                self.load_model()
 
-        self.logger.Debug(1,
-            '|---------- TPU (input image: {}w*{}h) ----------|'
-            .format(Width, Height))
-        start = datetime.datetime.now()
+            self.logger.Debug(1,
+                '|---------- TPU (input image: {}w*{}h) ----------|'
+                .format(Width, Height))
+            start = datetime.datetime.now()
+            
+            _, scale = common.set_resized_input(
+                self.model, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
+            self.model.invoke()
+            objs = detect.get_objects(self.model, float(self.options.get('object_min_confidence')), scale)
+
         
-        _, scale = common.set_resized_input(
-            self.model, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
-        self.model.invoke()
-        objs = detect.get_objects(self.model, float(self.options.get('object_min_confidence')), scale)
+            #outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
+            #        keep_aspect_ratio=True, relative_coord=False)
+            diff_time = (datetime.datetime.now() - start)
 
-      
-        #outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
-        #        keep_aspect_ratio=True, relative_coord=False)
-        diff_time = (datetime.datetime.now() - start)
-
-        if self.options.get('auto_lock',True):
-            self.release_lock()
+            if self.options.get('auto_lock',True):
+                self.release_lock()
+        except:
+            if self.options.get('auto_lock',True):
+                self.release_lock()
+            raise
 
         self.logger.Debug(
             1,'Coral TPU detection took: {}'.format(diff_time))

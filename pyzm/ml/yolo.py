@@ -124,32 +124,39 @@ class Yolo(Base):
             upsize_xfactor = Width/newWidth
             upsize_yfactor = Height/newHeight        
 
+
         if self.options.get('auto_lock',True):
             self.acquire_lock()
 
-        if not self.net:
-            self.load_model()
+        try:
+            if not self.net:
+                self.load_model()
 
-        self.logger.Debug(
-            1,'|---------- YOLO (input image: {}w*{}h, model resize dimensions: {}w*{}h) ----------|'
-            .format(Width, Height, self.model_width, self.model_height))
+            self.logger.Debug(
+                1,'|---------- YOLO (input image: {}w*{}h, model resize dimensions: {}w*{}h) ----------|'
+                .format(Width, Height, self.model_width, self.model_height))
 
-        
-        scale = 0.00392  # 1/255, really. Normalize inputs.
             
-        start = datetime.datetime.now()
-        ln = self.net.getLayerNames()
-        ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
-        blob = cv2.dnn.blobFromImage(image,
-                                    scale, (self.model_width, self.model_height), (0, 0, 0),
-                                    True,
-                                    crop=False)
-        
-        self.net.setInput(blob)
-        outs = self.net.forward(ln)
+            scale = 0.00392  # 1/255, really. Normalize inputs.
+                
+            start = datetime.datetime.now()
+            ln = self.net.getLayerNames()
+            ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
+            blob = cv2.dnn.blobFromImage(image,
+                                        scale, (self.model_width, self.model_height), (0, 0, 0),
+                                        True,
+                                        crop=False)
+            
+            self.net.setInput(blob)
+            outs = self.net.forward(ln)
 
-        if self.options.get('auto_lock',True):
-            self.release_lock()
+            if self.options.get('auto_lock',True):
+                self.release_lock()
+        except:
+            if self.options.get('auto_lock',True):
+                self.release_lock()
+            raise
+
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
             1,'YOLO detection took: {} milliseconds'.format(diff_time))
