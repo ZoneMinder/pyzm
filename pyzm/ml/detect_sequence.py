@@ -127,6 +127,7 @@ class DetectSequence(Base):
         self.models = {}
         self.media = None
         self.has_rescaled = False
+        self.ml_overrides = {}
 
     def _load_models(self, sequences):
         #print (f'***** {sequences}')
@@ -270,12 +271,12 @@ class DetectSequence(Base):
         return new_bbox, new_label, new_conf, new_err
 
 
-    def detect_stream(self, stream, options={}):
+    def detect_stream(self, stream, options={}, ml_overrides={}):
         """Implements detection on a video stream
 
         Args:
             stream (string): location of media (file, url or event ID)
-            api (object): instance of the API if the stream need to route via ZM
+            ml_overrides(string): Ignore it. You will almost never need it. zm_detect uses it for ugly foo
             options (dict, optional): Various options that control the detection process. Defaults to {}:
 
                 - download (boolean): if True, will download video before analysis. Defaults to False
@@ -323,7 +324,7 @@ class DetectSequence(Base):
         """
 
         
-
+        self.ml_overrides = ml_overrides
         self.stream_options = options
         frame_strategy = self.stream_options.get('frame_strategy', 'most_models' )
         all_matches = []

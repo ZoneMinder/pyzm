@@ -52,7 +52,7 @@ class Face(Base):
         #self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
 
-        self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+        self.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
         self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         
 
@@ -97,27 +97,26 @@ class Face(Base):
 
     def acquire_lock(self):
         if self.is_locked:
-            self.logger.Debug (2, '{} Lock already acquired'.format(self.lock_name))
+            self.logger.Debug (2, '{} portalock already acquired'.format(self.lock_name))
             return
         try:
-            self.logger.Debug (2,f'Waiting for {self.processor} lock...')
+            self.logger.Debug (2,f'Waiting for {self.lock_name} portalock...')
             self.lock.acquire()
-            self.logger.Debug (2,f'Got {self.processor} lock for initialization...')
-           
-            self.lock.release()
-            self.logger.Debug(2,f'{self.processor} lock released')
+            self.logger.Debug (2,f'Got {self.lock_name} lock...')
+            self.is_locked = True
+
         except portalocker.AlreadyLocked:
-            self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
-            raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
+            self.logger.Error ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
+            raise ValueError ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
 
 
     def release_lock(self):
         if not self.is_locked:
-            self.logger.Debug (1, '{} Lock already released'.format(self.lock_name))
+            self.logger.Debug (1, '{} portalock already released'.format(self.lock_name))
             return
         self.lock.release()
         self.is_locked = False
-        self.logger.Debug (1,'Released lock')
+        self.logger.Debug (1,'Released {} portalock'.format(self.lock_name))
 
     def get_classes(self):
         if self.knn:

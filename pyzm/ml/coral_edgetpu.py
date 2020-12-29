@@ -35,7 +35,7 @@ class Tpu(Base):
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
         self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
 
-        self.logger.Debug (2,f'Semaphore: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+        self.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
         self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.is_locked = False
         self.model = None
@@ -43,25 +43,25 @@ class Tpu(Base):
 
     def acquire_lock(self):
         if self.is_locked:
-            self.logger.Debug (2, '{} Lock already acquired'.format(self.lock_name))
+            self.logger.Debug (2, '{} portalock already acquired'.format(self.lock_name))
             return
         try:
-            self.logger.Debug (2,'Waiting for TPU lock...')
+            self.logger.Debug (2,'Waiting for {} portalock...'.format(self.lock_name))
             self.lock.acquire()
-            self.logger.Debug (2,'Got TPU Lock')
+            self.logger.Debug (2,'Got {} portalock'.format(self.lock_name))
             self.is_locked = True
 
         except portalocker.AlreadyLocked:
-            self.logger.Error ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
-            raise ValueError ('Timeout waiting for {} lock for {} seconds'.format(self.processor, self.lock_timeout))
+            self.logger.Error ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
+            raise ValueError ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
 
     def release_lock(self):
         if not self.is_locked:
-            self.logger.Debug (2, '{} Lock already released'.format(self.lock_name))
+            self.logger.Debug (2, '{} portalock already released'.format(self.lock_name))
             return
         self.lock.release()
         self.is_locked = False
-        self.logger.Debug (2,'Released TPU lock')
+        self.logger.Debug (2,'Released portalock {}'.format(self.lock_name))
 
 
     def populate_class_labels(self):

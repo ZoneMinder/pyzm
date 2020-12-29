@@ -206,6 +206,8 @@ def init(name=None, override={}):
             syslog.syslog (syslog.LOG_ERR, _format_string("Error opening file log:" + str(e)))
             log_fhandle = None
 
+def set_level(level):
+    pass
 
 def get_config():
     """Returns configuration of ZM logger
