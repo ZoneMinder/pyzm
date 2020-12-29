@@ -144,7 +144,7 @@ class ZMApi (Base):
 
 
             if (tr >= 60 * 5): # 5 mins grace
-                self.logger.Debug(1, 'Going to use refresh token as it still has {} minutes remaining'.format(tr/60))
+                self.logger.Debug(2, 'Going to use refresh token as it still has {} minutes remaining'.format(tr/60))
                 self.options['token'] = self.refresh_token
             else:
                 self.logger.Debug (1, 'Refresh token only has {}s of lifetime, going to use user/pass'.format(tr))
