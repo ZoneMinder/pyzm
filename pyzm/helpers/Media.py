@@ -285,7 +285,7 @@ class MediaStream(Base):
                     self.logger.Error ('Could not retrieve url {}: {}'.format(url,e))
                     return None
           
-            else:
+            else: # response code not 200
                 self.frames_before_error +=1
                 if (self.frames_before_error >= self.contig_frames_before_error):
                     self.logger.Error ('Error reading frames')

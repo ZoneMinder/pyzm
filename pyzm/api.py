@@ -293,16 +293,20 @@ class ZMApi (Base):
                 if r.headers.get('content-length') != '0':
                     raise ValueError ("RELOGIN")
                 else:
-                    raise ValueError ("EMPTY_IMAGE")
+                    # ZM returns 0 byte body if index not found
+                    raise ValueError ("BAD_IMAGE")
                 #return r.text
 
         except requests.exceptions.HTTPError as err:
-            self.logger.Debug(1, 'Got API access error: {}'.format(err))
+            self.logger.Debug(1, 'HTTP error: {}'.format(err))
             if err.response.status_code == 401 and reauth:
-                self.logger.Debug (1, 'Retrying login once')
+                self.logger.Debug (1, 'Got 401 (Unauthorized) - retrying login once')
                 self._relogin()
                 self.logger.Debug (1,'Retrying failed request again...')
                 return self._make_request(url, query, payload, type, reauth=False)
+            elif err.response.status_code == 404:
+                # ZM returns 404 when an image cannot be decoded
+                raise ValueError ("Likely bad image index")
         except ValueError as err:
             err_msg = '{}'.format(err)
             if err_msg == "RELOGIN":
@@ -314,7 +318,7 @@ class ZMApi (Base):
                     return self._make_request(url, query, payload, type, reauth=False)
                 else:
                     raise err
-            elif err_msg == "EMPTY_IMAGE":
+            elif err_msg == "BAD_IMAGE":
                 raise ValueError ("Likely bad image index")
         
        
