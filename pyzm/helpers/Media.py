@@ -229,8 +229,8 @@ class MediaStream(Base):
                 if self.next_frame_set_index >= len (self.frame_set):
                     self.logger.Debug (1,'Reached end of frame_set')
                     self.more_images_to_read = False
-                        self.next_frameid_to_read = 0
-                        return None 
+                    self.next_frameid_to_read = 0
+                    return None 
                 url = '{}&fid={}'.format(self.stream,self.frame_set[self.next_frame_set_index])
             else:
                 url = '{}&fid={}'.format(self.stream,self.next_frameid_to_read)
