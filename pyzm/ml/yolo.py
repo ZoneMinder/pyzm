@@ -49,7 +49,7 @@ class Yolo(Base):
            
         except portalocker.AlreadyLocked:
             self.logger.Error ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
-            raise ValueError ('Timeout waiting for {} portallock for {} seconds'.format(self.lock_name, self.lock_timeout))
+            raise ValueError ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
 
 
     def release_lock(self):

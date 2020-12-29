@@ -239,8 +239,17 @@ class DetectSequence(Base):
                         r = re.compile(p['pattern'])
                         match = list(filter(r.match, label))
                     else:
-                        match_pattern = self.ml_options.get(seq,{}).get('general',{}).get('pattern', '.*')
-                        self.logger.Debug(3,'Using global match pattern: {}'.format(match_pattern))
+                        '''
+                        self.logger.Debug (1,'**********************************')
+                        self.logger.Debug (1,'{}'.format(self.ml_overrides))
+                        self.logger.Debug (1,'**********************************')
+                        '''
+                        if self.ml_overrides.get(seq,{}).get('pattern'):
+                            match_pattern = self.ml_overrides.get(seq,{}).get('pattern')
+                            self.logger.Debug(2,'Match pattern overridden to {} in ml_overrides'.format(match_pattern))
+                        else:
+                            match_pattern = self.ml_options.get(seq,{}).get('general',{}).get('pattern', '.*')
+                            self.logger.Debug(2,'Using global match pattern: {}'.format(match_pattern))
 
                         r = re.compile(match_pattern)
                         match = list(filter(r.match, label))
@@ -377,6 +386,9 @@ class DetectSequence(Base):
             # For each frame, loop across all models
             found = False
             for seq in self.model_sequence:
+                if seq not in self.ml_overrides.get('model_sequence',seq):
+                    g.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
+                    continue
                 self.logger.Debug(1,'============ Frame: {} Running {} model in sequence =================='.format(self.media.get_last_read_frame(),seq))
                 pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
                 if pre_existing_labels:
