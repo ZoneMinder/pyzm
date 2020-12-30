@@ -28,7 +28,7 @@ class Tpu(Base):
         self.options = options
        #self.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
 
-        self.logger.Debug (4, 'TPU init params: {}'.format(options))
+        #self.logger.Debug (4, 'TPU init params: {}'.format(options))
         
         self.processor='tpu'
         self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
