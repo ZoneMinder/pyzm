@@ -39,9 +39,13 @@ class Tpu(Base):
         self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.is_locked = False
         self.model = None
+        self.disable_locks = options.get('disable_locks', 'no')
+
         self.populate_class_labels()
 
     def acquire_lock(self):
+        if self.disable_locks == 'yes':
+            return
         if self.is_locked:
             self.logger.Debug (2, '{} portalock already acquired'.format(self.lock_name))
             return
@@ -56,6 +60,8 @@ class Tpu(Base):
             raise ValueError ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
 
     def release_lock(self):
+        if self.disable_locks == 'yes':
+            return
         if not self.is_locked:
             self.logger.Debug (2, '{} portalock already released'.format(self.lock_name))
             return

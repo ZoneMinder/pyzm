@@ -35,6 +35,8 @@ class Face(Base):
             1,'Initializing face recognition with model:{} upsample:{}, jitters:{}'
             .format(model, upsample_times, num_jitters))
 
+        self.disable_locks = options.get('disable_locks', 'no')
+
         self.upsample_times = upsample_times
         self.num_jitters = num_jitters
         if options.get('face_model'):
@@ -96,6 +98,8 @@ class Face(Base):
 
 
     def acquire_lock(self):
+        if self.disable_locks=='yes':
+            return
         if self.is_locked:
             self.logger.Debug (2, '{} portalock already acquired'.format(self.lock_name))
             return
@@ -111,6 +115,8 @@ class Face(Base):
 
 
     def release_lock(self):
+        if self.disable_locks=='yes':
+            return
         if not self.is_locked:
             self.logger.Debug (1, '{} portalock already released'.format(self.lock_name))
             return

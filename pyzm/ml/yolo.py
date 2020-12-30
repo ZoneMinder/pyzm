@@ -36,8 +36,11 @@ class Yolo(Base):
         self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.model_height = self.options.get('model_height', 416)
         self.model_width = self.options.get('model_width', 416)
-         
+        self.disable_locks = options.get('disable_locks', 'no')
+
     def acquire_lock(self):
+        if self.disable_locks=='yes':
+            return
         if self.is_locked:
             self.logger.Debug(2, '{} portalock already acquired'.format(self.lock_name))
             return
@@ -53,6 +56,8 @@ class Yolo(Base):
 
 
     def release_lock(self):
+        if self.disable_locks=='yes':
+            return
         if not self.is_locked:
             self.logger.Debug (2, '{} portalock already released'.format(self.lock_name))
             return

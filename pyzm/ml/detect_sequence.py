@@ -33,6 +33,8 @@ class DetectSequence(Base):
                         'general': {
                             # sequence of models you want to run for every specified frame
                             'model_sequence': 'object,face,alpr' ,
+                            # If 'yes', will not use portalocks
+                            'disable_locks':'no',
 
                         },
                     
@@ -140,6 +142,7 @@ class DetectSequence(Base):
                     self.models[seq] = []
                     for obj_seq in self.ml_options.get(seq,{}).get('sequence'):
                         try:
+                            obj_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
                             self.logger.Debug (2,'Initializing model  type:{} with options:{}'.format(seq,obj_seq ))
                             self.models[seq].append(ObjectDetect.Object(options=obj_seq, logger=self.logger))
                         except Exception as e:
@@ -150,6 +153,7 @@ class DetectSequence(Base):
                     self.models[seq] = []
                     for face_seq in self.ml_options.get(seq,{}).get('sequence'):
                         try:
+                            face_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
                             self.models[seq].append(FaceDetect.Face(options=face_seq, logger=self.logger))
                         except Exception as e:
                             self.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
@@ -158,7 +162,9 @@ class DetectSequence(Base):
                 elif seq == 'alpr':
                     self.models[seq] = []
                     for alpr_seq in self.ml_options.get(seq,{}).get('sequence'):
+                        
                         try:
+                            alpr_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
                             self.models[seq].append(AlprDetect.Alpr(options=alpr_seq, logger=self.logger))
                         except Exception as e:
                             self.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))

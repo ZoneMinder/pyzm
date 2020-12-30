@@ -48,6 +48,7 @@ zmapi = zmapi.ZMApi(options=api_options, logger=logger)
 ml_options = {
     'general': {
         'model_sequence': 'object,face,alpr',
+        'disable_locks': 'yes'
 
     },
    

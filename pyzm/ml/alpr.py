@@ -19,7 +19,8 @@ class AlprBase(Base):
         self.tempdir = tempdir
         self.url = options.get('alpr_url')
         self.options = options
-    
+        self.disable_locks = options.get('disable_locks', 'no')
+
         self.logger.Debug (4, 'ALPR init params: {}'.format(options))
 
     def acquire_lock(self):
