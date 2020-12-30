@@ -303,6 +303,10 @@ class DetectSequence(Base):
                 - frame_set (string): comma separated frames to read. Example 'alarm,21,31,41,snapshot'
                   Note that if you are specifying frame IDs and using ZM, remember that ZM has a frame buffer
                   Default is 20, I think. So you may want to start at frame 21.
+                - contig_frames_before_error (int): How many contiguous frames should fail before we give up on reading this stream. Default 5
+                - max_attempts (int): Only for ZM indirection. How many times to retry a failed frame get. Default 1
+                - sleep_between_attempts (int): Only for ZM indirection. Time to wait before re-trying a failed frame
+
                 - save_frames (boolean): If True, will save frames used in analysis. Default False
                 - save_analyzed_frames (boolean): If True, will save analyzed frames (with boxes). Default False
                 - save_frames_dir (string): Directory to save analyzed frames. Default /tmp

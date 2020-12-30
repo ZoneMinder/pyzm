@@ -118,12 +118,14 @@ stream_options = {
         #'strategy': 'first',
         'api': zmapi,
         'download': False,
-        'frame_set': 'snapshot,alarm,25,35,45',
+        'frame_set': '9000,snapshot,alarm,25,35,45',
         'resize': 800,
         'save_frames': False,
         'save_analyzed_frames': False,
         'save_frames_dir': '/tmp',
-        'contig_frames_before_error': 5
+        'contig_frames_before_error': 5,
+        'max_attempts': 3,
+        'sleep_between_attempts': 4
 }
 
 

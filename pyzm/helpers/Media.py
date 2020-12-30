@@ -239,7 +239,23 @@ class MediaStream(Base):
             response = None
             try:
                 if self.api:
-                    response = self.api._make_request(url)
+                    attempts = 1
+                    max_attempts = self.options.get('max_attempts',1)
+                    sleep_time = self.options.get('sleep_between_attempts',3)
+                    while attempts <= max_attempts:
+                        try:
+                            response = self.api._make_request(url)
+                        except Exception as e:
+                            err_msg = '{}'.format(e)
+                            if err_msg != 'BAD_IMAGE':
+                                break
+                            self.logger.Debug (2,'Failed attempt:{} of {}'.format(attempts, max_attempts))
+                            attempts += 1
+                            if sleep_time and attempts <=max_attempts:
+                                self.logger.Debug (2,'Sleeping for {} seconds before retry'.format(sleep_time))
+                                time.sleep(sleep_time)
+                        else: # request worked, no need to retry
+                            break
                 else:
                     response = self.session.get(url)
             except Exception as e:

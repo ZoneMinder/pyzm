@@ -291,9 +291,11 @@ class ZMApi (Base):
             else:
                 # A non 0 byte response will usually mean its an image eid request that needs re-login
                 if r.headers.get('content-length') != '0':
+                    self.logger.Debug(4, 'Raising RELOGIN ValueError')
                     raise ValueError ("RELOGIN")
                 else:
                     # ZM returns 0 byte body if index not found
+                    self.logger.Debug(4, 'Raising BAD_IMAGE ValueError as Content-Length:0')
                     raise ValueError ("BAD_IMAGE")
                 #return r.text
 
@@ -306,7 +308,8 @@ class ZMApi (Base):
                 return self._make_request(url, query, payload, type, reauth=False)
             elif err.response.status_code == 404:
                 # ZM returns 404 when an image cannot be decoded
-                raise ValueError ("Likely bad image index")
+                self.logger.Debug(4, 'Raising BAD_IMAGE ValueError for a 404')
+                raise ValueError ("BAD_IMAGE")
         except ValueError as err:
             err_msg = '{}'.format(err)
             if err_msg == "RELOGIN":
@@ -319,7 +322,7 @@ class ZMApi (Base):
                 else:
                     raise err
             elif err_msg == "BAD_IMAGE":
-                raise ValueError ("Likely bad image index")
+                raise ValueError ("BAD_IMAGE")
         
        
 
