@@ -34,12 +34,12 @@ class Tpu(Base):
         self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
         self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
-
-        self.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
-        self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
+        self.disable_locks = options.get('disable_locks', 'no')
+        if self.disable_locks == 'no':
+            self.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+            self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.is_locked = False
         self.model = None
-        self.disable_locks = options.get('disable_locks', 'no')
 
         self.populate_class_labels()
 

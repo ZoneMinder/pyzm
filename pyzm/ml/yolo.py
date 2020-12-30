@@ -32,11 +32,12 @@ class Yolo(Base):
         #self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
 
-        self.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
-        self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
+        self.disable_locks = options.get('disable_locks', 'no')
+        if self.disable_locks == 'no':
+            self.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+            self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.model_height = self.options.get('model_height', 416)
         self.model_width = self.options.get('model_width', 416)
-        self.disable_locks = options.get('disable_locks', 'no')
 
     def acquire_lock(self):
         if self.disable_locks=='yes':
