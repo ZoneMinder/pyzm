@@ -7,9 +7,6 @@ lower level interfaces as they may change drastically.
 """
 
 from pyzm.helpers.Base import Base
-import pyzm.ml.object as  ObjectDetect
-import pyzm.ml.face as FaceDetect
-import pyzm.ml.alpr as AlprDetect
 import pyzm.helpers.utils as utils
 
 import re
@@ -139,6 +136,7 @@ class DetectSequence(Base):
         for seq in sequences:
             try:
                 if seq == 'object':
+                    import pyzm.ml.object as  ObjectDetect
                     self.models[seq] = []
                     for obj_seq in self.ml_options.get(seq,{}).get('sequence'):
                         try:
@@ -150,6 +148,7 @@ class DetectSequence(Base):
                             self.logger.Debug(2,traceback.format_exc())
 
                 elif seq == 'face':
+                    import pyzm.ml.face as FaceDetect
                     self.models[seq] = []
                     for face_seq in self.ml_options.get(seq,{}).get('sequence'):
                         try:
@@ -160,6 +159,7 @@ class DetectSequence(Base):
                             self.logger.Debug(2,traceback.format_exc())
 
                 elif seq == 'alpr':
+                    import pyzm.ml.alpr as AlprDetect
                     self.models[seq] = []
                     for alpr_seq in self.ml_options.get(seq,{}).get('sequence'):
                         
