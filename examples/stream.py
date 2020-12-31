@@ -48,14 +48,14 @@ zmapi = zmapi.ZMApi(options=api_options, logger=logger)
 ml_options = {
     'general': {
         'model_sequence': 'object,face,alpr',
-        'disable_locks': 'yes'
+        'disable_locks': 'no'
 
     },
    
     'object': {
         'general':{
             'pattern':'car',
-            'same_model_sequence_strategy': 'first' # also 'most', 'most_unique's
+            'same_model_sequence_strategy': 'most' # also 'most', 'most_unique's
         },
         'sequence': [{
             #First run on TPU
@@ -71,7 +71,7 @@ ml_options = {
             'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
             'object_min_confidence': 0.3,
             'object_framework':'opencv',
-            'object_processor': 'gpu',
+            'object_processor': 'cpu',
             #'model_width': 512,
             #'model_height': 512
         }]
@@ -118,7 +118,7 @@ stream_options = {
         #'strategy': 'first',
         'api': zmapi,
         'download': False,
-        'frame_set': '9000,snapshot,alarm,25,35,45',
+        'frame_set': 'snapshot,alarm,7000,25,35,45',
         'resize': 800,
         'save_frames': False,
         'save_analyzed_frames': False,
