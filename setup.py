@@ -25,7 +25,7 @@ INSTALL_REQUIRES=[
     'imutils >=0.5.3',
     'Shapely >=1.7.0',
     'numpy >=1.13.3',
-    'Pillow >=8.0.1',
+    'Pillow',
     'psutil >=5.7.3'
     
     ]
