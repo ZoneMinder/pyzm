@@ -1,7 +1,7 @@
 import numpy as np
 
 import pyzm.ml.face_train as train
-import face_recognition
+
 import dlib
 
 import sys
@@ -21,15 +21,25 @@ import re
 from pyzm.helpers.Media import MediaStream
 import imutils
 
+g_start = datetime.datetime.now()
+import face_recognition
+g_diff_time = (datetime.datetime.now() - g_start)
+
 class Face(Base):
     def __init__(self, logger=None, options={},upsample_times=1, num_jitters=0, model='hog'):
         super().__init__(logger)
+        global g_diff_time
         #self.logger.Debug (4, 'Face init params: {}'.format(options))
 
         if dlib.DLIB_USE_CUDA and dlib.cuda.get_num_devices() >=1 :
             self.processor = 'gpu'
         else:
             self.processor = 'cpu'
+
+        self.logger.Debug(
+            1,'perf: processor:{} Face Recognition library load time took: {} '.format(
+                self.processor, g_diff_time))
+
 
         self.logger.Debug(
             1,'Initializing face recognition with model:{} upsample:{}, jitters:{}'
@@ -143,7 +153,7 @@ class Face(Base):
     
 
     def detect(self, image):
-
+      
         Height, Width = image.shape[:2]
         self.logger.Debug(
             1,'|---------- Face recognition (input image: {}w*{}h) ----------|'.
@@ -184,7 +194,7 @@ class Face(Base):
             number_of_times_to_upsample=self.upsample_times)
 
         diff_time = (datetime.datetime.now() - start)
-        self.logger.Debug(1,'perf: Finding faces took {}'.format(diff_time))
+        self.logger.Debug(1,'perf: processor:{} Finding faces took {}'.format(self.processor, diff_time))
 
         start = datetime.datetime.now()
         face_encodings = face_recognition.face_encodings(
@@ -197,8 +207,8 @@ class Face(Base):
 
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'perf: Computing face recognition distances took {}'.format(
-                diff_time))
+            1,'perf: processor:{} Computing face recognition distances took {}'.format(
+                self.processor, diff_time))
 
         if not len(face_encodings):
             return [], [], []
@@ -225,8 +235,8 @@ class Face(Base):
 
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'perf: Matching recognized faces to known faces took {}'.
-            format(diff_time))
+            1,'perf: processor:{} Matching recognized faces to known faces took {}'.
+            format(self.processor, diff_time))
 
         matched_face_names = []
         matched_face_rects = []

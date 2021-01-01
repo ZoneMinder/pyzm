@@ -524,7 +524,7 @@ class DetectSequence(Base):
         diff_time= (datetime.datetime.now() - start)
 
         self.logger.Debug(
-            1,'perf: detection (with image loads) took: {}  to process {}'.format(diff_time, stream))
+            1,'perf: TOTAL detection sequence (with image loads) took: {}  to process {}'.format(diff_time, stream))
         self.media.stop()
 
         matched_data = {

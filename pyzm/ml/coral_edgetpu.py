@@ -92,8 +92,8 @@ class Tpu(Base):
 
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'perf: TPU initialization (loading model from disk) took: {}'
-            .format(diff_time))
+            1,'perf: processor:{} TPU initialization (loading {} from disk) took: {}'
+            .format(self.processor, self.options.get('object_weights'),diff_time))
         
     def detect(self, image=None):
         Height, Width = image.shape[:2]
@@ -131,7 +131,7 @@ class Tpu(Base):
             raise
 
         self.logger.Debug(
-            1,'perf: Coral TPU detection took: {}'.format(diff_time))
+            1,'perf: processor:{} Coral TPU detection took: {}'.format(self.processor, diff_time))
       
         bbox = []
         labels = []

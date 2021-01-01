@@ -8,23 +8,20 @@ import math
 import ssl
 import os
 import datetime
-import face_recognition
 
 from pyzm.helpers.Base import Base
 
+g_start = datetime.datetime.now()
+import face_recognition
+g_diff_time = (datetime.datetime.now() - g_start)
 
 class FaceTrain (Base):
 
     def __init__(self,logger=None, options={}):
         super().__init__(logger)
-        self.options = options
-        start = datetime.datetime.now()
-        
-        diff_time = (datetime.datetime.now() - start)
-        self.logger.Debug(
-            1,'perf: Face Recognition library load time took: {} '.format(
-                diff_time))
+        global g_diff_time
 
+        self.options = options
 
     def train(self):
         start = datetime.datetime.now()

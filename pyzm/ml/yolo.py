@@ -84,8 +84,8 @@ class Yolo(Base):
         #self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'perf: Yolo initialization (loading model from disk) took: {}'
-            .format(diff_time))
+            1,'perf: processor:{} Yolo initialization (loading {} model from disk) took: {}'
+            .format(self.processor, self.options.get('object_weights'), diff_time))
         if self.processor == 'gpu':
             (maj, minor, patch) = cv2.__version__.split('.')
             min_ver = int(maj + minor)
@@ -165,7 +165,7 @@ class Yolo(Base):
 
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'perf: YOLO detection took: {} milliseconds'.format(diff_time))
+            1,'perf: processor:{} Yolo detection took: {} milliseconds'.format(self.processor, diff_time))
 
     
         class_ids = []
@@ -199,7 +199,7 @@ class Yolo(Base):
                                    nms_threshold)
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            2,'perf: YOLO NMS filtering took: {}'.format(diff_time))
+            2,'perf: processor:{} Yolo NMS filtering took: {}'.format(self.processor, diff_time))
 
         bbox = []
         label = []
