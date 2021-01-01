@@ -64,9 +64,9 @@ class ZMApi (Base):
 
         self.legacy_credentials = None
         self.session = requests.Session()
-        if options.get('disable_ssl_cert_check'):
+        if options.get('disable_ssl_cert_check', True):
             self.session.verify = False
-            self.logger.Debug (1, 'Warning, SSL certificate check has been disbled')
+            self.logger.Debug (2, 'API SSL certificate check has been disbled')
             from urllib3.exceptions import InsecureRequestWarning
             requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
         self.api_version = None

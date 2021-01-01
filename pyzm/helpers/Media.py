@@ -35,6 +35,7 @@ class MediaStream(Base):
         self.default_resize = 800
         self.is_deletable = False
         self.session = requests.Session()
+     
         self.debug_filename = None 
 
               
@@ -42,6 +43,12 @@ class MediaStream(Base):
             self.logger = logger
         elif self.options.get('api'):
             self.logger = options.get('api').get_logger() 
+
+        if options.get('disable_ssl_cert_check', True):
+            self.session.verify = False
+            self.logger.Debug (2, 'Media get SSL certificate check has been disbled')
+            from urllib3.exceptions import InsecureRequestWarning
+            requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
         _,ext= os.path.splitext(self.stream)
         if ext.lower() in ['.jpg', '.png', '.jpeg']:

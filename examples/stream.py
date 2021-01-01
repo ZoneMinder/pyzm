@@ -125,7 +125,8 @@ stream_options = {
         'save_frames_dir': '/tmp',
         'contig_frames_before_error': 5,
         'max_attempts': 3,
-        'sleep_between_attempts': 4
+        'sleep_between_attempts': 4,
+        'disable_ssl_cert_check': True
 }
 
 

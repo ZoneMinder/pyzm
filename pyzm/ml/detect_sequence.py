@@ -306,7 +306,7 @@ class DetectSequence(Base):
                 - contig_frames_before_error (int): How many contiguous frames should fail before we give up on reading this stream. Default 5
                 - max_attempts (int): Only for ZM indirection. How many times to retry a failed frame get. Default 1
                 - sleep_between_attempts (int): Only for ZM indirection. Time to wait before re-trying a failed frame
-
+                - disable_ssl_cert_check (bool): If True (default) will allow self-signed certs to work
                 - save_frames (boolean): If True, will save frames used in analysis. Default False
                 - save_analyzed_frames (boolean): If True, will save analyzed frames (with boxes). Default False
                 - save_frames_dir (string): Directory to save analyzed frames. Default /tmp
