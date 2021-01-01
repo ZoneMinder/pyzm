@@ -184,7 +184,7 @@ class Face(Base):
             number_of_times_to_upsample=self.upsample_times)
 
         diff_time = (datetime.datetime.now() - start)
-        self.logger.Debug(1,'Finding faces took {}'.format(diff_time))
+        self.logger.Debug(1,'perf: Finding faces took {}'.format(diff_time))
 
         start = datetime.datetime.now()
         face_encodings = face_recognition.face_encodings(
@@ -197,7 +197,7 @@ class Face(Base):
 
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'Computing face recognition distances took {}'.format(
+            1,'perf: Computing face recognition distances took {}'.format(
                 diff_time))
 
         if not len(face_encodings):
@@ -225,7 +225,7 @@ class Face(Base):
 
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'Matching recognized faces to known faces took {}'.
+            1,'perf: Matching recognized faces to known faces took {}'.
             format(diff_time))
 
         matched_face_names = []

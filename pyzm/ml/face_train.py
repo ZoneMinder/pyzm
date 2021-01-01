@@ -22,7 +22,7 @@ class FaceTrain (Base):
         
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'Face Recognition library load time took: {} '.format(
+            1,'perf: Face Recognition library load time took: {} '.format(
                 diff_time))
 
 
@@ -136,4 +136,4 @@ class FaceTrain (Base):
             self.logger.Debug(1,'wrote encoding file: {}'.format(encoding_file_name))
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'Face Recognition training took: {}'.format(diff_time))
+            1,'perf: Face Recognition training took: {}'.format(diff_time))
