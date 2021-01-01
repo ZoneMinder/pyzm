@@ -165,7 +165,7 @@ class Yolo(Base):
 
         diff_time = (datetime.datetime.now() - start)
         self.logger.Debug(
-            1,'perf: processor:{} Yolo detection took: {} milliseconds'.format(self.processor, diff_time))
+            1,'perf: processor:{} Yolo detection took: {}'.format(self.processor, diff_time))
 
     
         class_ids = []
