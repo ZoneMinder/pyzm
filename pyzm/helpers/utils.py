@@ -11,7 +11,7 @@ import numpy as np
 import re
 
 def read_config(file):
-    config_file = ConfigParser(interpolation=None)
+    config_file = ConfigParser(interpolation=None,inline_comment_prefixes='#')
     config_file.read(file)
     return config_file
 

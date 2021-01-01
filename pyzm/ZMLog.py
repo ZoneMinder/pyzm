@@ -128,7 +128,7 @@ def init(name=None, override={}):
         files.append(f)
     files.sort()
     files.insert(0,config['conf_path']+'/zm.conf')
-    config_file = configparser.ConfigParser(interpolation=None)
+    config_file = configparser.ConfigParser(interpolation=None, inline_comment_prefixes='#')
     for f in files:
         with open(f) as s:
             #print ('reading {}'.format(f))
