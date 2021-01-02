@@ -35,7 +35,7 @@ def template_fill(input_str=None, config=None, secrets=None):
         res = re.sub(p, lambda m: config.get(m.group(1), 'MISSING-{}'.format(m.group(1))), res)
     if secrets:
         p = r'!(\w+)'
-        res = re.sub(p, lambda m: secrets.get(m.group(1).lower(), 'MISSING-{}'.format(m.group(1).lower())), res)
+        res = re.sub(p, lambda m: secrets.get(m.group(1).lower(), '!{}'.format(m.group(1).lower())), res)
     return res
 
 def draw_bbox(image=None,
