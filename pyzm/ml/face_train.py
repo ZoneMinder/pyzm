@@ -69,8 +69,8 @@ class FaceTrain (Base):
                             #known_face = face_recognition.load_image_file('{}/{}/{}'.format(directory,entry, person))
                             if not size:
                                 size = int(self.options.get('resize',800))
-                            self.logger.Debug (1,'resizing to {}'.format(w))
-                            known_face = imutils.resize(known_face,width=w)
+                            self.logger.Debug (1,'resizing to {}'.format(size))
+                            known_face = imutils.resize(known_face,width=size)
 
                             face_locations = face_recognition.face_locations(
                                 known_face,
