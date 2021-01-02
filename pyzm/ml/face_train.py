@@ -23,7 +23,7 @@ class FaceTrain (Base):
 
         self.options = options
 
-    def train(self):
+    def train(self,size=None):
         start = datetime.datetime.now()
         known_images_path = self.options.get('known_images_path')
         train_model = self.options.get('face_train_model')
@@ -67,6 +67,10 @@ class FaceTrain (Base):
                                 self.logger.Error('Error reading file, skipping')
                                 continue
                             #known_face = face_recognition.load_image_file('{}/{}/{}'.format(directory,entry, person))
+                            if not size:
+                                size = int(self.options.get('resize',800))
+                            self.logger.Debug (1,'resizing to {}'.format(w))
+                            known_face = imutils.resize(known_face,width=w)
 
                             face_locations = face_recognition.face_locations(
                                 known_face,
