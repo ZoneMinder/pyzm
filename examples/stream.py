@@ -10,10 +10,17 @@ from pyzm.helpers.Base import ConsoleLog
 import pyzm.helpers.utils as utils
 import sys
 
+#import pyzm.ZMLog as log 
+
+
 print ('Using pyzm version: {}'.format(pyzmversion))
 
+#log.init(name='stream', override={'dump_console': True})
+#logger = log
 logger = ConsoleLog()
 logger.set_level(5)
+
+#time.sleep(1000)
 
 if len(sys.argv) == 1:
     eid = input ('Enter event ID to analyze:')

@@ -21,6 +21,7 @@ from inspect import getframeinfo,stack
 import time
 import pwd,grp
 import datetime
+import signal
 
 
 logger = None
@@ -36,6 +37,7 @@ log_table = None
 meta = None
 log_fname = None
 log_fhandle = None
+cstr = None
 
 
 connected = False
@@ -88,7 +90,7 @@ def init(name=None, override={}):
                 'driver': 'mysql+mysqlconnector'
             }
     """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
+    global logger, pid, process_name, inited, config, engine, conn, cstr, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     inited = True
     pid =  os.getpid()
     process_name = name or psutil.Process(pid).name()
@@ -205,6 +207,23 @@ def init(name=None, override={}):
         except OSError as e:
             syslog.syslog (syslog.LOG_ERR, _format_string("Error opening file log:" + str(e)))
             log_fhandle = None
+    try:
+        Info('Setting up signal handler for logs')
+        signal.signal(signal.SIGHUP, sig_log_rot)
+        signal.signal(signal.SIGINT, sig_intr)
+
+    except Exception as e:
+        Error('Error setting up signal handler: {}'.format(e))
+
+def sig_log_rot(sig,frame):
+    #time.sleep(3) # do we need this?
+    reconnect()
+    Info('Got HUP signal:{}, re-initing logs'.format(sig))
+    
+def sig_intr(sig,frame):
+    Info ('Got interrupt, exiting')
+    close()
+    exit(0)
 
 def set_level(level):
     pass
@@ -354,6 +373,7 @@ def Debug(level=1, message=None,caller=None):
     
     if config['log_debug'] and level <= config['log_level_debug']:
         _log('DBG', message,caller, level)
+
 def Warning(message=None,caller=None):
     """Warning level ZM message
     
