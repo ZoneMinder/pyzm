@@ -27,7 +27,8 @@ class FaceTrain (Base):
         start = datetime.datetime.now()
         known_images_path = self.options.get('known_images_path')
         train_model = self.options.get('face_train_model')
-        knn_algo = self.options.get('face_recog_knn_algo')
+        knn_algo = self.options.get('face_recog_knn_algo', 'ball_tree') 
+    
         upsample_times = int(self.options.get('face_upsample_times',1))
         num_jitters = int(self.options.get('face_num_jitters',0))
 
@@ -72,6 +73,9 @@ class FaceTrain (Base):
                             self.logger.Debug (1,'resizing to {}'.format(size))
                             known_face = imutils.resize(known_face,width=size)
 
+                            # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
+                            #self.logger.Debug(1,'Converting from BGR to RGB')
+                            known_face = known_face[:, :, ::-1]
                             face_locations = face_recognition.face_locations(
                                 known_face,
                                 model=train_model,
@@ -94,6 +98,13 @@ class FaceTrain (Base):
                     self.logger.Debug(1,'loading face from  {}'.format(entry))
                     #known_face = cv2.imread('{}/{}/{}'.format(directory,entry, person))
                     known_face = cv2.imread('{}/{}'.format(directory, entry))
+
+                    if not size:
+                        size = int(self.options.get('resize',800))
+                        self.logger.Debug (1,'resizing to {}'.format(size))
+                        known_face = imutils.resize(known_face,width=size)
+                    # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
+                    known_face = known_face[:, :, ::-1]
                     face_locations = face_recognition.face_locations(
                         known_face,
                         model=train_model,
@@ -123,7 +134,7 @@ class FaceTrain (Base):
                 'No known faces found to train, encoding file not created')
         else:
             n_neighbors = int(round(math.sqrt(len(known_face_names))))
-            self.logger.Debug(2,'Using n_neighbors to be: {}'.format(n_neighbors))
+            self.logger.Debug(2,'Using algo:{} n_neighbors to be: {}'.format(knn_algo, n_neighbors))
             knn = neighbors.KNeighborsClassifier(n_neighbors=n_neighbors,
                                                 algorithm=knn_algo,
                                                 weights='distance')

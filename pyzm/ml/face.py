@@ -165,6 +165,8 @@ class Face(Base):
         max_size = self.options.get('max_size', Width)
         old_image = None
 
+        self.logger.Debug(5, 'Face options={}'.format(self.options))
+        
         if Width > max_size:
             downscaled = True
             self.logger.Debug (2, 'Scaling image down to max size: {}'.format(max_size))
@@ -173,6 +175,7 @@ class Face(Base):
             newHeight, newWidth = image.shape[:2]
             upsize_xfactor = Width/newWidth
             upsize_yfactor = Height/newHeight
+        
 
         labels = []
         classes = []
@@ -215,16 +218,20 @@ class Face(Base):
 
         # Use the KNN model to find the best matches for the test face
       
+        self.logger.Debug(3,'Comparing to known faces...')
         start = datetime.datetime.now()
 
         if self.knn:
+            #self.logger.Debug(5, 'FACE ENCODINGS={}'.format(face_encodings))
             closest_distances = self.knn.kneighbors(face_encodings, n_neighbors=1)
+            self.logger.Debug(5, 'Closest knn match indexes (lesser is better): {}'.format(closest_distances))
             are_matches = [
-                closest_distances[0][i][0] <= int(self.options.get('face_recog_dist_threshold',0.6))
+                closest_distances[0][i][0] <= float(self.options.get('face_recog_dist_threshold',0.6))
                 for i in range(len(face_locations))
                 
             ]
             prediction_labels = self.knn.predict(face_encodings)
+            #self.logger.Debug(5, 'KNN predictions: {} are_matches: {}'.format(prediction_labels, are_matches))
 
         else:
             # There were no faces to compare
@@ -240,6 +247,7 @@ class Face(Base):
 
         matched_face_names = []
         matched_face_rects = []
+
 
         if downscaled:
             self.logger.Debug (2,'Scaling image back up to {}'.format(Width))
