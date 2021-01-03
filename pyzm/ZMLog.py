@@ -38,6 +38,7 @@ meta = None
 log_fname = None
 log_fhandle = None
 cstr = None
+log_reload_needed = False
 
 
 connected = False
@@ -217,8 +218,12 @@ def init(name=None, override={}):
 
 def sig_log_rot(sig,frame):
     #time.sleep(3) # do we need this?
+    global log_reload_needed
+
+    log_reload_needed = True
     reconnect()
-    Info('Got HUP signal:{}, re-initing logs'.format(sig))
+    log_reload_needed = False
+    Info('Got HUP signal:{}, re-inited logs'.format(sig))
     
 def sig_intr(sig,frame):
     Info ('Got interrupt, exiting')
