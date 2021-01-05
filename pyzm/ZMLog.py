@@ -40,6 +40,9 @@ log_fhandle = None
 cstr = None
 log_reload_needed = False
 
+logger_name = None 
+logger_overrides = {}
+
 
 connected = False
 levels = {
@@ -92,7 +95,11 @@ def init(name=None, override={}):
             }
     """
     global logger, pid, process_name, inited, config, engine, conn, cstr, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
+    global logger_name, logger_overrides
+
     inited = True
+    logger_name = name 
+    logger_overrides = override
     pid =  os.getpid()
     process_name = name or psutil.Process(pid).name()
     syslog.openlog(logoption=syslog.LOG_PID)
@@ -218,10 +225,13 @@ def init(name=None, override={}):
 
 def sig_log_rot(sig,frame):
     #time.sleep(3) # do we need this?
-    global log_reload_needed
+    global log_reload_needed, inited, logger_name, logger_overrides
 
     log_reload_needed = True
-    reconnect()
+    if inited:
+        close()
+        init(name=logger_name, override=logger_overrides)
+        Info ('Ready after log re-init')
     log_reload_needed = False
     Info('Got HUP signal:{}, re-inited logs'.format(sig))
     
@@ -333,7 +343,7 @@ def _log(level='DBG', message='', caller=None, debug_level=1):
         except SQLAlchemyError as e:
             connected = False
             syslog.syslog (syslog.LOG_ERR, _format_string("Error writing to DB:" + str(e)))
-
+ 
     # write to file components
     if levels[level] <= config['log_level_file']:
         timestamp = datetime.datetime.now().strftime('%x %H:%M:%S')
