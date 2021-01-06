@@ -397,7 +397,7 @@ class DetectSequence(Base):
             found = False
             for seq in self.model_sequence:
                 if seq not in self.ml_overrides.get('model_sequence',seq):
-                    g.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
+                    self.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
                     continue
                 self.logger.Debug(1,'============ Frame: {} Running {} model in sequence =================='.format(self.media.get_last_read_frame(),seq))
                 pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
