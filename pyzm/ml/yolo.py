@@ -205,6 +205,8 @@ class Yolo(Base):
         label = []
         conf = []
 
+        prefix = '(yolo) ' if self.options.get('show_models')=='yes' else ''
+
         # now filter out with configured yolo confidence, so we can see rejections in log
         for i in indices:
             i = i[0]
@@ -221,7 +223,7 @@ class Yolo(Base):
                 int(round(x + w)),
                 int(round(y + h))
             ])
-            label.append(str(self.classes[class_ids[i]]))
+            label.append(prefix+str(self.classes[class_ids[i]]))
             conf.append(confidences[i])
            
         if downscaled:

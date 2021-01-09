@@ -95,6 +95,53 @@ class Tpu(Base):
             1,'perf: processor:{} TPU initialization (loading {} from disk) took: {}'
             .format(self.processor, self.options.get('object_weights'),diff_time))
         
+    def _nms(objects, threshold):
+        # credit 
+        # https://github.com/google-coral/pycoral/blob/master/examples/small_object_detection.py
+
+        """Returns a list of indexes of objects passing the NMS.
+        Args:
+            objects: result candidates.
+            threshold: the threshold of overlapping IoU to merge the boxes.
+        Returns:
+            A list of indexes containings the objects that pass the NMS.
+        """
+        if len(objects) == 1:
+            return [0]
+
+        boxes = np.array([o.bbox for o in objects])
+        xmins = boxes[:, 0]
+        ymins = boxes[:, 1]
+        xmaxs = boxes[:, 2]
+        ymaxs = boxes[:, 3]
+
+        areas = (xmaxs - xmins) * (ymaxs - ymins)
+        scores = [o.score for o in objects]
+        idxs = np.argsort(scores)
+
+        selected_idxs = []
+        while idxs.size != 0:
+
+            selected_idx = idxs[-1]
+            selected_idxs.append(selected_idx)
+
+            overlapped_xmins = np.maximum(xmins[selected_idx], xmins[idxs[:-1]])
+            overlapped_ymins = np.maximum(ymins[selected_idx], ymins[idxs[:-1]])
+            overlapped_xmaxs = np.minimum(xmaxs[selected_idx], xmaxs[idxs[:-1]])
+            overlapped_ymaxs = np.minimum(ymaxs[selected_idx], ymaxs[idxs[:-1]])
+
+            w = np.maximum(0, overlapped_xmaxs - overlapped_xmins)
+            h = np.maximum(0, overlapped_ymaxs - overlapped_ymins)
+
+            intersections = w * h
+            unions = areas[idxs[:-1]] + areas[selected_idx] - intersections
+            ious = intersections / unions
+
+            idxs = np.delete(
+                idxs, np.concatenate(([len(idxs) - 1], np.where(ious > threshold)[0])))
+
+        return selected_idxs
+
     def detect(self, image=None):
         Height, Width = image.shape[:2]
         img = image.copy()
@@ -137,6 +184,7 @@ class Tpu(Base):
         labels = []
         conf = []
 
+        prefix = '(coral) ' if self.options.get('show_models')=='yes' else ''
         for obj in objs:
            # box = obj.bbox.flatten().astype("int")
             bbox.append([
@@ -145,7 +193,7 @@ class Tpu(Base):
                     int(round(obj.bbox.xmax)),
                     int(round(obj.bbox.ymax))
                 ])
-            labels.append(self.classes[obj.id])
+            labels.append(prefix+self.classes[obj.id])
             conf.append(float(obj.score))
 
         self.logger.Debug(3,'Coral returning: {},{},{}'.format(bbox,labels,conf))

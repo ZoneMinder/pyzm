@@ -193,10 +193,20 @@ class DetectSequence(Base):
 
     def _filter_patterns(self,seq, box,label,conf, polygons):
         
+        # show_prefix
+        stripped_labels = label[:]
+        for idx, l in enumerate(stripped_labels):
+            if l.startswith('('):
+                items = l.split(') ')
+                stripped_labels[idx] = items[1] if len(items) == 2 else items[0]
+
         # remember this needs to occur after a frame
         # is read, otherwise we don't have dimensions
 
         #print ("************ POLY={}".format(polygons))
+
+
+
         if not polygons:
             oldh =self.media.image_dimensions()['original'][0]
             oldw = self.media.image_dimensions()['original'][1]
@@ -243,7 +253,7 @@ class DetectSequence(Base):
                     if  p['pattern']:
                         self.logger.Debug(3, '{} polygon/zone has its own pattern of {}, using that'.format(p['name'],p['pattern']))
                         r = re.compile(p['pattern'])
-                        match = list(filter(r.match, label))
+                        match = list(filter(r.match, stripped_labels))
                     else:
                         '''
                         self.logger.Debug (1,'**********************************')
@@ -258,10 +268,11 @@ class DetectSequence(Base):
                             self.logger.Debug(2,'Using global match pattern: {}'.format(match_pattern))
 
                         r = re.compile(match_pattern)
-                        match = list(filter(r.match, label))
+
+                        match = list(filter(r.match, stripped_labels))
 
                     #if label[idx].startswith('face:') or label[idx].startswith('alpr:') or label[idx] in match:
-                    if label[idx] in match:
+                    if stripped_labels[idx] in match:
                         self.logger.Debug(3,'{} intersects object:{}[{}]'.format(
                             p['name'], label[idx], b))
                         new_label.append(label[idx])
