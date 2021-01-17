@@ -37,7 +37,7 @@ cam_events = zmapi.events(event_filter)
 print ('I got {} events'.format(len(cam_events.list())))
 for e in cam_events.list():
     print ('Event:{} Cause:{} Notes:{}'.format(e.name(), e.cause(), e.notes()))
-
+#cam_events.list()[0].download_image()
 
 
 

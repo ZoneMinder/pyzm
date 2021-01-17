@@ -85,6 +85,9 @@ class ZMApi (Base):
         #https://stackoverflow.com/a/11887825/1361529
         return tuple(map(int, (v.split("."))))
 
+    def get_session(self):
+        return self.session
+        
     def version(self):
         """Returns version of API and ZM
         

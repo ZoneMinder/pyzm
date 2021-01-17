@@ -55,6 +55,7 @@ class Event(Base):
         return url
     
     def download_image(self, fid='snapshot', dir='.', show_progress=False):     
+       
         """Downloads an image frame of the current event object
         
         Args:
@@ -214,7 +215,13 @@ class Event(Base):
         self.logger.Info("Downloading " + file_name + " from " + url)
 
         try:
-            r = requests.get(url, allow_redirects=True, stream=True)
+            req = requests
+            if self.api and self.api.get_session():
+                req = self.api.get_session()
+                #print ("OVERRIDING")
+            r = req.get(url, allow_redirects=True, stream=True)
+
+#            r = requests.get(url, allow_redirects=True, stream=True)
         except requests.exceptions.HTTPError as err:
             self.logger.Debug(1, 'Got download access error: {}'.format(err), 'error')
             if err.response.status_code == 401 and reauth:
