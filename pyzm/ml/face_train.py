@@ -10,6 +10,7 @@ import os
 import datetime
 
 from pyzm.helpers.Base import Base
+from pyzm.helpers.utils import Timer
 
 g_start = datetime.datetime.now()
 import face_recognition
@@ -24,7 +25,7 @@ class FaceTrain (Base):
         self.options = options
 
     def train(self,size=None):
-        start = datetime.datetime.now()
+        t = Timer()
         known_images_path = self.options.get('known_images_path')
         train_model = self.options.get('face_train_model')
         knn_algo = self.options.get('face_recog_knn_algo', 'ball_tree') 
@@ -146,6 +147,6 @@ class FaceTrain (Base):
             pickle.dump(knn, f)
             f.close()
             self.logger.Debug(1,'wrote encoding file: {}'.format(encoding_file_name))
-        diff_time = (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
         self.logger.Debug(
             1,'perf: Face Recognition training took: {}'.format(diff_time))

@@ -8,6 +8,7 @@ lower level interfaces as they may change drastically.
 
 from pyzm.helpers.Base import Base
 import pyzm.helpers.utils as utils
+from pyzm.helpers.utils import Timer
 
 import re
 import datetime
@@ -377,11 +378,8 @@ class DetectSequence(Base):
             manual_locking = True
             self.logger.Debug(3,'Using manual locking as we are only using one model')
             for seq in self.model_sequence:
-                self.ml_options[seq]['auto_lock'] = False
-        
-        
-
-        start = datetime.datetime.now()
+                self.ml_options[seq]['auto_lock'] = False        
+        t = Timer()
         media = MediaStream(stream,'video', self.stream_options, logger=self.logger )
         self.media = media
 
@@ -532,7 +530,7 @@ class DetectSequence(Base):
                 for m in self.models[seq]:
                     m.release_lock()
 
-        diff_time= (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
 
         self.logger.Debug(
             1,'perf: TOTAL detection sequence (with image loads) took: {}  to process {}'.format(diff_time, stream))

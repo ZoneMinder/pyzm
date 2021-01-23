@@ -9,6 +9,36 @@ from configparser import ConfigParser
 import cv2
 import numpy as np
 import re
+import time
+
+class Timer:
+    def __init__(self, start_timer=True):
+        self.started = False
+        if start_timer:
+            self.start()
+
+    def restart(self):
+        self.start()
+
+    def start(self):
+        self.start = time.perf_counter()
+        self.started = True
+        self.final_inference_time = 0
+
+    def stop(self):
+        self.started = False
+        self.final_inference_time = time.perf_counter() - self.start
+
+    def get_ms(self):
+        if self.final_inference_time:
+            return '{:.2f} ms'.format(self.final_inference_time * 1000)
+        else:
+            return '{:.2f} ms'.format((time.perf_counter() - self.start) * 1000)
+
+    def stop_and_get_ms(self):
+        if self.started:
+            self.stop()
+        return self.get_ms()
 
 def read_config(file):
     config_file = ConfigParser(interpolation=None,inline_comment_prefixes='#')

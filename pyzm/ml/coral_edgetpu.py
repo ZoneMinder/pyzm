@@ -5,6 +5,7 @@ import datetime
 import re
 import cv2
 from pyzm.helpers.Base import Base
+from pyzm.helpers.utils import Timer
 
 
 from PIL import Image
@@ -82,15 +83,13 @@ class Tpu(Base):
 
     def load_model(self):
         self.logger.Debug (1, '|--------- Loading TPU model from disk -------------|')
-        start = datetime.datetime.now()
 
         #self.model = DetectionEngine(self.options.get('object_weights'))
         # Initialize the TF interpreter
+        t = Timer()
         self.model = make_interpreter(self.options.get('object_weights'))
-
         self.model.allocate_tensors()
-
-        diff_time = (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
         self.logger.Debug(
             1,'perf: processor:{} TPU initialization (loading {} from disk) took: {}'
             .format(self.processor, self.options.get('object_weights'),diff_time))
@@ -158,8 +157,7 @@ class Tpu(Base):
             self.logger.Debug(1,
                 '|---------- TPU (input image: {}w*{}h) ----------|'
                 .format(Width, Height))
-            start = datetime.datetime.now()
-            
+            t= Timer()            
             _, scale = common.set_resized_input(
                 self.model, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
             self.model.invoke()
@@ -168,7 +166,7 @@ class Tpu(Base):
         
             #outs = self.model.detect_with_image(img, threshold=int(self.options.get('object_min_confidence')),
             #        keep_aspect_ratio=True, relative_coord=False)
-            diff_time = (datetime.datetime.now() - start)
+            diff_time = t.stop_and_get_ms()
 
             if self.options.get('auto_lock',True):
                 self.release_lock()
@@ -177,6 +175,7 @@ class Tpu(Base):
                 self.release_lock()
             raise
 
+        diff_time = t.stop_and_get_ms()
         self.logger.Debug(
             1,'perf: processor:{} Coral TPU detection took: {}'.format(self.processor, diff_time))
       

@@ -20,10 +20,11 @@ import portalocker
 import re
 from pyzm.helpers.Media import MediaStream
 import imutils
+from pyzm.helpers.utils import Timer
 
-g_start = datetime.datetime.now()
+g_start =Timer()
 import face_recognition
-g_diff_time = (datetime.datetime.now() - g_start)
+g_diff_time = g_start.stop_and_get_ms()
 
 class Face(Base):
     def __init__(self, logger=None, options={},upsample_times=1, num_jitters=0, model='hog'):
@@ -190,16 +191,16 @@ class Face(Base):
         if self.options.get('auto_lock',True):
             self.acquire_lock()
 
-        start = datetime.datetime.now()
+        t = Timer()
         face_locations = face_recognition.face_locations(
             rgb_image,
             model=self.face_model,
             number_of_times_to_upsample=self.upsample_times)
 
-        diff_time = (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
         self.logger.Debug(1,'perf: processor:{} Finding faces took {}'.format(self.processor, diff_time))
 
-        start = datetime.datetime.now()
+        t = Timer()
         face_encodings = face_recognition.face_encodings(
             rgb_image,
             known_face_locations=face_locations,
@@ -208,7 +209,7 @@ class Face(Base):
         if self.options.get('auto_lock',True):
             self.release_lock()
 
-        diff_time = (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
         self.logger.Debug(
             1,'perf: processor:{} Computing face recognition distances took {}'.format(
                 self.processor, diff_time))
@@ -219,8 +220,8 @@ class Face(Base):
         # Use the KNN model to find the best matches for the test face
       
         self.logger.Debug(3,'Comparing to known faces...')
-        start = datetime.datetime.now()
 
+        t = Timer()
         if self.knn:
             #self.logger.Debug(5, 'FACE ENCODINGS={}'.format(face_encodings))
             closest_distances = self.knn.kneighbors(face_encodings, n_neighbors=1)
@@ -240,7 +241,7 @@ class Face(Base):
             prediction_labels = [''] * len(face_locations)
             self.logger.Debug (1,'No faces to match, so creating empty set')
 
-        diff_time = (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
         self.logger.Debug(
             1,'perf: processor:{} Matching recognized faces to known faces took {}'.
             format(self.processor, diff_time))

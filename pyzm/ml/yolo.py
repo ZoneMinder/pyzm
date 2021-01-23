@@ -8,6 +8,7 @@ import re
 from pyzm.helpers.Base import Base
 import portalocker
 import os
+from pyzm.helpers.utils import Timer
 # Class to handle Yolo based detection
 
 
@@ -78,11 +79,12 @@ class Yolo(Base):
 
     def load_model(self):
         self.logger.Debug (1, '|--------- Loading Yolo model from disk ---------|')
-        start = datetime.datetime.now()
+        t = Timer()
         self.net = cv2.dnn.readNet(self.options.get('object_weights'),
                                 self.options.get('object_config'))
         #self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
-        diff_time = (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
+
         self.logger.Debug(
             1,'perf: processor:{} Yolo initialization (loading {} model from disk) took: {}'
             .format(self.processor, self.options.get('object_weights'), diff_time))
@@ -145,7 +147,7 @@ class Yolo(Base):
             
             scale = 0.00392  # 1/255, really. Normalize inputs.
                 
-            start = datetime.datetime.now()
+            t = Timer()
             ln = self.net.getLayerNames()
             ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
             blob = cv2.dnn.blobFromImage(image,
@@ -163,7 +165,7 @@ class Yolo(Base):
                 self.release_lock()
             raise
 
-        diff_time = (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
         self.logger.Debug(
             1,'perf: processor:{} Yolo detection took: {}'.format(self.processor, diff_time))
 
@@ -194,10 +196,11 @@ class Yolo(Base):
                 confidences.append(float(confidence))
                 boxes.append([x, y, w, h])
 
-        start = datetime.datetime.now()
+        t = Timer()
         indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold,
                                    nms_threshold)
-        diff_time = (datetime.datetime.now() - start)
+        diff_time = t.stop_and_get_ms()
+
         self.logger.Debug(
             2,'perf: processor:{} Yolo NMS filtering took: {}'.format(self.processor, diff_time))
 
