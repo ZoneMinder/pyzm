@@ -395,7 +395,7 @@ class DetectSequence(Base):
             #fname = '/tmp/{}.jpg'.format(self.media.get_last_read_frame())
             #print (f'Writing to {fname}')
             #cv2.imwrite( fname ,frame)
-        
+            self.logger.Debug (1, 'perf: Starting for frame:{}'.format(self.media.get_last_read_frame()))
             _labels_in_frame = []
             _boxes_in_frame = []
             _error_boxes_in_frame = []
