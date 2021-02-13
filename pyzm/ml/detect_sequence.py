@@ -120,14 +120,26 @@ class DetectSequence(Base):
             logger = options.get('logger')
 
         super().__init__(logger)
+        self.set_ml_options(options,force_reload=True)
         #self.logger.Debug(1,'WAKANDA FOREVER!!!!!!!!!!!!!!!')
+        
+    def get_ml_options(self):
+        return self.ml_options
+
+    def set_ml_options(self,options, force_reload=False):
+        """ Use this to change ml options later. Note that models will not be reloaded 
+            unless you add force_reload=True
+        """
         self.model_sequence = options.get('general', {}).get('model_sequence', 'object').split(',')    
         self.ml_options = options
         self.stream_options = None
-        self.models = {}
         self.media = None
         self.has_rescaled = False
         self.ml_overrides = {}
+        if force_reload:
+            self.logger.Debug (1, "Resetting models, will be loaded on next run")
+            self.models = {}
+
 
     def _load_models(self, sequences):
         #print (f'***** {sequences}')
