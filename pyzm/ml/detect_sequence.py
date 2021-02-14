@@ -134,7 +134,6 @@ class DetectSequence(Base):
         self.ml_options = options
         self.stream_options = None
         self.media = None
-        self.has_rescaled = False
         self.ml_overrides = {}
         if force_reload:
             self.logger.Debug (1, "Resetting models, will be loaded on next run")
