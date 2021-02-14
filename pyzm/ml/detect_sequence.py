@@ -16,6 +16,7 @@ from pyzm.helpers.Media import MediaStream
 import cv2
 import traceback
 from shapely.geometry import Polygon
+import copy
 
 class DetectSequence(Base):
     def __init__(self, logger=None, options={}):
@@ -120,6 +121,7 @@ class DetectSequence(Base):
             logger = options.get('logger')
 
         super().__init__(logger)
+        self.has_rescaled = False # only once in init
         self.set_ml_options(options,force_reload=True)
         #self.logger.Debug(1,'WAKANDA FOREVER!!!!!!!!!!!!!!!')
         
@@ -394,7 +396,7 @@ class DetectSequence(Base):
         media = MediaStream(stream,'video', self.stream_options, logger=self.logger )
         self.media = media
 
-        polygons = self.stream_options.get('polygons',[])
+        polygons = copy.copy(self.stream_options.get('polygons',[]))
 
         
         # Loops across all frames
