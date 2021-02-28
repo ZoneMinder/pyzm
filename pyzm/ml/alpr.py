@@ -195,6 +195,7 @@ class PlateRecognizer(AlprBase):
                     files=dict(upload=fp),
                     data=payload,
                     headers={'Authorization': 'Token ' + self.apikey})
+                fp.close()
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
                 response = {
@@ -287,6 +288,7 @@ class OpenAlpr(AlprBase):
                                                    params)
                 self.logger.Debug(2,'Trying OpenALPR with url:' + rurl)
                 response = requests.post(rurl, files={'image': fp})
+                fp.close()
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
                 response = {

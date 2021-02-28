@@ -268,11 +268,12 @@ class Event(Base):
 
         count = 0
         
-        with open(full_path_to_file, 'wb') as file:
+        with open(full_path_to_file, 'wb') as fp:
             for chunk in  r.iter_content(chunk_size=chunk_size):
-                file.write(chunk)
+                fp.write(chunk)
                 if show_progress:
                     bar.update(count)
                     count +=1
+            fp.close()
 
         return full_path_to_file

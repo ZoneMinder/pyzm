@@ -104,6 +104,7 @@ class Face(Base):
         try:
             with open(encoding_file_name, 'rb') as f:
                 self.knn = pickle.load(f)
+                f.close()
         except Exception as e:
             self.logger.Error ('Error loading KNN model: {}'.format(e))
 

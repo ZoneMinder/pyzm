@@ -96,6 +96,9 @@ def init(name=None, override={}):
     """
     global logger, pid, process_name, inited, config, engine, conn, cstr, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     global logger_name, logger_overrides
+    if inited:
+        Debug (1, "Logs already inited")
+        return
 
     inited = True
     logger_name = name 
@@ -143,6 +146,7 @@ def init(name=None, override={}):
         with open(f) as s:
             #print ('reading {}'.format(f))
             config_file.read_string('[zm_root]\n' + s.read())
+            s.close()
 
     # config_file will now contained merged data
     conf_data=config_file['zm_root']
@@ -252,7 +256,7 @@ def get_config():
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     return config
 
-def reconnect():
+def _db_reconnect():
     """Invoked by the logger if disconnection occurs
     
     Returns:
@@ -288,10 +292,18 @@ def close():
     """Closes all handles. Invoke this before you exit your app
     """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    if conn: conn.close()
-    if engine: engine.dispose()
+    if conn: 
+        #Debug (4, "Closing DB connection")
+        conn.close()
+    if engine: 
+        #Debug (4, "Closing DB engine")
+        engine.dispose()
+    #Debug (4, "Closing syslog connection")
     syslog.closelog()
-    if (log_fhandle): log_fhandle.close()
+    if (log_fhandle): 
+        #Debug (4, "Closing log file handle")
+        log_fhandle.close()
+    inited = False
 
 def _format_string(message='', level='ERR'):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
@@ -325,7 +337,7 @@ def _log(level='DBG', message='', caller=None, debug_level=1):
     if levels[level] <= config['log_level_db']:
         if not connected:
             syslog.syslog (syslog.LOG_INFO, _format_string("Trying to reconnect"))
-            if not reconnect():
+            if not _db_reconnect():
                 syslog.syslog (syslog.LOG_ERR, _format_string("reconnection failed, not writing to DB"))
             return False
 

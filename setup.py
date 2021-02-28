@@ -35,10 +35,13 @@ here = os.path.abspath(os.path.dirname(__file__))
 # read the contents of your README file
 with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+    f.close()
 
 def read(*parts):
     with codecs.open(os.path.join(here, *parts), 'r') as fp:
-        return fp.read()
+        data = fp.read()
+        fp.close()
+        return data
 
 def find_version(*file_paths):
     version_file = read(*file_paths)

@@ -72,11 +72,13 @@ class Tpu(Base):
 
 
     def populate_class_labels(self):
-        class_file_abs_path = self.options.get('object_labels')        
-        for row in open(class_file_abs_path):
+        class_file_abs_path = self.options.get('object_labels')  
+        fp = open(class_file_abs_path)       
+        for row in fp:
             # unpack the row and update the labels dictionary
             (classID, label) = row.strip().split(" ", maxsplit=1)
             self.classes[int(classID)] = label.strip()
+        fp.close()
 
     def get_classes(self):
         return self.classes

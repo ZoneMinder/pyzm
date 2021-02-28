@@ -73,6 +73,7 @@ class Yolo(Base):
         class_file_abs_path = self.options.get('object_labels')
         f = open(class_file_abs_path, 'r')
         self.classes = [line.strip() for line in f.readlines()]
+        f.close()
 
     def get_classes(self):
         return self.classes
