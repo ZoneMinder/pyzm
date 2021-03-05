@@ -44,6 +44,11 @@ class MediaStream(Base):
         elif self.options.get('api'):
             self.logger = options.get('api').get_logger() 
 
+        if options.get('delay'):
+            self.logger.Debug(1, 'Wating for {} seconds')
+            time.sleep(int(options.get('delay')))
+
+
         if options.get('disable_ssl_cert_check', True):
             self.session.verify = False
             self.logger.Debug (2, 'Media get SSL certificate check has been disbled')
