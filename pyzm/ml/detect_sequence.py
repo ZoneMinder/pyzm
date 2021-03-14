@@ -557,7 +557,8 @@ class DetectSequence(Base):
             'frame_id': matched_frame_id,
             'image_dimensions': self.media.image_dimensions(),
             #'type': matched_type,
-            'image': matched_frame_img
+            'image': matched_frame_img,
+            'polygons': polygons
         }
         # if invoked again, we need to resize polys
         self.has_rescaled = False
