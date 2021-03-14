@@ -35,6 +35,7 @@ class MediaStream(Base):
         self.default_resize = 800
         self.is_deletable = False
         self.session = requests.Session()
+        self.eid=None
      
         self.debug_filename = None 
 
@@ -90,6 +91,7 @@ class MediaStream(Base):
                 self.type = 'video'
             else:
                 eid = self.stream
+                self.eid = eid
                 self.next_frameid_to_read = int(self.start_frame)
                 self.stream = '{}/index.php?view=image&eid={}'.format(self.api.get_portalbase(),  eid)
                 #if self.options.get('resize') != 'no':
@@ -243,7 +245,20 @@ class MediaStream(Base):
                     self.more_images_to_read = False
                     self.next_frameid_to_read = 0
                     return None 
+                if self.frame_set[self.next_frame_set_index]=='snapshot' and self.api:
+                    self.logger.Debug(4,'Trying to convert snapshot to a real frame id')
+                    try:
+                        eurl = '{}/events/{}.json'.format(self.api.get_apibase(),self.eid)
+                        res = self.api._make_request(eurl)
+                        fid = res.get('event',{}).get('Event',{}).get('MaxScoreFrameId')
+                        self.logger.Debug(4,'At the point of analysis, Event:{} snapshot frame id was:{},so using it'.format(self.eid, fid))
+                        self.frame_set[self.next_frame_set_index]= str(fid)
+                    except Exception as e:
+                        self.logger.Debug(4,' Failed retrieving snapshot frame ID:{}'.format(e))
+
                 url = '{}&fid={}'.format(self.stream,self.frame_set[self.next_frame_set_index])
+
+                # do we need snapshot deref?
             else:
                 url = '{}&fid={}'.format(self.stream,self.next_frameid_to_read)
             

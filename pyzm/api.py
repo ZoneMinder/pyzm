@@ -88,6 +88,7 @@ class ZMApi (Base):
     def get_session(self):
         return self.session
         
+
     def version(self):
         """Returns version of API and ZM
         
