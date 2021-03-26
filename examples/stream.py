@@ -9,8 +9,8 @@ from pyzm.ml.detect_sequence import DetectSequence
 from pyzm.helpers.Base import ConsoleLog
 import pyzm.helpers.utils as utils
 import sys
-
-#import pyzm.ZMLog as log 
+import pyzm.helpers.globals as g
+import pyzm.ZMLog as log 
 
 
 print ('Using pyzm version: {}'.format(pyzmversion))

@@ -22,9 +22,10 @@ import time
 import pwd,grp
 import datetime
 import signal
+import sys
+import pyzm.helpers.globals as g
 
 
-logger = None
 pid = None
 process_name = None
 inited = False
@@ -226,6 +227,11 @@ def init(name=None, override={}):
 
     except Exception as e:
         Error('Error setting up signal handler: {}'.format(e))
+
+    g.logger = sys.modules[__name__]
+    print (sys.modules[__name__])
+    Info ('Switching global logger to ZMLog')
+
 
 def sig_log_rot(sig,frame):
     #time.sleep(3) # do we need this?

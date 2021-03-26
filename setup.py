@@ -73,6 +73,7 @@ setup(name = NAME,
                     'pyzm.helpers.Configs',
                     'pyzm.helpers.Media',
                     'pyzm.helpers.utils',
+                    'pyzm.helpers.globals',
 
                     'pyzm.ZMLog',
                     'pyzm.ZMEventNotification',
