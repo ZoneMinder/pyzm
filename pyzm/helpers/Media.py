@@ -15,9 +15,11 @@ from imutils.video import FileVideoStream
 import time
 import os
 import random
+import pyzm.helpers.globals as g
+
 
 class MediaStream(Base):
-    def __init__(self, stream=None, type='video', options={}, logger=None):
+    def __init__(self, stream=None, type='video', options={}):
         self.stream = stream
         self.type = type
         self.fvs = None
@@ -39,26 +41,22 @@ class MediaStream(Base):
      
         self.debug_filename = None 
 
-              
-        if logger:
-            self.logger = logger
-        elif self.options.get('api'):
-            self.logger = options.get('api').get_logger() 
+
 
         if options.get('delay'):
-            self.logger.Debug(1, 'Wating for {} seconds')
+            g.logger.Debug(1, 'Waiting for {} seconds')
             time.sleep(int(options.get('delay')))
 
 
         if options.get('disable_ssl_cert_check', True):
             self.session.verify = False
-            self.logger.Debug (2, 'Media get SSL certificate check has been disbled')
+            g.logger.Debug (2, 'Media get SSL certificate check has been disbled')
             from urllib3.exceptions import InsecureRequestWarning
             requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
         _,ext= os.path.splitext(self.stream)
         if ext.lower() in ['.jpg', '.png', '.jpeg']:
-            self.logger.Debug(1, '{} is a file'.format(self.stream))
+            g.logger.Debug(1, '{} is a file'.format(self.stream))
             self.type = 'file'
             return
        
@@ -73,17 +71,17 @@ class MediaStream(Base):
         # assume it is an eid, in which case we 
         # need to access it via ZM API
             if not self.options.get('api'):
-                self.logger.Error('API object not provided, cannot download event {}'.format(self.stream))
+                g.logger.Error('API object not provided, cannot download event {}'.format(self.stream))
                 raise ValueError('API object not provided, cannot download event {}'.format(self.stream))
             
             # we can either download the event, or access it via ZM
             # indirection 
             self.debug_filename = '{}-image'.format(self.stream)
             if self.options.get('download'):
-                self.logger.Debug(1,'Downloading event:{}'.format(self.stream))
+                g.logger.Debug(1,'Downloading event:{}'.format(self.stream))
                 es = self.api.events({'event_id': int(self.stream)})
                 if not len(es.list()):
-                    self.logger.Error('No such event {} found with API'.format(self.stream))
+                    g.logger.Error('No such event {} found with API'.format(self.stream))
                     return
                 e = es.list()[0]
                 self.stream = e.download_video(dir=self.options.get('download_dir', '/tmp/'))
@@ -100,7 +98,7 @@ class MediaStream(Base):
                 #if self.api.get_auth() != '':
                 #    self.stream += '&{}'.format(self.api.get_auth())
 
-                self.logger.Debug(2,'Using URL {} for stream'.format(stream))
+                g.logger.Debug(2,'Using URL {} for stream'.format(stream))
                 self.type = 'image'
         
         
@@ -110,21 +108,21 @@ class MediaStream(Base):
                 if not self.api or self.type == 'video':
                     # if we are not using ZM indirection, we cannot use 'alarm' 'snapshot' etc.
                 
-                    self.logger.Error ('You are using frame_types that require ZM indirection')
+                    g.logger.Error ('You are using frame_types that require ZM indirection')
                     raise ValueError ('You are using frame_types that require ZM indirection')
             self.max_frames = len (self.frame_set)
-            self.logger.Debug (2, 'We will only process frames: {}'.format(self.frame_set))
+            g.logger.Debug (2, 'We will only process frames: {}'.format(self.frame_set))
             self.next_frame_set_index = 0
             self.start_frame = self.frame_set[self.next_frame_set_index]
     
         if (self.type=='video'):
-            self.logger.Debug (1, 'Starting video stream {}'.format(stream))
+            g.logger.Debug (1, 'Starting video stream {}'.format(stream))
             f,_=os.path.splitext(os.path.basename(self.stream))
             self.debug_filename = '{}-image'.format(f)
 
             self.fvs = FileVideoStream(self.stream).start()
             time.sleep(1)
-            self.logger.Debug (2, 'First load - skipping to frame {}'.format(self.start_frame))
+            g.logger.Debug (2, 'First load - skipping to frame {}'.format(self.start_frame))
             if self.frame_set:
                 while self.fvs.more() and self.frames_read < int(self.frame_set[self.next_frame_set_index])-1:
                     self.fvs.read() 
@@ -136,7 +134,7 @@ class MediaStream(Base):
                     self.next_frameid_to_read += 1
 
         else:
-            self.logger.Debug (2,'No need to start streams, we are picking images from {}'.format(self.stream))
+            g.logger.Debug (2,'No need to start streams, we are picking images from {}'.format(self.stream))
 
     def get_debug_filename(self):
         return self.debug_filename
@@ -159,7 +157,7 @@ class MediaStream(Base):
             return self.next_frame_set_index < len(self.frame_set)
 
         if (self.frames_processed >= self.max_frames):
-            self.logger.Debug(1, 'Bailing as we have read {} frames'.format(self.max_frames))
+            g.logger.Debug(1, 'Bailing as we have read {} frames'.format(self.max_frames))
             return False
         else:
             if (self.type == 'video'):
@@ -173,9 +171,9 @@ class MediaStream(Base):
         if self.is_deletable and self.options.get('delete_after_analyze') == 'yes':
             try:
                 os.remove(self.stream)
-                self.logger.Debug(2,'Deleted {}'.format(self.stream))
+                g.logger.Debug(2,'Deleted {}'.format(self.stream))
             except Exception as e:
-                self.logger.Error (f'Could not delete file(s):{e}')
+                g.logger.Error (f'Could not delete file(s):{e}')
 
     def read(self):
         if (self.type == 'file'):
@@ -198,10 +196,10 @@ class MediaStream(Base):
                 if frame is None:
                     self.frames_before_error +=1
                     if (self.frames_before_error >= self.contig_frames_before_error):
-                        self.logger.Error ('Error reading frames')
+                        g.logger.Error ('Error reading frames')
                         return
                     else:
-                        self.logger.Debug (1, 'Error reading frame: {} of max {} contiguous errors'.format(self.frames_before_error, self.contig_frames_before_error))
+                        g.logger.Debug (1, 'Error reading frame: {} of max {} contiguous errors'.format(self.frames_before_error, self.contig_frames_before_error))
                         continue
 
                 self.frames_before_error = 0
@@ -213,16 +211,16 @@ class MediaStream(Base):
                     self.last_frameid_read = self.frame_set[self.next_frame_set_index]
                     self.next_frame_set_index += 1
                     if self.next_frame_set_index < len (self.frame_set):
-                        self.logger.Debug (4,"Now moving to frame: {}".format(self.frame_set[self.next_frame_set_index])) 
+                        g.logger.Debug (4,"Now moving to frame: {}".format(self.frame_set[self.next_frame_set_index])) 
 
                 else:
                     self.last_frameid_read = self.next_frameid_to_read
                     self.next_frameid_to_read +=1
                     if (self.last_frameid_read - 1 ) % self.frame_skip:
-                        self.logger.Debug(5,'Skipping frame {}'.format(self.last_frameid_read))
+                        g.logger.Debug(5,'Skipping frame {}'.format(self.last_frameid_read))
                         continue    
                     
-                self.logger.Debug(2, 'Processing frame:{}'.format(self.last_frameid_read))
+                g.logger.Debug(2, 'Processing frame:{}'.format(self.last_frameid_read))
                 self.frames_processed += 1
                 break
             #print ('******************************* RESIZE:{}'.format(self.options.get('resize')))
@@ -233,7 +231,7 @@ class MediaStream(Base):
             if self.options.get('save_frames') and self.debug_filename:
                 d = self.options.get('save_frames_dir','/tmp')
                 fname = '{}/{}-{}.jpg'.format(d,self.debug_filename,self.last_frameid_read) 
-                self.logger.Debug (4, 'Saving image to {}'.format(fname))
+                g.logger.Debug (4, 'Saving image to {}'.format(fname))
                 cv2.imwrite(fname,frame)        
 
             return frame
@@ -241,20 +239,20 @@ class MediaStream(Base):
         else: # image
             if self.frame_set:
                 if self.next_frame_set_index >= len (self.frame_set):
-                    self.logger.Debug (1,'Reached end of frame_set')
+                    g.logger.Debug (1,'Reached end of frame_set')
                     self.more_images_to_read = False
                     self.next_frameid_to_read = 0
                     return None 
                 if self.frame_set[self.next_frame_set_index]=='snapshot' and self.api:
-                    self.logger.Debug(4,'Trying to convert snapshot to a real frame id')
+                    g.logger.Debug(4,'Trying to convert snapshot to a real frame id')
                     try:
                         eurl = '{}/events/{}.json'.format(self.api.get_apibase(),self.eid)
                         res = self.api._make_request(eurl)
                         fid = res.get('event',{}).get('Event',{}).get('MaxScoreFrameId')
-                        self.logger.Debug(4,'At the point of analysis, Event:{} snapshot frame id was:{},so using it'.format(self.eid, fid))
+                        g.logger.Debug(4,'At the point of analysis, Event:{} snapshot frame id was:{},so using it'.format(self.eid, fid))
                         self.frame_set[self.next_frame_set_index]= str(fid)
                     except Exception as e:
-                        self.logger.Debug(4,' Failed retrieving snapshot frame ID:{}'.format(e))
+                        g.logger.Debug(4,' Failed retrieving snapshot frame ID:{}'.format(e))
 
                 url = '{}&fid={}'.format(self.stream,self.frame_set[self.next_frame_set_index])
 
@@ -262,7 +260,7 @@ class MediaStream(Base):
             else:
                 url = '{}&fid={}'.format(self.stream,self.next_frameid_to_read)
             
-            self.logger.Debug (3, 'Reading {}'.format(url))
+            g.logger.Debug (3, 'Reading {}'.format(url))
             response = None
             try:
                 if self.api:
@@ -276,10 +274,10 @@ class MediaStream(Base):
                             err_msg = '{}'.format(e)
                             if err_msg != 'BAD_IMAGE':
                                 break
-                            self.logger.Debug (2,'Failed attempt:{} of {}'.format(attempts, max_attempts))
+                            g.logger.Debug (2,'Failed attempt:{} of {}'.format(attempts, max_attempts))
                             attempts += 1
                             if sleep_time and attempts <=max_attempts:
-                                self.logger.Debug (2,'Sleeping for {} seconds before retry'.format(sleep_time))
+                                g.logger.Debug (2,'Sleeping for {} seconds before retry'.format(sleep_time))
                                 time.sleep(sleep_time)
                         else: # request worked, no need to retry
                             break
@@ -289,11 +287,11 @@ class MediaStream(Base):
                 if self.frame_set:
                     self.next_frame_set_index += 1
                     if self.next_frame_set_index < len(self.frame_set):
-                        self.logger.Error('Error reading frame: {}, but moving to next frame_set'.format(url))
+                        g.logger.Error('Error reading frame: {}, but moving to next frame_set'.format(url))
                         self.last_frameid_read = self.frame_set[self.next_frame_set_index]
                         return self.read()
                     else:
-                        self.logger.Error('Error reading frame: {} and no more frames to read'.format(url))
+                        g.logger.Error('Error reading frame: {} and no more frames to read'.format(url))
                         self.more_images_to_read = False
                         self.next_frameid_to_read = 0
                         return None 
@@ -320,21 +318,21 @@ class MediaStream(Base):
                     if self.options.get('save_frames') and self.debug_filename:
                         d = self.options.get('save_frames_dir','/tmp')
                         fname = '{}/{}-{}.jpg'.format(d,self.debug_filename,self.last_frameid_read) 
-                        self.logger.Debug (4, 'Saving image to {}'.format(fname))
+                        g.logger.Debug (4, 'Saving image to {}'.format(fname))
                         cv2.imwrite(fname,img)        
 
                     return img
                 except Exception as e:
-                    self.logger.Error ('Could not retrieve url {}: {}'.format(url,e))
+                    g.logger.Error ('Could not retrieve url {}: {}'.format(url,e))
                     return None
           
             else: # response code not 200
                 self.frames_before_error +=1
                 if (self.frames_before_error >= self.contig_frames_before_error):
-                    self.logger.Error ('Error reading frames')
+                    g.logger.Error ('Error reading frames')
                     return None
                 else:
-                    self.logger.Debug (1, 'Error reading frame: {} of max {} contiguous errors'.format(self.frames_before_error, self.contig_frames_before_error))
+                    g.logger.Debug (1, 'Error reading frame: {} of max {} contiguous errors'.format(self.frames_before_error, self.contig_frames_before_error))
                     return self.read()
                 self.more_images_to_read = False
                 self.next_frameid_to_read = 0

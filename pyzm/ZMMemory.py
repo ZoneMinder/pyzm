@@ -10,6 +10,8 @@ import struct
 from collections import namedtuple
 import os
 from pyzm.helpers.Base import Base
+import pyzm.helpers.globals as g
+
 
 """
 shared_data => { type=>'SharedData', seq=>$mem_seq++, contents=> {
@@ -53,8 +55,7 @@ shared_data => { type=>'SharedData', seq=>$mem_seq++, contents=> {
 class ZMMemory(Base):
 
 
-    def __init__(self,api=None, path='/dev/shm', mid=None, logger=None):
-        super().__init__(logger)
+    def __init__(self,api=None, path='/dev/shm', mid=None):
         self.api = api
 
         self.alarm_state_stages = {
@@ -108,7 +109,7 @@ class ZMMemory(Base):
             d = self._read()
             return not d['shared_data']['size']==0
         except Exception as e:
-            self.logger.Error('Memory: {}'.format(e))
+            g.logger.Error('Memory: {}'.format(e))
             return False
 
     def is_alarmed(self):

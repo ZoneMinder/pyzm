@@ -136,6 +136,7 @@ def init(name=None, override={}):
             config[key] = override[key]
     
 
+
     # read all config files in order
     files=[]
     for f in glob.glob(config['conf_path']+'/conf.d/*.conf'):
@@ -229,7 +230,7 @@ def init(name=None, override={}):
         Error('Error setting up signal handler: {}'.format(e))
 
     g.logger = sys.modules[__name__]
-    print (sys.modules[__name__])
+    #print (sys.modules[__name__])
     Info ('Switching global logger to ZMLog')
 
 
@@ -397,7 +398,7 @@ def Debug(level=1, message=None,caller=None):
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     target = config['log_debug_target']
 
-    if target:
+    if target and not config['dump_console']:
         targets = [x.strip().lstrip('_') for x in target.split('|')]
         # if current name does not fall into debug targets don't log
         if not any(map(process_name.startswith, targets)):

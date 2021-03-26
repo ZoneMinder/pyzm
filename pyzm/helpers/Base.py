@@ -10,18 +10,10 @@ to log messages including a simple console based print function if none is provi
 
 from datetime import datetime
 
+
 class Base:
-    def __init__(self, logger):
-        #print ('core:logger is {}'.format(logger))
-        if not logger:
-            self.logger = ConsoleLog()
-            self.logger.Info ('Using simple log output (default)')
-            
-        else:
-            self.logger = logger
-    
-    def get_logger(self):
-        return self.logger
+    def __init__(self):
+      pass
 
 class ConsoleLog:
     ' console based logging function that is used if no logging handler is passed'

@@ -10,21 +10,22 @@ which can be overriden
 from pyzm.helpers.State import State
 from pyzm.helpers.Base import Base
 import requests
+import pyzm.helpers.globals as g
+
 
 class States(Base):
-    def __init__(self,logger=None, api=None):
-        super().__init__(logger)
+    def __init__(self, api=None):
         self.api = api
         self._load()
 
     def _load(self,options={}):
-        self.logger.Debug(2,'Retrieving states via API')
+        g.logger.Debug(2,'Retrieving states via API')
         url = self.api.api_url +'/states.json'
         r = self.api._make_request(url=url)
         states = r.get('states')
         self.states = []
         for state in states:
-           self.states.append(State(state=state,api=self.api, logger=self.logger))
+           self.states.append(State(state=state,api=self.api))
 
 
     def list(self):

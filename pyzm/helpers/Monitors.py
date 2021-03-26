@@ -10,21 +10,22 @@ which can be overriden
 from pyzm.helpers.Monitor import Monitor
 from pyzm.helpers.Base import Base
 import requests
+import pyzm.helpers.globals as g
+
 
 class Monitors(Base):
-    def __init__(self,logger=None, api=None):
-        super().__init__(logger)
+    def __init__(self, api=None):
         self.api = api
         self._load()
 
     def _load(self,options={}):
-        self.logger.Debug(2,'Retrieving monitors via API')
+        g.logger.Debug(2,'Retrieving monitors via API')
         url = self.api.api_url +'/monitors.json'
         r = self.api._make_request(url=url)
         ms = r.get('monitors')
         self.monitors = []
         for m in ms:
-           self.monitors.append(Monitor(monitor=m,api=self.api, logger=self.logger))
+           self.monitors.append(Monitor(monitor=m,api=self.api))
 
 
     def list(self):

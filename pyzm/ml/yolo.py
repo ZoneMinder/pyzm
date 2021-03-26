@@ -9,6 +9,8 @@ from pyzm.helpers.Base import Base
 import portalocker
 import os
 from pyzm.helpers.utils import Timer
+import pyzm.helpers.globals as g
+
 # Class to handle Yolo based detection
 
 
@@ -17,14 +19,13 @@ class Yolo(Base):
     # The actual CNN object detection code
     # opencv DNN code credit: https://github.com/arunponnusamy/cvlib
 
-    def __init__(self, options={}, logger=None):
-        super().__init__(logger)
+    def __init__(self, options={}):
         self.net = None
         self.classes = None
         self.options = options
         self.is_locked = False
 
-        #self.logger.Debug (4, 'Yolo init params: {}'.format(options))
+        #g.logger.Debug (4, 'Yolo init params: {}'.format(options))
 
         self.processor=self.options.get('object_processor') or 'cpu'
         self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
@@ -35,7 +36,7 @@ class Yolo(Base):
 
         self.disable_locks = options.get('disable_locks', 'no')
         if self.disable_locks == 'no':
-            self.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+            g.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
             self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.model_height = self.options.get('model_height', 416)
         self.model_width = self.options.get('model_width', 416)
@@ -44,16 +45,16 @@ class Yolo(Base):
         if self.disable_locks=='yes':
             return
         if self.is_locked:
-            self.logger.Debug(2, '{} portalock already acquired'.format(self.lock_name))
+            g.logger.Debug(2, '{} portalock already acquired'.format(self.lock_name))
             return
         try:
-            self.logger.Debug (2,f'Waiting for {self.lock_name} portalock...')
+            g.logger.Debug (2,f'Waiting for {self.lock_name} portalock...')
             self.lock.acquire()
-            self.logger.Debug (2,f'Got {self.lock_name} portalock')
+            g.logger.Debug (2,f'Got {self.lock_name} portalock')
             self.is_locked = True
            
         except portalocker.AlreadyLocked:
-            self.logger.Error ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
+            g.logger.Error ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
             raise ValueError ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
 
 
@@ -61,11 +62,11 @@ class Yolo(Base):
         if self.disable_locks=='yes':
             return
         if not self.is_locked:
-            self.logger.Debug (2, '{} portalock already released'.format(self.lock_name))
+            g.logger.Debug (2, '{} portalock already released'.format(self.lock_name))
             return
         self.lock.release()
         self.is_locked = False
-        self.logger.Debug (2,'Released {} portalock'.format(self.lock_name))
+        g.logger.Debug (2,'Released {} portalock'.format(self.lock_name))
 
 
         
@@ -79,31 +80,31 @@ class Yolo(Base):
         return self.classes
 
     def load_model(self):
-        self.logger.Debug (1, '|--------- Loading Yolo model from disk ---------|')
+        g.logger.Debug (1, '|--------- Loading Yolo model from disk ---------|')
         t = Timer()
         self.net = cv2.dnn.readNet(self.options.get('object_weights'),
                                 self.options.get('object_config'))
         #self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
         diff_time = t.stop_and_get_ms()
 
-        self.logger.Debug(
+        g.logger.Debug(
             1,'perf: processor:{} Yolo initialization (loading {} model from disk) took: {}'
             .format(self.processor, self.options.get('object_weights'), diff_time))
         if self.processor == 'gpu':
             (maj, minor, patch) = cv2.__version__.split('.')
             min_ver = int(maj + minor)
             if min_ver < 42:
-                self.logger.Error('Not setting CUDA backend for OpenCV DNN')
-                self.logger.Error(
+                g.logger.Error('Not setting CUDA backend for OpenCV DNN')
+                g.logger.Error(
                     'You are using OpenCV version {} which does not support CUDA for DNNs. A minimum of 4.2 is required. See https://www.pyimagesearch.com/2020/02/03/how-to-use-opencvs-dnn-module-with-nvidia-gpus-cuda-and-cudnn/ on how to compile and install openCV 4.2'
                     .format(cv2.__version__))
                 self.processor = 'cpu'
         else:
-            self.logger.Debug (1, 'Using CPU for detection')
+            g.logger.Debug (1, 'Using CPU for detection')
 
         if self.processor == 'gpu':
-            self.logger.Debug( 2,'Setting CUDA backend for OpenCV')
-            self.logger.Debug( 3,'If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy')
+            g.logger.Debug( 2,'Setting CUDA backend for OpenCV')
+            g.logger.Debug( 3,'If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy')
             self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
             self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
         
@@ -126,7 +127,7 @@ class Yolo(Base):
 
         if Width > max_size:
             downscaled = True
-            self.logger.Debug (2, 'Scaling image down to max size: {}'.format(max_size))
+            g.logger.Debug (2, 'Scaling image down to max size: {}'.format(max_size))
             old_image = image.copy()
             image = imutils.resize(image,width=max_size)
             newHeight, newWidth = image.shape[:2]
@@ -141,7 +142,7 @@ class Yolo(Base):
             if not self.net:
                 self.load_model()
 
-            self.logger.Debug(
+            g.logger.Debug(
                 1,'|---------- YOLO (input image: {}w*{}h, model resize dimensions: {}w*{}h) ----------|'
                 .format(Width, Height, self.model_width, self.model_height))
 
@@ -167,7 +168,7 @@ class Yolo(Base):
             raise
 
         diff_time = t.stop_and_get_ms()
-        self.logger.Debug(
+        g.logger.Debug(
             1,'perf: processor:{} Yolo detection took: {}'.format(self.processor, diff_time))
 
     
@@ -202,7 +203,7 @@ class Yolo(Base):
                                    nms_threshold)
         diff_time = t.stop_and_get_ms()
 
-        self.logger.Debug(
+        g.logger.Debug(
             2,'perf: processor:{} Yolo NMS filtering took: {}'.format(self.processor, diff_time))
 
         bbox = []
@@ -231,7 +232,7 @@ class Yolo(Base):
             conf.append(confidences[i])
            
         if downscaled:
-            self.logger.Debug (2,'Scaling image back up to {}'.format(Width))
+            g.logger.Debug (2,'Scaling image back up to {}'.format(Width))
             image = old_image
             for box in bbox:
                 box[0] = round (box[0] * upsize_xfactor)

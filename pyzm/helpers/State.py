@@ -9,10 +9,11 @@ the full object
 
 
 from pyzm.helpers.Base import Base
+import pyzm.helpers.globals as g
+
 
 class State(Base):
-    def __init__(self, api=None, state=None, logger=None):
-        super().__init__(logger)
+    def __init__(self, api=None, state=None):
         self.state = state
         self.api = api
     

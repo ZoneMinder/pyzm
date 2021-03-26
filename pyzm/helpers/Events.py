@@ -12,11 +12,12 @@ from pyzm.helpers.Base import Base
 from pyzm.helpers.Event import Event
 import requests
 import dateparser
+import pyzm.helpers.globals as g
+
 
 class Events(Base):
-    def __init__(self, logger=None, api=None, options=None):
+    def __init__(self, api=None, options=None):
        
-        super().__init__(logger)
         self.api = api
         self.events = []
         self.pagination = {}
@@ -39,7 +40,7 @@ class Events(Base):
         return int(self.pagination.get('count'))
 
     def _load(self, options={}):
-        self.logger.Debug(2,'Retrieving events via API')
+        g.logger.Debug(2,'Retrieving events via API')
         url_filter=''
        
         tz = {}
@@ -124,7 +125,7 @@ class Events(Base):
             params['page'] +=1 
         
         for event in events:
-            self.events.append(Event(event=event,api=self.api,logger= self.logger))
+            self.events.append(Event(event=event,api=self.api))
     
     def get(self, options={}):
         """Returns the full list of events. Typically useful if you need access to data for which you don't have an easy getter

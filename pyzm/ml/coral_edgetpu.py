@@ -6,6 +6,8 @@ import re
 import cv2
 from pyzm.helpers.Base import Base
 from pyzm.helpers.utils import Timer
+import pyzm.helpers.globals as g
+
 
 
 from PIL import Image
@@ -23,13 +25,12 @@ from pycoral.utils.edgetpu import make_interpreter
 
 class Tpu(Base):
 
-    def __init__(self, options={},logger=None ):
-        Base.__init__(self,logger)
+    def __init__(self, options={} ):
         self.classes = {}
         self.options = options
-       #self.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
+       #g.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
 
-        #self.logger.Debug (4, 'TPU init params: {}'.format(options))
+        #g.logger.Debug (4, 'TPU init params: {}'.format(options))
         
         self.processor='tpu'
         self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
@@ -37,7 +38,7 @@ class Tpu(Base):
         self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
         self.disable_locks = options.get('disable_locks', 'no')
         if self.disable_locks == 'no':
-            self.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+            g.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
             self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.is_locked = False
         self.model = None
@@ -48,27 +49,27 @@ class Tpu(Base):
         if self.disable_locks == 'yes':
             return
         if self.is_locked:
-            self.logger.Debug (2, '{} portalock already acquired'.format(self.lock_name))
+            g.logger.Debug (2, '{} portalock already acquired'.format(self.lock_name))
             return
         try:
-            self.logger.Debug (2,'Waiting for {} portalock...'.format(self.lock_name))
+            g.logger.Debug (2,'Waiting for {} portalock...'.format(self.lock_name))
             self.lock.acquire()
-            self.logger.Debug (2,'Got {} portalock'.format(self.lock_name))
+            g.logger.Debug (2,'Got {} portalock'.format(self.lock_name))
             self.is_locked = True
 
         except portalocker.AlreadyLocked:
-            self.logger.Error ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
+            g.logger.Error ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
             raise ValueError ('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
 
     def release_lock(self):
         if self.disable_locks == 'yes':
             return
         if not self.is_locked:
-            self.logger.Debug (2, '{} portalock already released'.format(self.lock_name))
+            g.logger.Debug (2, '{} portalock already released'.format(self.lock_name))
             return
         self.lock.release()
         self.is_locked = False
-        self.logger.Debug (2,'Released portalock {}'.format(self.lock_name))
+        g.logger.Debug (2,'Released portalock {}'.format(self.lock_name))
 
 
     def populate_class_labels(self):
@@ -84,7 +85,7 @@ class Tpu(Base):
         return self.classes
 
     def load_model(self):
-        self.logger.Debug (1, '|--------- Loading TPU model from disk -------------|')
+        g.logger.Debug (1, '|--------- Loading TPU model from disk -------------|')
 
         #self.model = DetectionEngine(self.options.get('object_weights'))
         # Initialize the TF interpreter
@@ -92,7 +93,7 @@ class Tpu(Base):
         self.model = make_interpreter(self.options.get('object_weights'))
         self.model.allocate_tensors()
         diff_time = t.stop_and_get_ms()
-        self.logger.Debug(
+        g.logger.Debug(
             1,'perf: processor:{} TPU initialization (loading {} from disk) took: {}'
             .format(self.processor, self.options.get('object_weights'),diff_time))
         
@@ -156,7 +157,7 @@ class Tpu(Base):
             if not self.model:
                 self.load_model()
 
-            self.logger.Debug(1,
+            g.logger.Debug(1,
                 '|---------- TPU (input image: {}w*{}h) ----------|'
                 .format(Width, Height))
             t= Timer()            
@@ -178,7 +179,7 @@ class Tpu(Base):
             raise
 
         diff_time = t.stop_and_get_ms()
-        self.logger.Debug(
+        g.logger.Debug(
             1,'perf: processor:{} Coral TPU detection took: {}'.format(self.processor, diff_time))
       
         bbox = []
@@ -197,5 +198,5 @@ class Tpu(Base):
             labels.append(prefix+self.classes[obj.id])
             conf.append(float(obj.score))
 
-        self.logger.Debug(3,'Coral returning: {},{},{}'.format(bbox,labels,conf))
+        g.logger.Debug(3,'Coral returning: {},{},{}'.format(bbox,labels,conf))
         return bbox, labels, conf

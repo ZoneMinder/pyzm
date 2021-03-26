@@ -11,6 +11,8 @@ import time
 from pyzm.helpers.Base import Base
 import threading
 import ssl
+import pyzm.helpers.globals as g
+
 
 class ZMEventNotification(Base):
     def __init__(self, options):
@@ -33,7 +35,6 @@ class ZMEventNotification(Base):
             ValueError: if no server is provided
         """
 
-        super().__init__(options.get('logger'))
         if not options.get('url'):
             raise ValueError ('ZMESClient: No server specified')
         
@@ -55,17 +56,17 @@ class ZMEventNotification(Base):
     def connect(self):
         """Connect to the ES
         """
-        self.logger.Info('ZMESClient: Connecting to ES')
+        g.logger.Info('ZMESClient: Connecting to ES')
         if not self.connected:
             self._disconnect = False
             self.worker_thread = threading.Thread(target=self._worker)
             self.worker_thread.start()
-            self.logger.Info ('ZMESClient: Event Server init started')
+            g.logger.Info ('ZMESClient: Event Server init started')
     
     def disconnect(self):
         """Disconnect from the ES
         """
-        self.logger.Info('ZMESClient: Disconnecting from ES')
+        g.logger.Info('ZMESClient: Disconnecting from ES')
         if self.ws != None:
             self._disconnect = True
             self.ws.keep_running = False
@@ -89,7 +90,7 @@ class ZMEventNotification(Base):
         if self.connected:
             self.ws.send(json.dumps(msg))
         else:
-            self.logger.Debug (1,'ZMESClient: not yet connected, message queued[{}]: {}'.format(len(self.queue), msg))
+            g.logger.Debug (1,'ZMESClient: not yet connected, message queued[{}]: {}'.format(len(self.queue), msg))
             self.queue.append(msg)
 
 
@@ -102,11 +103,11 @@ class ZMEventNotification(Base):
             callback(self.ws, *args)
     
     def _worker(self):
-        self.logger.Info('ZMESClient: Inside Event Server thread, attempting to connect')
+        g.logger.Info('ZMESClient: Inside Event Server thread, attempting to connect')
         sslopt = {}
         if self.allow_untrusted:
             sslopt['cert_reqs'] = ssl.CERT_NONE
-            self.logger.Warning('ZMESClient: Turning off certificate trust')
+            g.logger.Warning('ZMESClient: Turning off certificate trust')
 
         while not self._disconnect:
             self.ws = websocket.WebSocketApp(self.url, 
@@ -116,12 +117,12 @@ class ZMEventNotification(Base):
                                         on_open = lambda ws: self._on_open(ws)
                                         )
             self.ws._callback  = self._monkey_callback
-            self.logger.Info ('ZMESClient: connected: ready to send/receive websocket messages')
+            g.logger.Info ('ZMESClient: connected: ready to send/receive websocket messages')
             try:
                 val = self.ws.run_forever(sslopt=sslopt)
                 if not val: break # keyboard
             except Exception as e:
-                self.logger.Error ('ZMESClient: Event Server Exception:' + str(e))
+                g.logger.Error ('ZMESClient: Event Server Exception:' + str(e))
                 
                 #traceback.print_exc(file=sys.stdout)
 
@@ -131,40 +132,40 @@ class ZMEventNotification(Base):
             self.ws = None
                         
             if not self._disconnect:
-                self.logger.Error ('ZMESClient: run_forever() unexpectedly terminated' )
-                self.logger.Info('ZMESClient: Will reconnect after 10 secs...')
+                g.logger.Error ('ZMESClient: run_forever() unexpectedly terminated' )
+                g.logger.Info('ZMESClient: Will reconnect after 10 secs...')
                 time.sleep(10)
 
         # Not connected anymore
-        self.logger.Info('ZMESClient: Exiting Event Server thread, correctly disconnected')
+        g.logger.Info('ZMESClient: Exiting Event Server thread, correctly disconnected')
         
     def _on_open(self, ws):   
-        self.logger.Info('ZMESClient: Sending auth info to ES')
+        g.logger.Info('ZMESClient: Sending auth info to ES')
         auth={"event":"auth","data":{"user":self.user,"password":self.password}}
         dauth={"event":"auth","data":{"user":self.user,"password":'****'}}
 
-        self.logger.Debug(1, 'ZMESClient: Auth info to be sent: {}'.format(dauth))
+        g.logger.Debug(1, 'ZMESClient: Auth info to be sent: {}'.format(dauth))
         ws.send(json.dumps(auth))
 
         
 
     def _on_message(self, ws, message):
-        self.logger.Info('ZMESClient: Got message from ES: {}'.format(message))
+        g.logger.Info('ZMESClient: Got message from ES: {}'.format(message))
         message = json.loads(message)
         if message.get('event') == 'auth' and message.get('status') == 'Success':
-            self.logger.Info ('ZMESClient: Auth accepted, connected state')
+            g.logger.Info ('ZMESClient: Auth accepted, connected state')
             self.connected = True
             while self.queue:
                 msg = self.queue.pop(0)
-                self.logger.Debug (1, 'Sending pending message:{}'.format(msg))
+                g.logger.Debug (1, 'Sending pending message:{}'.format(msg))
                 self.send(msg)
 
         if self.on_es_message: self.on_es_message(message)
 
     def _on_error(self, ws, error):
-        self.logger.Error('ZMESClient: Got error: {}'.format(error))
+        g.logger.Error('ZMESClient: Got error: {}'.format(error))
         if self.on_es_error: 
-            self.logger.Info('invoking app error function and re-raising error')
+            g.logger.Info('invoking app error function and re-raising error')
             self.on_es_error(error)
             self.ws.close()
         raise error
@@ -172,7 +173,7 @@ class ZMEventNotification(Base):
       
 
     def _on_close(self, ws):
-       self.logger.Info ('ZMESClient: Connection closed')
+       g.logger.Info ('ZMESClient: Connection closed')
        if self.on_es_close: self.on_es_close()
 
     

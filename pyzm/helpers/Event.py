@@ -12,12 +12,12 @@ import progressbar as pb
 import requests
 import os
 import sys
+import pyzm.helpers.globals as g
+
 
 class Event(Base):
-    def __init__(self, event=None, api=None, logger=None):
-        super().__init__(logger)
+    def __init__(self, event=None, api=None):
         self.event = event
-        self.logger = logger
         self.api = api
                
     def get(self):
@@ -48,7 +48,7 @@ class Event(Base):
             string: URL for the video file
         """        
         if not self.video_file():
-            self.logger.Error ('Event {} does not have a video file'.format(self.id()))
+            g.logger.Error ('Event {} does not have a video file'.format(self.id()))
             return None
         eid = self.id()
         url = self.api.portal_url+'/index.php?mode=mpeg&eid={}&view=view_video'.format(eid)+'&'+self.api.get_auth()
@@ -70,7 +70,7 @@ class Event(Base):
            
         url = self.get_image_url(fid)
         f =  self._download_file(url, str(self.id())+'-'+fid+'.jpg', dir, show_progress)
-        self.logger.Info('File downloaded to {}'.format(f))
+        g.logger.Info('File downloaded to {}'.format(f))
         return f
 
     def download_video(self, dir='.', show_progress=False):
@@ -90,7 +90,7 @@ class Event(Base):
         if not url:
             return None
         f =  self._download_file(url, str(self.id())+'-video'+'.mp4', dir, show_progress)
-        self.logger.Info('File downloaded to {}'.format(f))
+        g.logger.Info('File downloaded to {}'.format(f))
         return f
 
     def delete(self):
@@ -212,7 +212,7 @@ class Event(Base):
         if os.path.exists(dest_dir + os.path.sep + file_name):
             return full_path_to_file
 
-        self.logger.Info("Downloading " + file_name + " from " + url)
+        g.logger.Info("Downloading " + file_name + " from " + url)
 
         try:
             req = requests
@@ -223,26 +223,26 @@ class Event(Base):
 
 #            r = requests.get(url, allow_redirects=True, stream=True)
         except requests.exceptions.HTTPError as err:
-            self.logger.Debug(1, 'Got download access error: {}'.format(err), 'error')
+            g.logger.Debug(1, 'Got download access error: {}'.format(err), 'error')
             if err.response.status_code == 401 and reauth:
-                self.logger.Debug (1, 'Retrying login once')
+                g.logger.Debug (1, 'Retrying login once')
                 self._relogin()
-                self.logger.Debug (1,'Retrying failed request again...')
+                g.logger.Debug (1,'Retrying failed request again...')
                 return self._download_file(url, file_name, dest_dir, show_progress, reauth=False)
             else:
                 raise err
         except:
             #e = sys.exc_info()[0]
             #print(e)
-            self.logger.Error("Could not establish connection. Download failed")
+            g.logger.Error("Could not establish connection. Download failed")
             return None
 
         if r.headers.get('Content-Type') and "text/html" in r.headers.get('Content-Type'):
             if reauth:
-                self.logger.Error ('We got redirected to login while trying to download, trying one more time')
+                g.logger.Error ('We got redirected to login while trying to download, trying one more time')
                 return self._download_file(url, file_name, dest_dir, show_progress, reauth=False)
             else:
-                self.logger.Error ('Failed doing reauth, not trying again')
+                g.logger.Error ('Failed doing reauth, not trying again')
                 return None
         
         if r.headers.get('Content-Length'):
@@ -263,7 +263,7 @@ class Event(Base):
                 bar = pb.ProgressBar().start()
         
         if r.status_code != requests.codes.ok:
-            self.logger.Error("Error occurred while downloading file")
+            g.logger.Error("Error occurred while downloading file")
             return None
 
         count = 0

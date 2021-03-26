@@ -4,6 +4,7 @@ import getpass
 import traceback
 import pyzm.ZMMemory as zmmemory
 import time
+import pyzm.helpers.globals as g
 
 use_zmlog = True
 use_zmes = True
@@ -76,7 +77,7 @@ if i == 'y':
             'object_min_confidence': 0.3
         }
         import pyzm.ml.coral_edgetpu as tpu
-        m = tpu.Tpu(options=options, logger=zmlog)
+        m = tpu.Tpu(options=options)
         b,l,c = m.detect(img)
         print (b,l,c)
 
@@ -120,8 +121,6 @@ api_options = {
     'portalurl': 'https://demo.zoneminder.com/zm',
     'user': 'zmuser',
     'password': 'zmpass',
-    #'logger': zmlog # We connect the API to zmlog 
-    'logger': None, # use none if you don't want to log to ZM,
     #'disable_ssl_cert_check': True
 }
 
@@ -173,7 +172,6 @@ if has_zmes:
             'password': ES_PASSWORD,
             'user': ES_USER,
             'allow_untrusted': ALLOW_UNTRUSTED,
-            'logger': zmlog,
             'on_es_message': on_es_message,
             'on_es_error': on_es_error
                 

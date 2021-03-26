@@ -4,12 +4,13 @@ utils
 Set of utility functions
 """
 
-from pyzm.helpers.Base import ConsoleLog
 from configparser import ConfigParser
 import cv2
 import numpy as np
 import re
 import time
+import pyzm.helpers.globals as g
+
 
 class Timer:
     def __init__(self, start_timer=True):

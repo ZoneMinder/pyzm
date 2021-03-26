@@ -6,7 +6,6 @@ import pyzm.ZMMemory as zmmemory
 import time
 #import pyzm.ml.object as  ObjectDetect
 from pyzm.ml.detect_sequence import DetectSequence
-from pyzm.helpers.Base import ConsoleLog
 import pyzm.helpers.utils as utils
 import sys
 import pyzm.helpers.globals as g
@@ -16,9 +15,8 @@ import pyzm.ZMLog as log
 print ('Using pyzm version: {}'.format(pyzmversion))
 
 #log.init(name='stream', override={'dump_console': True})
-#logger = log
-logger = ConsoleLog()
-logger.set_level(5)
+g.logger.set_level(5)
+
 
 #time.sleep(1000)
 
@@ -35,7 +33,6 @@ api_options = {
     'portalurl': 'https://demo.zoneminder.com/zm',
     'user': 'zmuser',
     'password': 'zmpass',
-    'logger': logger, # use none if you don't want to log to ZM,
     #'disable_ssl_cert_check': True
 }
 '''
@@ -46,12 +43,11 @@ api_options  = {
     'portalurl':utils.get(key='ZM_PORTAL', section='secrets', conf=conf),
     'user': utils.get(key='ZM_USER', section='secrets', conf=conf),
     'password': utils.get(key='ZM_PASSWORD', section='secrets', conf=conf),
-    'logger': logger, # use none if you don't want to log to ZM,
     #'disable_ssl_cert_check': True
 }
 
 
-zmapi = zmapi.ZMApi(options=api_options, logger=logger)
+zmapi = zmapi.ZMApi(options=api_options)
 ml_options = {
     'general': {
         'model_sequence': 'object,face,alpr',
@@ -138,7 +134,7 @@ stream_options = {
 
 
 #input ('Enter...')
-m = DetectSequence(options=ml_options, logger=logger)
+m = DetectSequence(options=ml_options)
 #m = ObjectDetect.Object(options=ml_options)
 matched_data,all_data = m.detect_stream(stream=eid, options=stream_options)
 print(f'ALL FRAMES: {all_data}\n\n')

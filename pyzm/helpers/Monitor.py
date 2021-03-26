@@ -9,10 +9,11 @@ the full object
 
 
 from pyzm.helpers.Base import Base
+import pyzm.helpers.globals as g
+
 
 class Monitor(Base):
-    def __init__(self, api=None, monitor=None, logger=None):
-        super().__init__(logger)
+    def __init__(self, api=None, monitor=None):
         self.monitor = monitor
         self.api = api
     

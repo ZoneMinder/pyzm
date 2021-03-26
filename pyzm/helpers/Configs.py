@@ -6,17 +6,18 @@ Hold all ZM Config data. No need for a separate config class
 
 
 from pyzm.helpers.Base import Base
+import pyzm.helpers.globals as g
+
 
 import requests
 
 class Configs(Base):
-    def __init__(self,logger=None, api=None):
-        super().__init__(logger)
+    def __init__(self, api=None):
         self.api = api
         self._load()
 
     def _load(self,options={}):
-        self.logger.Debug(1,'Retrieving config via API')
+        g.logger.Debug(1,'Retrieving config via API')
         url = self.api.api_url +'/configs.json'
         r = self.api._make_request(url=url)
         self.configs = r.get('configs')
