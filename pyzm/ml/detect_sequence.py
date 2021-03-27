@@ -210,7 +210,7 @@ class DetectSequence(Base):
     # once all bounding boxes are detected, we check to see if any of them
     # intersect the polygons, if specified
     # it also makes sure only patterns specified in detect_pattern are drawn
-    def _process_past_detections(self,m,bbox, label, conf, mid):
+    def _process_past_detections(self,m,bbox, label, conf, mid, model_name):
 
         try:
             FileNotFoundError
@@ -222,7 +222,7 @@ class DetectSequence(Base):
                 'Monitor ID not specified, cannot match past detections')
             return bbox, label, conf
         image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
-        mon_file = image_path + '/monitor-' + mid + '-data.pkl'
+        mon_file = '{}/monitor-{}-{}-data.pkl'.format(image_path,mid,model_name)
         g.logger.Debug(2,'trying to load ' + mon_file)
         saved_bs=[]
         saved_ls=[]
@@ -232,6 +232,7 @@ class DetectSequence(Base):
             saved_bs = pickle.load(fh)
             saved_ls = pickle.load(fh)
             saved_cs = pickle.load(fh)
+            fh.close()
         except FileNotFoundError:
             g.logger.Debug(1,'No history data file found for monitor {}'.format(mid))
             return bbox, label, conf
@@ -618,26 +619,28 @@ class DetectSequence(Base):
                     if mpd == 'yes' and self.stream_options.get('mid'):
                         # point detections to post processed data set
                         g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))
-                        g.logger.Debug (1,'BEFORE PAST: {}, {}, {}'.format(_b,_l,_c))
+                        #g.logger.Debug (1,'BEFORE PAST: {}, {}, {}'.format(_b,_l,_c))
 
-                        _b,_l,_c = self._process_past_detections(m,_b, _l, _c, self.stream_options.get('mid'))
-                        g.logger.Debug (1,'AFTER PAST: {}, {}, {}'.format(_b,_l,_c))
+                        _b,_l,_c = self._process_past_detections(m,_b, _l, _c, self.stream_options.get('mid'),seq)
+                        #g.logger.Debug (1,'AFTER PAST: {}, {}, {}'.format(_b,_l,_c))
                         if not len (_l):
                             continue
+                        
                         # save current objects for future comparisons
-                        g.logger.Debug(1,
-                            'Saving detections for monitor {} for future match'.format(
-                                self.stream_options.get('mid')))
-                        try:
-                            image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
-                            mon_file = image_path + '/monitor-' + self.stream_options.get('mid') + '-data.pkl'
-                            f = open(mon_file, "wb")
-                            pickle.dump(_b, f)
-                            pickle.dump(_l, f)
-                            pickle.dump(_c, f)
-                            f.close()
-                        except Exception as e:
-                            g.logger.Error(f'Error writing to {mon_file}, past detections not recorded:{e}')
+                        if seq!='face':
+                            g.logger.Debug(1,
+                                'Saving detections for monitor {} for future match'.format(
+                                    self.stream_options.get('mid')))
+                            try:
+                                image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
+                                mon_file = '{}/monitor-{}-{}-data.pkl'.format(image_path,self.stream_options.get('mid'),seq)
+                                f = open(mon_file, "wb")
+                                pickle.dump(_b, f)
+                                pickle.dump(_l, f)
+                                pickle.dump(_c, f)
+                                f.close()
+                            except Exception as e:
+                                g.logger.Error(f'Error writing to {mon_file}, past detections not recorded:{e}')
 
 
                     if  ((same_model_sequence_strategy == 'first') 
