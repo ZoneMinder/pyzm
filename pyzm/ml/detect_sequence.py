@@ -610,8 +610,8 @@ class DetectSequence(Base):
                     # Now let's take past detections into consideration 
                     # let's remove past detections first, if enabled 
                 
-                    g.logger.Debug(4,'REMOVE ME: Self m options: {}'.m.get_options())
-                    mpd = m.get_options().get('match_past_detections') or self.global_options.get('match_past_detection')
+                    g.logger.Debug(4,'REMOVE ME: Self m options: {}'.format(m.get_options()))
+                    mpd = m.get_options().get('match_past_detections') or self.global_config.get('match_past_detection')
                     if mpd == 'yes' and self.stream_options.get('mid'):
                         # point detections to post processed data set
                         g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))

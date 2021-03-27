@@ -57,7 +57,7 @@ ml_options = {
    
     'object': {
         'general':{
-            'pattern':'car',
+            'pattern':'.*',
             'same_model_sequence_strategy': 'most' # also 'most', 'most_unique's
         },
         'sequence': [{
@@ -121,7 +121,7 @@ stream_options = {
         #'strategy': 'first',
         'api': zmapi,
         'download': False,
-        'frame_set': 'snapshot,alarm,7000,25,35,45',
+        'frame_set': 'alarm',
         'resize': 800,
         'save_frames': False,
         'save_analyzed_frames': False,
