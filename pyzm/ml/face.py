@@ -110,6 +110,9 @@ class Face(Base):
             g.logger.Error ('Error loading KNN model: {}'.format(e))
 
 
+    def get_options(self):
+        return self.options
+        
     def acquire_lock(self):
         if self.disable_locks=='yes':
             return

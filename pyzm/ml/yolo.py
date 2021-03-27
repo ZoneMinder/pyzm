@@ -69,6 +69,8 @@ class Yolo(Base):
         g.logger.Debug (2,'Released {} portalock'.format(self.lock_name))
 
 
+    def get_options(self):
+        return self.options
         
     def populate_class_labels(self):
         class_file_abs_path = self.options.get('object_labels')

@@ -11,17 +11,21 @@ import pyzm.helpers.globals as g
 
 
 class Hog(Base):
-    def __init__(self):
+    def __init__(self, options={}):
         self.hog = cv2.HOGDescriptor()
         self.hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
         self.winStride = self.options.get('stride')
         self.padding = self.options.get('padding')
         self.scale = float(self.options.get('scale'))
         self.meanShift = True if int(self.options.get('mean_shift')) > 0 else False
+        self.options=options
         g.logger.Debug(2,'Initializing HOG')
 
     def get_classes(self):
         return ['person']
+
+    def get_options(self):
+        return self.options
 
     def detect(self, image):
         r, w = self.hog.detectMultiScale(image,

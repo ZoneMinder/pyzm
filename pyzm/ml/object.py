@@ -37,6 +37,9 @@ class Object(Base):
         else:
             raise ValueError ('Invalid object_framework:{}'.format(self.options.get('object_framework')))
 
+    def get_options(self):
+        return self.options
+        
     def get_model(self):
             return self.model
 

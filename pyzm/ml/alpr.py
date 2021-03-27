@@ -24,6 +24,9 @@ class AlprBase(Base):
 
         #g.logger.Debug (4, 'ALPR init params: {}'.format(options))
 
+    def get_options(self):
+        return self.options
+
     def acquire_lock(self):
         pass
 
