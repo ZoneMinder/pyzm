@@ -21,7 +21,7 @@ import pyzm.helpers.globals as g
 
 
 class DetectSequence(Base):
-    def __init__(self, options={}):
+    def __init__(self, options={}, global_config={}):
         """Initializes ML entry point with various parameters
 
         Args:
@@ -121,6 +121,7 @@ class DetectSequence(Base):
     
         self.has_rescaled = False # only once in init
         self.set_ml_options(options,force_reload=True)
+        self.global_config = global_config
         #g.logger.Debug(1,'WAKANDA FOREVER!!!!!!!!!!!!!!!')
         
     def get_ml_options(self):
@@ -204,126 +205,128 @@ class DetectSequence(Base):
         return newps
 
     
-# once all bounding boxes are detected, we check to see if any of them
-# intersect the polygons, if specified
-# it also makes sure only patterns specified in detect_pattern are drawn
-def _process_past_detections(bbox, label, conf, mid):
+    # once all bounding boxes are detected, we check to see if any of them
+    # intersect the polygons, if specified
+    # it also makes sure only patterns specified in detect_pattern are drawn
+    def _process_past_detections(m,bbox, label, conf, mid):
 
-    try:
-        FileNotFoundError
-    except NameError:
-        FileNotFoundError = IOError
-
-    if not mid:
-        g.logger.Debug(1,
-            'Monitor ID not specified, cannot match past detections')
-        return bbox, label, conf
-    mon_file = g.config['image_path'] + '/monitor-' + mid + '-data.pkl'
-    g.logger.Debug(2,'trying to load ' + mon_file)
-    try:
-        fh = open(mon_file, "rb")
-        saved_bs = pickle.load(fh)
-        saved_ls = pickle.load(fh)
-        saved_cs = pickle.load(fh)
-    except FileNotFoundError:
-        g.logger.Debug(1,'No history data file found for monitor {}'.format(mid))
-        return bbox, label, conf
-    except EOFError:
-        g.logger.Debug(1,'Empty file found for monitor {}'.format(mid))
-        g.logger.Debug (1,'Going to remove {}'.format(mon_file))
         try:
-            os.remove(mon_file)
+            FileNotFoundError
+        except NameError:
+            FileNotFoundError = IOError
+
+        if not mid:
+            g.logger.Debug(1,
+                'Monitor ID not specified, cannot match past detections')
+            return bbox, label, conf
+        image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
+        mon_file = image_path + '/monitor-' + mid + '-data.pkl'
+        g.logger.Debug(2,'trying to load ' + mon_file)
+        try:
+            fh = open(mon_file, "rb")
+            saved_bs = pickle.load(fh)
+            saved_ls = pickle.load(fh)
+            saved_cs = pickle.load(fh)
+        except FileNotFoundError:
+            g.logger.Debug(1,'No history data file found for monitor {}'.format(mid))
+            return bbox, label, conf
+        except EOFError:
+            g.logger.Debug(1,'Empty file found for monitor {}'.format(mid))
+            g.logger.Debug (1,'Going to remove {}'.format(mon_file))
+            try:
+                os.remove(mon_file)
+            except Exception as e:
+                g.logger.Error (f'Could not delete: {e}')
+                pass
         except Exception as e:
-            g.logger.Error (f'Could not delete: {e}')
-            pass
-    except Exception as e:
-        g.logger.Error(f'Error in processPastDetection: {e}')
-        #g.logger.Error('Traceback:{}'.format(traceback.format_exc()))
-        return bbox, label, conf
+            g.logger.Error(f'Error in processPastDetection: {e}')
+            #g.logger.Error('Traceback:{}'.format(traceback.format_exc()))
+            return bbox, label, conf
 
-    # load past detection
+        # load past detection
 
-    label_max_diff_area= '{}_past_det_max_diff_area'.format(label)
-    if g.config[label_max_diff_area]:
-        g.logger.Debug(4, 'Found {}, using value of {}'.format(label_max_diff_area, g.config[label_max_diff_area]))
-        m = re.match('(\d+)(px|%)?$', g.config[label_max_diff_area],
-                 re.IGNORECASE)
-    else:
-        label_max_diff_area='past_det_max_diff_area'
-        m = re.match('(\d+)(px|%)?$', g.config['past_det_max_diff_area'],
-                 re.IGNORECASE)
-    if m:
-        max_diff_area = int(m.group(1))
-        use_percent = True if m.group(2) is None or m.group(
-            2) == '%' else False
-    else:
-        g.logger.Error('past_det_max_diff_area misformatted: {}'.format(
-            g.config[label_max_diff_area]))
-        return bbox, label, conf
+        label_max_diff_area= '{}_past_det_max_diff_area'.format(label)
+        mda = m.get_options().get(label_max_diff_area) or  self.global_config.get(label_max_diff_area)
+        if mda:
+            g.logger.Debug(4, 'Found {}, using value of {}'.format(label_max_diff_area, mda))
+            _m = re.match('(\d+)(px|%)?$', mda,re.IGNORECASE)
+        else:
+            label_max_diff_area='past_det_max_diff_area'
+            mda =  m.get_options().get('past_det_max_diff_area') or self.global_config.get('past_det_max_diff_area')
+            _m = re.match('(\d+)(px|%)?$',mda,
+                    re.IGNORECASE)
+        if _m:
+            max_diff_area = int(_m.group(1))
+            use_percent = True if _m.group(2) is None or _m.group(
+                2) == '%' else False
+        else:
+            g.logger.Error('past_det_max_diff_area misformatted: {}'.format(
+                mda))
+            return bbox, label, conf
 
-    # it's very easy to forget to add 'px' when using pixels
-    if use_percent and (max_diff_area < 0 or max_diff_area > 100):
-        g.logger.Error(
-            'past_det_max_diff_area must be in the range 0-100 when using percentages: {}'
-            .format(g.config[label_max_diff_area]))
-        return bbox, label, conf
+        # it's very easy to forget to add 'px' when using pixels
+        if use_percent and (max_diff_area < 0 or max_diff_area > 100):
+            g.logger.Error(
+                'past_det_max_diff_area must be in the range 0-100 when using percentages: {}'
+                .format(self.global_config.get(label_max_diff_area)))
+            return bbox, label, conf
 
-    #g.logger.Debug (1,'loaded past: bbox={}, labels={}'.format(saved_bs, saved_ls));
-    g.logger.Debug (4, 'process_past_detections: use_percent:{}, max_diff_area:{}'.format(use_percent,max_diff_area))
-    new_label = []
-    new_bbox = []
-    new_conf = []
+        #g.logger.Debug (1,'loaded past: bbox={}, labels={}'.format(saved_bs, saved_ls));
+        g.logger.Debug (4, 'process_past_detections: use_percent:{}, max_diff_area:{}'.format(use_percent,max_diff_area))
+        new_label = []
+        new_bbox = []
+        new_conf = []
 
-    for idx, b in enumerate(bbox):
-        # iterate list of detections
-        old_b = b
-        it = iter(b)
-        b = list(zip(it, it))
+        for idx, b in enumerate(bbox):
+            # iterate list of detections
+            old_b = b
+            it = iter(b)
+            b = list(zip(it, it))
 
-        b.insert(1, (b[1][0], b[0][1]))
-        b.insert(3, (b[0][0], b[2][1]))
-        #g.logger.Debug (1,"Past detection: {}@{}".format(saved_ls[idx],b))
-        #g.logger.Debug (1,'BOBK={}'.format(b))
-        obj = Polygon(b)
-        foundMatch = False
-        for saved_idx, saved_b in enumerate(saved_bs):
-            # compare current detection element with saved list from file
-            if saved_ls[saved_idx] != label[idx]: continue
-            it = iter(saved_b)
-            saved_b = list(zip(it, it))
-            saved_b.insert(1, (saved_b[1][0], saved_b[0][1]))
-            saved_b.insert(3, (saved_b[0][0], saved_b[2][1]))
-            saved_obj = Polygon(saved_b)
-            max_diff_pixels = max_diff_area
+            b.insert(1, (b[1][0], b[0][1]))
+            b.insert(3, (b[0][0], b[2][1]))
+            #g.logger.Debug (1,"Past detection: {}@{}".format(saved_ls[idx],b))
+            #g.logger.Debug (1,'BOBK={}'.format(b))
+            obj = Polygon(b)
+            foundMatch = False
+            for saved_idx, saved_b in enumerate(saved_bs):
+                # compare current detection element with saved list from file
+                if saved_ls[saved_idx] != label[idx]: continue
+                it = iter(saved_b)
+                saved_b = list(zip(it, it))
+                saved_b.insert(1, (saved_b[1][0], saved_b[0][1]))
+                saved_b.insert(3, (saved_b[0][0], saved_b[2][1]))
+                saved_obj = Polygon(saved_b)
+                max_diff_pixels = max_diff_area
 
-            if saved_obj.intersects(obj):
-                if obj.contains(saved_obj):
-                    diff_area = obj.difference(saved_obj).area
-                    if use_percent:
-                        max_diff_pixels = obj.area * max_diff_area / 100
-                else:
-                    diff_area = saved_obj.difference(obj).area
-                    if use_percent:
-                        max_diff_pixels = saved_obj.area * max_diff_area / 100
+                if saved_obj.intersects(obj):
+                    if obj.contains(saved_obj):
+                        diff_area = obj.difference(saved_obj).area
+                        if use_percent:
+                            max_diff_pixels = obj.area * max_diff_area / 100
+                    else:
+                        diff_area = saved_obj.difference(obj).area
+                        if use_percent:
+                            max_diff_pixels = saved_obj.area * max_diff_area / 100
 
-                if diff_area <= max_diff_pixels:
-                    g.logger.Debug(1,
-                        'past detection {}@{} approximately matches {}@{} removing'
-                        .format(saved_ls[saved_idx], saved_b, label[idx], b))
-                    foundMatch = True
-                    break
-                else:
-                    g.logger.Debug(4,'Diff area of:{} > max_diff_pixels:{} for {}@{}, allowing it'
-                    .format(diff_area, max_diff_pixels,label[idx], b))
-        if not foundMatch:
-            new_bbox.append(old_b)
-            new_label.append(label[idx])
-            new_conf.append(conf[idx])
+                    if diff_area <= max_diff_pixels:
+                        g.logger.Debug(1,
+                            'past detection {}@{} approximately matches {}@{} removing'
+                            .format(saved_ls[saved_idx], saved_b, label[idx], b))
+                        foundMatch = True
+                        break
+                    else:
+                        g.logger.Debug(4,'Diff area of:{} > max_diff_pixels:{} for {}@{}, allowing it'
+                        .format(diff_area, max_diff_pixels,label[idx], b))
+            if not foundMatch:
+                new_bbox.append(old_b)
+                new_label.append(label[idx])
+                new_conf.append(conf[idx])
 
-    return new_bbox, new_label, new_conf
+        return new_bbox, new_label, new_conf
 
 
-    def _filter_patterns(self,seq, box,label,conf, polygons):
+    def _filter_detections(self,m, seq, box,label,conf, polygons):
         
         # show_prefix
         stripped_labels = label[:]
@@ -337,7 +340,21 @@ def _process_past_detections(bbox, label, conf, mid):
 
         #print ("************ POLY={}".format(polygons))
 
-
+        max_object_area = 0
+        mds=m.get_options().get('max_detection_size') or self.global_config.get('max_detection_size')
+        if mds:  
+                g.logger.Debug(3,'Max object size found to be: {}'.format(mds))
+                # Let's make sure its the right size
+                _m = re.match('(\d*\.?\d*)(px|%)?$', mds,
+                            re.IGNORECASE)
+                if _m:
+                    max_object_area = float(_m.group(1))
+                    if _m.group(2) == '%':
+                        max_object_area = float(m.group(1))/100.0*(h * w)
+                        g.logger.Debug (2,'Converted {}% to {}'.format(m.group(1), max_object_area))
+                else:
+                    g.logger.Error('max_detection_size misformatted: {} - ignoring'.format(
+                        mds))
 
         if not polygons:
             oldh =self.media.image_dimensions()['original'][0]
@@ -376,6 +393,9 @@ def _process_past_detections(bbox, label, conf, mid):
             b.insert(1, (b[1][0], b[0][1]))
             b.insert(3, (b[0][0], b[2][1]))
             obj = Polygon(b)
+            if obj.area < max_object_area:
+                g.logger.Debug (1,'Ignoring {}@{} as its area of {} > {}'.format(label[idx], b, obj.area, max_object_area))
+                continue
 
             for p in polygons:
                 poly = Polygon(p['value'])
@@ -581,7 +601,7 @@ def _process_past_detections(bbox, label, conf, mid):
                         continue
 
                      # Now let's make sure the labels match our pattern
-                    _b,_l,_c, _e = self._filter_patterns(seq,_b,_l,_c, polygons)
+                    _b,_l,_c, _e = self._filter_detections(m, seq,_b,_l,_c, polygons)
                     if _e:
                         _e_best_in_same_model.extend(_e)
                     if not len(_l):
@@ -589,31 +609,29 @@ def _process_past_detections(bbox, label, conf, mid):
 
                     # Now let's take past detections into consideration 
                     # let's remove past detections first, if enabled 
-                    '''
-                    if g.config['match_past_detections'] == 'yes' and args.get('monitorid'):
+                
+                    g.logger.Debug(4,'REMOVE ME: Self m options: {}'.m.get_options())
+                    mpd = m.get_options().get('match_past_detections') or self.global_options.get('match_past_detection')
+                    if mpd == 'yes' and self.stream_options.get('mid'):
                         # point detections to post processed data set
-                        g.logger.Info('Removing matches to past detections')
-                        bbox_t, label_t, conf_t = img.processPastDetection(
-                            matched_data['boxes'], matched_data['labels'], matched_data['confidences'], args.get('monitorid'))
+                        g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))
+                        _b,_l_,_c = self._process_past_detections(m,_b, _l, _c, self.stream_options.get('mid'))
+                        if not len (_l):
+                            continue
                         # save current objects for future comparisons
                         g.logger.Debug(1,
                             'Saving detections for monitor {} for future match'.format(
-                                args.get('monitorid')))
+                                self.stream_options.get('mid')))
                         try:
-                            mon_file = g.config['image_path'] + '/monitor-' + args.get(
-                            'monitorid') + '-data.pkl'
+                            mon_file = self.global_config.get('image_path') + '/monitor-' + self.stream_options.get('mid') + '-data.pkl'
                             f = open(mon_file, "wb")
-                            pickle.dump(matched_data['boxes'], f)
-                            pickle.dump(matched_data['labels'], f)
-                            pickle.dump(matched_data['confidences'], f)
+                            pickle.dump(_b, f)
+                            pickle.dump(_l, f)
+                            pickle.dump(_c, f)
                             f.close()
                         except Exception as e:
                             g.logger.Error(f'Error writing to {mon_file}, past detections not recorded:{e}')
 
-                        matched_data['boxes'] = bbox_t
-                        matched_data['labels'] = label_t
-                        matched_data['confidences'] = conf_t
-                    '''
 
                     if  ((same_model_sequence_strategy == 'first') 
                     or ((same_model_sequence_strategy == 'most') and (len(_l) > len(_l_best_in_same_model))) 
