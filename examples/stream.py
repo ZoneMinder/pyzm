@@ -19,11 +19,18 @@ g.logger.set_level(5)
 
 
 #time.sleep(1000)
+mid = None
 
 if len(sys.argv) == 1:
     eid = input ('Enter event ID to analyze:')
+    mid = input ('Enter MID to use:')
 else:
     eid = sys.argv[1]
+    if len(sys.argv) == 2:
+        print (f'Event to analyze:{eid}')
+        mid = input ('Enter MID to use:')
+    else:
+        mid = sys.argv[2]
 
 
 
@@ -75,6 +82,9 @@ ml_options = {
             'object_min_confidence': 0.3,
             'object_framework':'opencv',
             'object_processor': 'cpu',
+            'match_past_detections': 'yes',
+            'image_path': '/var/lib/zmeventnotification/images',
+
             #'model_width': 512,
             #'model_height': 512
         }]
@@ -129,7 +139,8 @@ stream_options = {
         'contig_frames_before_error': 5,
         'max_attempts': 3,
         'sleep_between_attempts': 4,
-        'disable_ssl_cert_check': True
+        'disable_ssl_cert_check': True,
+        'mid':mid
 }
 
 

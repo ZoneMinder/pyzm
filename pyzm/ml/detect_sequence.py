@@ -18,6 +18,8 @@ import traceback
 from shapely.geometry import Polygon
 import copy
 import pyzm.helpers.globals as g
+import pickle
+import os
 
 
 class DetectSequence(Base):
@@ -208,7 +210,7 @@ class DetectSequence(Base):
     # once all bounding boxes are detected, we check to see if any of them
     # intersect the polygons, if specified
     # it also makes sure only patterns specified in detect_pattern are drawn
-    def _process_past_detections(m,bbox, label, conf, mid):
+    def _process_past_detections(self,m,bbox, label, conf, mid):
 
         try:
             FileNotFoundError
@@ -222,6 +224,9 @@ class DetectSequence(Base):
         image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
         mon_file = image_path + '/monitor-' + mid + '-data.pkl'
         g.logger.Debug(2,'trying to load ' + mon_file)
+        saved_bs=[]
+        saved_ls=[]
+        saved_cs=[]
         try:
             fh = open(mon_file, "rb")
             saved_bs = pickle.load(fh)
@@ -244,25 +249,23 @@ class DetectSequence(Base):
             return bbox, label, conf
 
         # load past detection
-
+        use_percent = False
+        max_diff_area = 0
         label_max_diff_area= '{}_past_det_max_diff_area'.format(label)
         mda = m.get_options().get(label_max_diff_area) or  self.global_config.get(label_max_diff_area)
+        if not mda:
+            mda = m.get_options().get('past_det_max_diff_area') or  self.global_config.get('past_det_max_diff_area')
+
         if mda:
             g.logger.Debug(4, 'Found {}, using value of {}'.format(label_max_diff_area, mda))
             _m = re.match('(\d+)(px|%)?$', mda,re.IGNORECASE)
-        else:
-            label_max_diff_area='past_det_max_diff_area'
-            mda =  m.get_options().get('past_det_max_diff_area') or self.global_config.get('past_det_max_diff_area')
-            _m = re.match('(\d+)(px|%)?$',mda,
-                    re.IGNORECASE)
-        if _m:
-            max_diff_area = int(_m.group(1))
-            use_percent = True if _m.group(2) is None or _m.group(
-                2) == '%' else False
-        else:
-            g.logger.Error('past_det_max_diff_area misformatted: {}'.format(
-                mda))
-            return bbox, label, conf
+            if _m:
+                max_diff_area = int(_m.group(1))
+                use_percent = True if _m.group(2) is None or _m.group(2) == '%' else False
+            else:
+                g.logger.Error('past_det_max_diff_area misformatted: {}'.format(mda))
+
+              
 
         # it's very easy to forget to add 'px' when using pixels
         if use_percent and (max_diff_area < 0 or max_diff_area > 100):
@@ -615,7 +618,10 @@ class DetectSequence(Base):
                     if mpd == 'yes' and self.stream_options.get('mid'):
                         # point detections to post processed data set
                         g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))
-                        _b,_l_,_c = self._process_past_detections(m,_b, _l, _c, self.stream_options.get('mid'))
+                        g.logger.Debug (1,'BEFORE PAST: {}, {}, {}'.format(_b,_l,_c))
+
+                        _b,_l,_c = self._process_past_detections(m,_b, _l, _c, self.stream_options.get('mid'))
+                        g.logger.Debug (1,'AFTER PAST: {}, {}, {}'.format(_b,_l,_c))
                         if not len (_l):
                             continue
                         # save current objects for future comparisons
@@ -623,7 +629,8 @@ class DetectSequence(Base):
                             'Saving detections for monitor {} for future match'.format(
                                 self.stream_options.get('mid')))
                         try:
-                            mon_file = self.global_config.get('image_path') + '/monitor-' + self.stream_options.get('mid') + '-data.pkl'
+                            image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
+                            mon_file = image_path + '/monitor-' + self.stream_options.get('mid') + '-data.pkl'
                             f = open(mon_file, "wb")
                             pickle.dump(_b, f)
                             pickle.dump(_l, f)
