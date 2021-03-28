@@ -250,38 +250,55 @@ class DetectSequence(Base):
             return bbox, label, conf
 
         # load past detection
-        use_percent = False
-        max_diff_area = 0
-        label_max_diff_area= '{}_past_det_max_diff_area'.format(label)
-        mda = m.get_options().get(label_max_diff_area) or  self.global_config.get(label_max_diff_area)
-        if not mda:
-            mda = m.get_options().get('past_det_max_diff_area') or  self.global_config.get('past_det_max_diff_area')
-
-        if mda:
-            g.logger.Debug(4, 'Found {}, using value of {}'.format(label_max_diff_area, mda))
-            _m = re.match('(\d+)(px|%)?$', mda,re.IGNORECASE)
+        global_use_percent = False
+        global_max_diff_area = 0
+        global_mda = self.global_config.get('past_det_max_diff_area')
+        if global_mda:
+            _m = re.match('(\d+)(px|%)?$', global_mda,re.IGNORECASE)
             if _m:
-                max_diff_area = int(_m.group(1))
-                use_percent = True if _m.group(2) is None or _m.group(2) == '%' else False
+                global_max_diff_area = int(_m.group(1))
+                global_use_percent = True if _m.group(2) is None or _m.group(2) == '%' else False
             else:
                 g.logger.Error('past_det_max_diff_area misformatted: {}'.format(mda))
 
-              
 
-        # it's very easy to forget to add 'px' when using pixels
-        if use_percent and (max_diff_area < 0 or max_diff_area > 100):
-            g.logger.Error(
-                'past_det_max_diff_area must be in the range 0-100 when using percentages: {}'
-                .format(self.global_config.get(label_max_diff_area)))
-            return bbox, label, conf
-
+             # it's very easy to forget to add 'px' when using pixels
+            if global_use_percent and (global_max_diff_area < 0 or global_max_diff_area > 100):
+                g.logger.Error(
+                    'past_det_max_diff_area must be in the range 0-100 when using percentages. Setting to 5%, was {}'
+                    .format(self.global_config.get(label_max_diff_area)))
+                global_max_diff_area=5
+       
         #g.logger.Debug (1,'loaded past: bbox={}, labels={}'.format(saved_bs, saved_ls));
-        g.logger.Debug (4, 'process_past_detections: use_percent:{}, max_diff_area:{}'.format(use_percent,max_diff_area))
+        g.logger.Debug (4, 'process_past_detections: Global use_percent:{}, max_diff_area:{}'.format(global_use_percent,global_max_diff_area))
         new_label = []
         new_bbox = []
         new_conf = []
 
         for idx, b in enumerate(bbox):
+
+            max_diff_area = global_max_diff_area
+            use_percent = global_use_percent
+
+            label_max_diff_area= '{}_past_det_max_diff_area'.format(label[idx])
+            mda = m.get_options().get(label_max_diff_area) 
+            if mda:
+                g.logger.Debug(4, 'Found {}={}'.format(label_max_diff_area, mda))
+                _m = re.match('(\d+)(px|%)?$',mda,re.IGNORECASE)
+                if _m:
+                    max_diff_area = int(_m.group(1))
+                    use_percent = True if _m.group(2) is None or _m.group(2) == '%' else False
+                else:
+                    g.logger.Error('{} misformatted: {}'.format(label_max_diff_area,mda))
+
+
+                # it's very easy to forget to add 'px' when using pixels
+                if use_percent and (max_diff_area < 0 or max_diff_area > 100):
+                    g.logger.Error(
+                        '{} must be in the range 0-100 when using percentages. Setting to 5%, was {}'
+                        .format(label_max_diff_area, self.global_config.get(label_max_diff_area)))
+                    max_diff_area = 5
+
             # iterate list of detections
             old_b = b
             it = iter(b)

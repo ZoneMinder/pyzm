@@ -82,6 +82,7 @@ ml_options = {
             'object_min_confidence': 0.3,
             'object_framework':'opencv',
             'object_processor': 'cpu',
+            'car_past_det_max_diff_area': '10%',
             'match_past_detections': 'yes',
             'image_path': '/var/lib/zmeventnotification/images',
 
