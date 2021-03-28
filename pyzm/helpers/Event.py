@@ -20,6 +20,15 @@ class Event(Base):
         self.logger = logger
         self.api = api
                
+
+    def start_time(self):
+        """Returns the start time of event
+
+        Returns:
+            string: Start time of event
+        """
+        return self.event['Event']['StartTime']
+
     def get(self):
         """Returns event object.
 
