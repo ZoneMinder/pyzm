@@ -222,7 +222,7 @@ class DetectSequence(Base):
                 'Monitor ID not specified, cannot match past detections')
             return bbox, label, conf
         image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
-        mon_file = '{}/monitor-{}-{}-data.pkl'.format(image_path,mid,model_name)
+        mon_file = '{}/monitor-{}-data.pkl'.format(image_path,mid)
         g.logger.Debug(2,'trying to load ' + mon_file)
         saved_bs=[]
         saved_ls=[]
@@ -281,7 +281,7 @@ class DetectSequence(Base):
             use_percent = global_use_percent
 
             label_max_diff_area= '{}_past_det_max_diff_area'.format(label[idx])
-            mda = m.get_options().get(label_max_diff_area) 
+            mda = m.get_options().get(label_max_diff_area) or self.global_config.get(label_max_diff_area)
             if mda:
                 g.logger.Debug(4, 'Found {}={}'.format(label_max_diff_area, mda))
                 _m = re.match('(\d+)(px|%)?$',mda,re.IGNORECASE)
@@ -361,7 +361,7 @@ class DetectSequence(Base):
 
         #print ("************ POLY={}".format(polygons))
 
-        max_object_area = 0
+        global_max_object_area = 0
         mds=m.get_options().get('max_detection_size') or self.global_config.get('max_detection_size')
         if mds:  
                 g.logger.Debug(3,'Max object size found to be: {}'.format(mds))
@@ -369,10 +369,10 @@ class DetectSequence(Base):
                 _m = re.match('(\d*\.?\d*)(px|%)?$', mds,
                             re.IGNORECASE)
                 if _m:
-                    max_object_area = float(_m.group(1))
+                    global_max_object_area = float(_m.group(1))
                     if _m.group(2) == '%':
-                        max_object_area = float(m.group(1))/100.0*(h * w)
-                        g.logger.Debug (2,'Converted {}% to {}'.format(m.group(1), max_object_area))
+                        glonal_max_object_area = float(m.group(1))/100.0*(h * w)
+                        g.logger.Debug (2,'Converted {}% to {}'.format(m.group(1), global_max_object_area))
                 else:
                     g.logger.Error('max_detection_size misformatted: {} - ignoring'.format(
                         mds))
@@ -408,13 +408,31 @@ class DetectSequence(Base):
         new_conf = []
         new_err = []
         for idx,b in enumerate(box):
+            max_object_area = global_max_object_area
+            label_max_object_area= '{}_max_detection_size'.format(label[idx])
+            moa = m.get_options().get(label_max_object_area) or self.global_config.get(label_max_object_area)
+            if moa:
+                g.logger.Debug(4,'Found {}={}'.format(label_max_object_area,moa))
+                # Let's make sure its the right size
+                _m = re.match('(\d*\.?\d*)(px|%)?$', moa,
+                            re.IGNORECASE)
+                if _m:
+                    max_object_area = float(_m.group(1))
+                    if _m.group(2) == '%':
+                        max_object_area = float(m.group(1))/100.0*(h * w)
+                        g.logger.Debug (2,'Converted {}% to {}'.format(m.group(1), max_object_area))
+                else:
+                    g.logger.Error('{} misformatted: {} - ignoring'.format(label_max_object_area,
+                        moa))
+
+
             old_b = b
             it = iter(b)
             b = list(zip(it, it))
             b.insert(1, (b[1][0], b[0][1]))
             b.insert(3, (b[0][0], b[2][1]))
             obj = Polygon(b)
-            if obj.area < max_object_area:
+            if obj.area > max_object_area and max_object_area:
                 g.logger.Debug (1,'Ignoring {}@{} as its area of {} > {}'.format(label[idx], b, obj.area, max_object_area))
                 continue
 
@@ -650,7 +668,7 @@ class DetectSequence(Base):
                                     self.stream_options.get('mid')))
                             try:
                                 image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
-                                mon_file = '{}/monitor-{}-{}-data.pkl'.format(image_path,self.stream_options.get('mid'),seq)
+                                mon_file = '{}/monitor-{}-data.pkl'.format(image_path,self.stream_options.get('mid'))
                                 f = open(mon_file, "wb")
                                 pickle.dump(_b, f)
                                 pickle.dump(_l, f)

@@ -82,8 +82,10 @@ ml_options = {
             'object_min_confidence': 0.3,
             'object_framework':'opencv',
             'object_processor': 'cpu',
-            'car_past_det_max_diff_area': '10%',
-            'match_past_detections': 'yes',
+            #'car_past_det_max_diff_area': '10%',
+            #'match_past_detections': 'yes',
+            #'car_max_detection_size': '13000',
+            #'truck_max_detection_size': '13000',
             'image_path': '/var/lib/zmeventnotification/images',
 
             #'model_width': 512,
