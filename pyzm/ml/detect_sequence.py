@@ -371,8 +371,8 @@ class DetectSequence(Base):
                 if _m:
                     global_max_object_area = float(_m.group(1))
                     if _m.group(2) == '%':
-                        glonal_max_object_area = float(m.group(1))/100.0*(h * w)
-                        g.logger.Debug (2,'Converted {}% to {}'.format(m.group(1), global_max_object_area))
+                        glonal_max_object_area = float(_m.group(1))/100.0*(h * w)
+                        g.logger.Debug (2,'Converted {}% to {}'.format(_m.group(1), global_max_object_area))
                 else:
                     g.logger.Error('max_detection_size misformatted: {} - ignoring'.format(
                         mds))
@@ -419,8 +419,8 @@ class DetectSequence(Base):
                 if _m:
                     max_object_area = float(_m.group(1))
                     if _m.group(2) == '%':
-                        max_object_area = float(m.group(1))/100.0*(h * w)
-                        g.logger.Debug (2,'Converted {}% to {}'.format(m.group(1), max_object_area))
+                        max_object_area = float(_m.group(1))/100.0*(h * w)
+                        g.logger.Debug (2,'Converted {}% to {}'.format(_m.group(1), max_object_area))
                 else:
                     g.logger.Error('{} misformatted: {} - ignoring'.format(label_max_object_area,
                         moa))
