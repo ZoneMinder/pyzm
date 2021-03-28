@@ -118,6 +118,9 @@ class DetectSequence(Base):
                             }]
                         }
                     } # ml_options
+
+                    - global_config (dict): Used by zm_detect and mlapi to pass
+                      additional config parameters that may not be present in ml_config
  
         """
     
