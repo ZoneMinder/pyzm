@@ -347,7 +347,7 @@ class DetectSequence(Base):
         return new_bbox, new_label, new_conf
 
 
-    def _filter_detections(self,m, seq, box,label,conf, polygons):
+    def _filter_detections(self,m, seq, box,label,conf, polygons, h,w):
         
         # show_prefix
         stripped_labels = label[:]
@@ -371,7 +371,7 @@ class DetectSequence(Base):
                 if _m:
                     global_max_object_area = float(_m.group(1))
                     if _m.group(2) == '%':
-                        glonal_max_object_area = float(_m.group(1))/100.0*(h * w)
+                        global_max_object_area = float(_m.group(1))/100.0*(h * w)
                         g.logger.Debug (2,'Converted {}% to {}'.format(_m.group(1), global_max_object_area))
                 else:
                     g.logger.Error('max_detection_size misformatted: {} - ignoring'.format(
@@ -639,8 +639,9 @@ class DetectSequence(Base):
                         g.logger.Debug(2,traceback.format_exc())
                         continue
 
-                     # Now let's make sure the labels match our pattern
-                    _b,_l,_c, _e = self._filter_detections(m, seq,_b,_l,_c, polygons)
+                    # Now let's make sure the labels match our pattern
+                    h,w,_ = frame.shape
+                    _b,_l,_c, _e = self._filter_detections(m, seq,_b,_l,_c, polygons, h, w)
                     if _e:
                         _e_best_in_same_model.extend(_e)
                     if not len(_l):
