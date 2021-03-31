@@ -44,7 +44,7 @@ class MediaStream(Base):
 
 
         if options.get('delay'):
-            g.logger.Debug(1, 'Waiting for {} seconds')
+            g.logger.Debug(1, 'Waiting for {} seconds'.format(options.get('delay')))
             time.sleep(int(options.get('delay')))
 
 
