@@ -498,6 +498,7 @@ class DetectSequence(Base):
             stream (string): location of media (file, url or event ID)
             ml_overrides(string): Ignore it. You will almost never need it. zm_detect uses it for ugly foo
             options (dict, optional): Various options that control the detection process. Defaults to {}:
+            
                 - delay (int): Delay in seconds before starting media stream
                 - download (boolean): if True, will download video before analysis. Defaults to False
                 - download_dir (string): directory where downloads will be kept (only applies to videos). Default is /tmp
