@@ -48,7 +48,7 @@ class DetectSequence(Base):
                                 # 'most' - run through all libraries, select one that has most object matches
                                 # 'most_unique' - run through all libraries, select one that has most unique object matches
                                 
-                                'same_model_sequence_strategy': 'first' # 'first' 'most', 'most_unique'
+                                'same_model_sequence_strategy': 'first' # 'first' 'most', 'most_unique', 'union'
                                 'pattern': '.*' # any pattern
                             },
 
@@ -690,6 +690,11 @@ class DetectSequence(Base):
                         _l_best_in_same_model = _l
                         _c_best_in_same_model = _c
                         _e_best_in_same_model = _e
+                    elif same_model_sequence_strategy == 'union':
+                        _b_best_in_same_model.append(_b)
+                        _l_best_in_same_model.append(_l)
+                        _c_best_in_same_model.append(_c)
+                        _e_best_in_same_model.append(_e)
                     if _l_best_in_same_model and self.stream_options.get('save_analyzed_frames') and self.media.get_debug_filename():
                             d = self.stream_options.get('save_frames_dir','/tmp')
                             f = '{}/{}-analyzed-{}.jpg'.format(d,self.media.get_debug_filename(), media.get_last_read_frame())

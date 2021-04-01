@@ -97,7 +97,9 @@ class Tpu(Base):
             1,'perf: processor:{} TPU initialization (loading {} from disk) took: {}'
             .format(self.processor, self.options.get('object_weights'),diff_time))
         
+    
     def _nms(objects, threshold):
+    # not used - its already part of TPU core libs it seems
         # credit 
         # https://github.com/google-coral/pycoral/blob/master/examples/small_object_detection.py
 
