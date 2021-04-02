@@ -69,6 +69,8 @@ ml_options = {
         },
         'sequence': [{
             #First run on TPU
+            'name': 'TPU for object detection', # descriptor (optional)
+            'enabled': 'no', # skips TPU. Easy way to keep configs but not enable
             'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
             'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
             'object_min_confidence': 0.3,
@@ -76,6 +78,8 @@ ml_options = {
         },
         {
             # YoloV4 on GPU if TPU fails (because sequence strategy is 'first')
+             'name': 'GPU Yolov4 for object detection', # descriptor (optional)
+            'enabled': 'no', # skips. Easy way to keep configs but not enable
             'object_config':'/var/lib/zmeventnotification/models/yolov4/yolov4.cfg',
             'object_weights':'/var/lib/zmeventnotification/models/yolov4/yolov4.weights',
             'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
@@ -95,9 +99,11 @@ ml_options = {
     'face': {
         'general':{
             'pattern': '.*',
-            'same_model_sequence_strategy': 'first'
+            'same_model_sequence_strategy': 'union'
         },
         'sequence': [{
+            'name': 'DLIB face recognition',
+            'enabled': 'yes',
             'face_detection_framework': 'dlib',
             'known_images_path': '/var/lib/zmeventnotification/known_faces',
             'face_model': 'cnn',
@@ -106,6 +112,15 @@ ml_options = {
             'face_num_jitters': 1,
             'face_upsample_times':1,
             'max_size': 800
+        },
+        {
+            'name': 'TPU face detection',
+            'enabled': 'yes',
+            'face_detection_framework': 'tpu',
+            'face_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_face_quant_postprocess_edgetpu.tflite',
+
+            'face_min_confidence': 0.3,
+          
         }]
     },
 
@@ -134,7 +149,7 @@ stream_options = {
         #'strategy': 'first',
         'api': zmapi,
         'download': False,
-        'frame_set': 'alarm',
+        'frame_set': 'snapshot,alarm',
         'resize': 800,
         'save_frames': False,
         'save_analyzed_frames': False,
@@ -152,5 +167,5 @@ m = DetectSequence(options=ml_options)
 #m = ObjectDetect.Object(options=ml_options)
 matched_data,all_data = m.detect_stream(stream=eid, options=stream_options)
 print(f'ALL FRAMES: {all_data}\n\n')
-print (f"SELECTED FRAME {matched_data['frame_id']}, size {matched_data['image_dimensions']} with LABELS {matched_data['labels']} {matched_data['boxes']} {matched_data['confidences']}")
+print (f"SELECTED FRAME: {matched_data['frame_id']}, SIZE: {matched_data['image_dimensions']}  LABELS: {matched_data['labels']} BOXES:{matched_data['boxes']} CONFIDENCES:{matched_data['confidences']}")
 

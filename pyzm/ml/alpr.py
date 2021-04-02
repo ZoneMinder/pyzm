@@ -14,6 +14,7 @@ import pyzm.helpers.globals as g
 
 class AlprBase(Base):
     def __init__(self,options={}, tempdir='/tmp'):
+
         if not options.get('alpr_key'):
             g.logger.Debug (2,'No API key specified, hopefully you do not need one')
         self.apikey = options.get('alpr_key')
@@ -21,6 +22,9 @@ class AlprBase(Base):
         self.url = options.get('alpr_url')
         self.options = options
         self.disable_locks = options.get('disable_locks', 'no')
+        name = self.options.get('name') or 'ALPR'
+        g.logger.Debug (4, 'Initializing ALPR:{}'.format(name))
+
 
         #g.logger.Debug (4, 'ALPR init params: {}'.format(options))
 

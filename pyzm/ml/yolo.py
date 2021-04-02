@@ -82,7 +82,8 @@ class Yolo(Base):
         return self.classes
 
     def load_model(self):
-        g.logger.Debug (1, '|--------- Loading Yolo model from disk ---------|')
+        name = self.options.get('name') or 'Yolo'
+        g.logger.Debug (1, '|--------- Loading "{}" model from disk -------------|'.format(name))
         t = Timer()
         self.net = cv2.dnn.readNet(self.options.get('object_weights'),
                                 self.options.get('object_config'))

@@ -150,15 +150,18 @@ class DetectSequence(Base):
         #print (f'***** {sequences}')
         if not sequences:
             sequences = self.model_sequence
-        g.logger.Debug (3, "load_models (just init, actual load happens at first detect): {}".format(sequences))
         for seq in sequences:
             try:
                 if seq == 'object':
                     import pyzm.ml.object as  ObjectDetect
                     self.models[seq] = []
-                    for obj_seq in self.ml_options.get(seq,{}).get('sequence'):
+                    for ndx,obj_seq in enumerate(self.ml_options.get(seq,{}).get('sequence')):
+                        if obj_seq.get('enabled') == 'no':
+                            g.logger.Debug(4, 'Skipping {} as it is disabled'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
+                            continue
                         try:
                             obj_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
+                            g.logger.Debug(4,'Loading sequence: {}'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
                             g.logger.Debug (2,'Initializing model  type:{} with options:{}'.format(seq,obj_seq ))
                             self.models[seq].append(ObjectDetect.Object(options=obj_seq))
                         except Exception as e:
@@ -168,10 +171,13 @@ class DetectSequence(Base):
                 elif seq == 'face':
                     import pyzm.ml.face as FaceDetect
                     self.models[seq] = []
-                    for face_seq in self.ml_options.get(seq,{}).get('sequence'):
+                    for ndx,face_seq in enumerate(self.ml_options.get(seq,{}).get('sequence')):
+                        if face_seq.get('enabled') == 'no':
+                            g.logger.Debug(4, 'Skipping {} as it is disabled'.format(face_seq.get('name') or 'index:{}'.format(ndx)))
+                            continue
                         try:
                             face_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
-                            self.models[seq].append(FaceDetect.Face(options=face_seq,))
+                            self.models[seq].append(FaceDetect.Face(options=face_seq))
                         except Exception as e:
                             g.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
                             g.logger.Debug(2,traceback.format_exc())
@@ -691,10 +697,10 @@ class DetectSequence(Base):
                         _c_best_in_same_model = _c
                         _e_best_in_same_model = _e
                     elif same_model_sequence_strategy == 'union':
-                        _b_best_in_same_model.append(_b)
-                        _l_best_in_same_model.append(_l)
-                        _c_best_in_same_model.append(_c)
-                        _e_best_in_same_model.append(_e)
+                        _b_best_in_same_model.extend(_b)
+                        _l_best_in_same_model.extend(_l)
+                        _c_best_in_same_model.extend(_c)
+                        _e_best_in_same_model.extend(_e)
                     if _l_best_in_same_model and self.stream_options.get('save_analyzed_frames') and self.media.get_debug_filename():
                             d = self.stream_options.get('save_frames_dir','/tmp')
                             f = '{}/{}-analyzed-{}.jpg'.format(d,self.media.get_debug_filename(), media.get_last_read_frame())
