@@ -111,6 +111,14 @@ class ZMApi (Base):
         Returns:
            string: timezone of ZoneMinder server (or None if API not supported)
         """
+        if not self.zm_tz:
+            url = self.api_url + '/host/gettimezone.json'
+            
+            try:
+                r = self._make_request(url=url)
+                self.zm_tz = r.get('tz')
+            except requests.exceptions.HTTPError as err:
+                g.logger.Error ('Timezone API not found, relative timezones will be local time')
         return self.zm_tz
 
     def authenticated(self):
@@ -219,15 +227,7 @@ class ZMApi (Base):
             self.authenticated = False
             raise err
 
-        # now get timezone
-        url = self.api_url + '/host/gettimezone.json'
-        
-        try:
-            r = self._make_request(url)
-            self.zm_tz = r.get('tz')
-        except requests.exceptions.HTTPError as err:
-            g.logger.Error ('Timezone API not found, relative timezones will be local time')
-
+      
     def get_apibase(self):
         return self.api_url
 
