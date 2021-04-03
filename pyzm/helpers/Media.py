@@ -176,6 +176,10 @@ class MediaStream(Base):
                 g.logger.Error (f'Could not delete file(s):{e}')
 
     def read(self):
+        if self.options.get('delay_between_frames'):
+            g.logger.Debug(4,'Sleeping {} seconds before reading next frame'.format(self.options.get('delay_between_frames')))
+            time.sleep(int(self.options.get('delay_between_frames')))
+
         if (self.type == 'file'):
             frame = cv2.imread(self.stream)
             self.last_frame_id_read = 1

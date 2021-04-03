@@ -520,6 +520,7 @@ class DetectSequence(Base):
             options (dict, optional): Various options that control the detection process. Defaults to {}:
             
                 - delay (int): Delay in seconds before starting media stream
+                - delay_between_frames (int): Delay in seconds between each frame read (useful if you want to read snapshot multiple times, for example)
                 - download (boolean): if True, will download video before analysis. Defaults to False
                 - download_dir (string): directory where downloads will be kept (only applies to videos). Default is /tmp
                 - start_frame (int): Which frame to start analysis. Default 1.
