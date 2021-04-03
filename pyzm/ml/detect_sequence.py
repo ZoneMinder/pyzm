@@ -219,18 +219,19 @@ class DetectSequence(Base):
     # once all bounding boxes are detected, we check to see if any of them
     # intersect the polygons, if specified
     # it also makes sure only patterns specified in detect_pattern are drawn
-    def _process_past_detections(self,m,bbox, label, conf, mid, model_name):
+    def _process_past_detections(self,bbox, label, conf):
 
         try:
             FileNotFoundError
         except NameError:
             FileNotFoundError = IOError
 
+        mid = self.stream_options.get('mid')
         if not mid:
             g.logger.Debug(1,
                 'Monitor ID not specified, cannot match past detections')
             return bbox, label, conf
-        image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
+        image_path = self.global_config.get('image_path') or self.ml_options.get('general',{}).get('image_path') 
         mon_file = '{}/monitor-{}-data.pkl'.format(image_path,mid)
         g.logger.Debug(2,'trying to load ' + mon_file)
         saved_bs=[]
@@ -244,7 +245,7 @@ class DetectSequence(Base):
             fh.close()
         except FileNotFoundError:
             g.logger.Debug(1,'No history data file found for monitor {}'.format(mid))
-            return bbox, label, conf
+            #return bbox, label, conf
         except EOFError:
             g.logger.Debug(1,'Empty file found for monitor {}'.format(mid))
             g.logger.Debug (1,'Going to remove {}'.format(mon_file))
@@ -279,7 +280,7 @@ class DetectSequence(Base):
                 global_max_diff_area=5
        
         #g.logger.Debug (1,'loaded past: bbox={}, labels={}'.format(saved_bs, saved_ls));
-        g.logger.Debug (4, 'process_past_detections: Global use_percent:{}, max_diff_area:{}'.format(global_use_percent,global_max_diff_area))
+        g.logger.Debug (4, 'Globals:past detection:use_percent:{}, max_diff_area:{}'.format(global_use_percent,global_max_diff_area))
         new_label = []
         new_bbox = []
         new_conf = []
@@ -290,7 +291,7 @@ class DetectSequence(Base):
             use_percent = global_use_percent
 
             label_max_diff_area= '{}_past_det_max_diff_area'.format(label[idx])
-            mda = m.get_options().get(label_max_diff_area) or self.global_config.get(label_max_diff_area)
+            mda = self.ml_options.get('general',{}).get(label_max_diff_area) or self.global_config.get(label_max_diff_area)
             if mda:
                 g.logger.Debug(4, 'Found {}={}'.format(label_max_diff_area, mda))
                 _m = re.match('(\d+)(px|%)?$',mda,re.IGNORECASE)
@@ -328,7 +329,7 @@ class DetectSequence(Base):
                 saved_b.insert(3, (saved_b[0][0], saved_b[2][1]))
                 saved_obj = Polygon(saved_b)
                 max_diff_pixels = max_diff_area
-
+                g.logger.Debug (4, 'match_past_detections: Comparing  saved {}@{} to {}@{}'.format(saved_ls[saved_idx], saved_b, label[idx],b))
                 if saved_obj.intersects(obj):
                     if obj.contains(saved_obj):
                         diff_area = obj.difference(saved_obj).area
@@ -353,10 +354,23 @@ class DetectSequence(Base):
                 new_label.append(label[idx])
                 new_conf.append(conf[idx])
 
+          # save current objects for future comparisons
+        g.logger.Debug(1,
+            'Saving detections for monitor {} for future match'.format(
+                self.stream_options.get('mid')))
+        try:
+            f = open(mon_file, "wb")
+            pickle.dump(bbox, f)
+            pickle.dump(label, f)
+            pickle.dump(conf, f)
+            g.logger.Debug(4, 'saving boxes:{}, labels:{} confs:{} to {}'.format(bbox,label,conf, mon_file))
+            f.close()
+        except Exception as e:
+            g.logger.Error(f'Error writing to {mon_file}, past detections not recorded:{e}')
         return new_bbox, new_label, new_conf
 
 
-    def _filter_detections(self,m, seq, box,label,conf, polygons, h,w):
+    def _filter_detections(self, seq, box,label,conf, polygons, h,w):
         
         # show_prefix
         stripped_labels = label[:]
@@ -371,7 +385,7 @@ class DetectSequence(Base):
         #print ("************ POLY={}".format(polygons))
 
         global_max_object_area = 0
-        mds=m.get_options().get('max_detection_size') or self.global_config.get('max_detection_size')
+        mds= self.ml_options.get('general',{}).get('max_detection_size') or self.global_config.get('max_detection_size')
         if mds:  
                 g.logger.Debug(3,'Max object size found to be: {}'.format(mds))
                 # Let's make sure its the right size
@@ -419,7 +433,7 @@ class DetectSequence(Base):
         for idx,b in enumerate(box):
             max_object_area = global_max_object_area
             label_max_object_area= '{}_max_detection_size'.format(label[idx])
-            moa = m.get_options().get(label_max_object_area) or self.global_config.get(label_max_object_area)
+            moa =  self.ml_options.get('general',{}).get(label_max_object_area) or self.global_config.get(label_max_object_area)
             if moa:
                 g.logger.Debug(4,'Found {}={}'.format(label_max_object_area,moa))
                 # Let's make sure its the right size
@@ -651,44 +665,14 @@ class DetectSequence(Base):
 
                     # Now let's make sure the labels match our pattern
                     h,w,_ = frame.shape
-                    _b,_l,_c, _e = self._filter_detections(m, seq,_b,_l,_c, polygons, h, w)
+                    _b,_l,_c, _e = self._filter_detections(seq,_b,_l,_c, polygons, h, w)
                     if _e:
                         _e_best_in_same_model.extend(_e)
                     if not len(_l):
                         continue
 
-                    # Now let's take past detections into consideration 
-                    # let's remove past detections first, if enabled 
-                
-                    #g.logger.Debug(4,'REMOVE ME: Self m options: {}'.format(m.get_options()))
-                    mpd = m.get_options().get('match_past_detections') or self.global_config.get('match_past_detection')
-                    if mpd == 'yes' and self.stream_options.get('mid'):
-                        # point detections to post processed data set
-                        g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))
-                        #g.logger.Debug (1,'BEFORE PAST: {}, {}, {}'.format(_b,_l,_c))
-
-                        _b,_l,_c = self._process_past_detections(m,_b, _l, _c, self.stream_options.get('mid'),seq)
-                        #g.logger.Debug (1,'AFTER PAST: {}, {}, {}'.format(_b,_l,_c))
-                        if not len (_l):
-                            continue
-                        
-                        # save current objects for future comparisons
-                        if seq!='face':
-                            g.logger.Debug(1,
-                                'Saving detections for monitor {} for future match'.format(
-                                    self.stream_options.get('mid')))
-                            try:
-                                image_path = self.global_config.get('image_path') or m.get_options().get('image_path')
-                                mon_file = '{}/monitor-{}-data.pkl'.format(image_path,self.stream_options.get('mid'))
-                                f = open(mon_file, "wb")
-                                pickle.dump(_b, f)
-                                pickle.dump(_l, f)
-                                pickle.dump(_c, f)
-                                f.close()
-                            except Exception as e:
-                                g.logger.Error(f'Error writing to {mon_file}, past detections not recorded:{e}')
-
-
+                   
+                      
                     if  ((same_model_sequence_strategy == 'first') 
                     or ((same_model_sequence_strategy == 'most') and (len(_l) > len(_l_best_in_same_model))) 
                     or ((same_model_sequence_strategy == 'most_unique') and (len(set(_l)) > len(set(_l_best_in_same_model))))):
@@ -768,6 +752,19 @@ class DetectSequence(Base):
             for seq in self.model_sequence:
                 for m in self.models[seq]:
                     m.release_lock()
+
+        
+        # Now let's take past detections into consideration 
+        # let's remove past detections first, if enabled 
+        #g.logger.Debug (4, 'REMOVE ME: {}'.format(self.ml_options.get('general')))        
+        mpd = self.ml_options.get('general',{}).get('match_past_detections') or self.global_config.get('match_past_detections')
+        if mpd == 'yes' and self.stream_options.get('mid'):
+            # point detections to post processed data set
+            g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))
+            #g.logger.Debug (1,'REMOVE ME BEFORE PAST: {}, {}, {}'.format(matched_b,matched_l,matched_c))
+
+            matched_b,matched_l,matched_c = self._process_past_detections(matched_b, matched_l, matched_c)
+            #g.logger.Debug (1,'REMOVE ME AFTER PAST: {}, {}, {}'.format(matched_b,matched_l,matched_c))
 
         diff_time = t.stop_and_get_ms()
 
