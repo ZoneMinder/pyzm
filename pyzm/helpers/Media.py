@@ -176,7 +176,7 @@ class MediaStream(Base):
                 g.logger.Error (f'Could not delete file(s):{e}')
 
     def read(self):
-        if self.options.get('delay_between_frames'):
+        if self.options.get('delay_between_frames') and self.frames_processed > 0:
             g.logger.Debug(4,'Sleeping {} seconds before reading next frame'.format(self.options.get('delay_between_frames')))
             time.sleep(int(self.options.get('delay_between_frames')))
 
