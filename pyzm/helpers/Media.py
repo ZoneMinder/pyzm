@@ -247,7 +247,7 @@ class MediaStream(Base):
                     self.more_images_to_read = False
                     self.next_frameid_to_read = 0
                     return None 
-                if self.frame_set[self.next_frame_set_index]=='snapshot' and self.api:
+                if self.frame_set[self.next_frame_set_index]=='snapshot' and self.api and self.options.get('convert_snapshot_to_fid'):
                     g.logger.Debug(4,'Trying to convert snapshot to a real frame id')
                     try:
                         eurl = '{}/events/{}.json'.format(self.api.get_apibase(),self.eid)
