@@ -193,7 +193,6 @@ class Tpu(Base):
         labels = []
         conf = []
 
-        prefix = '(coral) ' if self.options.get('show_models')=='yes' else ''
         for obj in objs:
            # box = obj.bbox.flatten().astype("int")
             bbox.append([
@@ -203,8 +202,8 @@ class Tpu(Base):
                     int(round(obj.bbox.ymax))
                 ])
         
-            labels.append(prefix+self.classes.get(obj.id))
+            labels.append(self.classes.get(obj.id))
             conf.append(float(obj.score))
 
         g.logger.Debug(3,'Coral object returning: {},{},{}'.format(bbox,labels,conf))
-        return bbox, labels, conf
+        return bbox, labels, conf,['coral']*len(labels)

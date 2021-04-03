@@ -244,7 +244,7 @@ class PlateRecognizer(AlprBase):
                                 self.options.get('platerec_min_score')))
 
         g.logger.Debug (2,'Exiting ALPR with labels:{}'.format(labels))
-        return (bbox, labels, confs)
+        return (bbox, labels, confs, ['platerec'] * len(labels))
 
 
 class OpenAlpr(AlprBase):
@@ -343,7 +343,7 @@ class OpenAlpr(AlprBase):
                 bbox.append([x1, y1, x2, y2])
                 confs.append(conf)
 
-        return (bbox, labels, confs)
+        return (bbox, labels, confs,['openalpr'] * len(labels))
 
 class OpenAlprCmdLine(AlprBase):
     def __init__(self, options={}, tempdir='/tmp'):
@@ -415,4 +415,4 @@ class OpenAlprCmdLine(AlprBase):
                 bbox.append([x1, y1, x2, y2])
                 confs.append(conf)
 
-        return (bbox, labels, confs)
+        return (bbox, labels, confs,['openalpr_cmd'] * len(labels))

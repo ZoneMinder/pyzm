@@ -148,7 +148,6 @@ class FaceTpu(Face):
         labels = []
         conf = []
 
-        prefix = '(coral) ' if self.options.get('show_models')=='yes' else ''
         for obj in objs:
         # box = obj.bbox.flatten().astype("int")
             bbox.append([
@@ -158,9 +157,9 @@ class FaceTpu(Face):
                     int(round(obj.bbox.ymax))
                 ])
         
-            labels.append(prefix+self.options.get('unknown_face_name', 'face'))
+            labels.append(self.options.get('unknown_face_name', 'face'))
             conf.append(float(obj.score))
         g.logger.Debug (4, 'Coral face is detection only. Skipping recognition phase')
         g.logger.Debug(3,'Coral face returning: {},{},{}'.format(bbox,labels,conf))
-        return bbox, labels, conf
+        return bbox, labels, conf, ['face_tpu'] * len(labels)
 

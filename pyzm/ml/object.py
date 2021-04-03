@@ -55,7 +55,7 @@ class Object(Base):
         
     def detect(self,image=None):
         h,w = image.shape[:2]
-        b,l,c = self.model.detect(image)
+        b,l,c,_model_names = self.model.detect(image)
         g.logger.Debug (3,'core model detection over, got {} objects. Now filtering'.format(len(b)))
         # Apply various object filtering rules
         max_object_area = 0
@@ -76,6 +76,7 @@ class Object(Base):
         boxes=[]
         labels=[]
         confidences=[]
+        model_names = []
 
         for idx,box in enumerate(b):
             (sX,sY,eX,eY) = box
@@ -88,8 +89,9 @@ class Object(Base):
                 boxes.append([sX,sY,eX,eY])
                 labels.append(l[idx])
                 confidences.append(c[idx])
+                model_names.append(_model_names[idx])
             else:
                 g.logger.Debug (2,'Ignoring {} {} as conf. level {} is lower than {}'.format(l[idx],box,c[idx],self.options.get('object_min_confidence')))
        
         g.logger.Debug (2,'Returning filtered list of {} objects.'.format(len(boxes)))
-        return boxes,labels,confidences
+        return boxes,labels,confidences,model_names

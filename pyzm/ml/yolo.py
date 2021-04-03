@@ -243,4 +243,4 @@ class Yolo(Base):
                 box[2] = round (box[2] * upsize_xfactor)
                 box[3] = round (box[3] * upsize_yfactor)
         
-        return bbox, label, conf
+        return bbox, label, conf, ['yolo']*len(label)

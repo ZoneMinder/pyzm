@@ -219,7 +219,7 @@ class DetectSequence(Base):
     # once all bounding boxes are detected, we check to see if any of them
     # intersect the polygons, if specified
     # it also makes sure only patterns specified in detect_pattern are drawn
-    def _process_past_detections(self,bbox, label, conf):
+    def _process_past_detections(self,bbox, label, conf, matched_detection_types, matched_model_names):
 
         try:
             FileNotFoundError
@@ -231,6 +231,7 @@ class DetectSequence(Base):
             g.logger.Debug(1,
                 'Monitor ID not specified, cannot match past detections')
             return bbox, label, conf
+
         image_path = self.global_config.get('image_path') or self.ml_options.get('general',{}).get('image_path') 
         mon_file = '{}/monitor-{}-data.pkl'.format(image_path,mid)
         g.logger.Debug(2,'trying to load ' + mon_file)
@@ -284,8 +285,19 @@ class DetectSequence(Base):
         new_label = []
         new_bbox = []
         new_conf = []
+        new_detection_types = []
+        new_model_names = []
 
         for idx, b in enumerate(bbox):
+
+            if label[idx] in self.ml_options.get('general',{}).get('ignore_past_detection_labels',[]):
+                g.logger.Debug (4, '{} is in ignore list for past detection match, skipping'.format(label[idx]))
+                new_bbox.append(b)
+                new_label.append(label[idx])
+                new_conf.append(conf[idx])
+                new_detection_types.append(matched_detection_types[idx])
+                new_model_names.append(matched_model_names[idx])
+                continue
 
             max_diff_area = global_max_diff_area
             use_percent = global_use_percent
@@ -353,6 +365,8 @@ class DetectSequence(Base):
                 new_bbox.append(old_b)
                 new_label.append(label[idx])
                 new_conf.append(conf[idx])
+                new_detection_types.append(matched_detection_types[idx])
+                new_model_names.append(matched_model_names[idx])
 
           # save current objects for future comparisons
         g.logger.Debug(1,
@@ -367,18 +381,12 @@ class DetectSequence(Base):
             f.close()
         except Exception as e:
             g.logger.Error(f'Error writing to {mon_file}, past detections not recorded:{e}')
-        return new_bbox, new_label, new_conf
+        return new_bbox, new_label, new_conf, new_detection_types, new_model_names
 
 
-    def _filter_detections(self, seq, box,label,conf, polygons, h,w):
+    def _filter_detections(self, seq, box,label,conf, polygons, h,w, model_names):
         
-        # show_prefix
-        stripped_labels = label[:]
-        for idx, l in enumerate(stripped_labels):
-            if l.startswith('('):
-                items = l.split(') ')
-                stripped_labels[idx] = items[1] if len(items) == 2 else items[0]
-
+     
         # remember this needs to occur after a frame
         # is read, otherwise we don't have dimensions
 
@@ -430,6 +438,7 @@ class DetectSequence(Base):
         new_bbox =[]
         new_conf = []
         new_err = []
+        new_model_names = []
         for idx,b in enumerate(box):
             max_object_area = global_max_object_area
             label_max_object_area= '{}_max_detection_size'.format(label[idx])
@@ -467,7 +476,7 @@ class DetectSequence(Base):
                     if  p['pattern']:
                         g.logger.Debug(3, '{} polygon/zone has its own pattern of {}, using that'.format(p['name'],p['pattern']))
                         r = re.compile(p['pattern'])
-                        match = list(filter(r.match, stripped_labels))
+                        match = list(filter(r.match, label))
                     else:
                         '''
                         g.logger.Debug (1,'**********************************')
@@ -483,15 +492,16 @@ class DetectSequence(Base):
 
                         r = re.compile(match_pattern)
 
-                        match = list(filter(r.match, stripped_labels))
+                        match = list(filter(r.match, label))
 
                     #if label[idx].startswith('face:') or label[idx].startswith('alpr:') or label[idx] in match:
-                    if stripped_labels[idx] in match:
+                    if label[idx] in match:
                         g.logger.Debug(3,'{} intersects object:{}[{}]'.format(
                             p['name'], label[idx], b))
                         new_label.append(label[idx])
                         new_bbox.append(old_b)
                         new_conf.append(conf[idx])
+                        new_model_names.append(model_names[idx])
                     else:
                         new_err.append(old_b)
 
@@ -508,7 +518,7 @@ class DetectSequence(Base):
                     format(label[idx], obj))
         # out of primary bbox loop
         #print ("NEW ERR IS {}".format(new_err))
-        return new_bbox, new_label, new_conf, new_err
+        return new_bbox, new_label, new_conf, new_err, new_model_names
 
 
     def detect_stream(self, stream, options={}, ml_overrides={}):
@@ -578,9 +588,10 @@ class DetectSequence(Base):
         matched_e = []
         matched_l = []
         matched_c = []
-        matched_models = []
+        matched_detection_types = [] # object, face, etc
         matched_frame_id = None
         matched_images=[]
+        matched_model_names = [] # coral, yolo etc
         
         matched_frame_img = None
         manual_locking = False
@@ -615,7 +626,8 @@ class DetectSequence(Base):
             _boxes_in_frame = []
             _error_boxes_in_frame = []
             _confs_in_frame = []
-            _models_in_frame = []
+            _detection_types_in_frame = []
+            _model_names_in_frame = []
 
             # For each frame, loop across all models
             found = False
@@ -650,6 +662,7 @@ class DetectSequence(Base):
                 _l_best_in_same_model = [] 
                 _c_best_in_same_model = []
                 _e_best_in_same_model = []
+                _m_best_in_same_model = []
 
                 cnt = 1
                 # For each model, loop across different variations
@@ -657,7 +670,7 @@ class DetectSequence(Base):
                     g.logger.Debug(3,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
                     cnt +=1
                     try:
-                        _b,_l,_c = m.detect(image=frame)
+                        _b,_l,_c,_m = m.detect(image=frame)
                         g.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
                     except Exception as e:
                         g.logger.Error ('Error running model: {}'.format(e))
@@ -666,7 +679,7 @@ class DetectSequence(Base):
 
                     # Now let's make sure the labels match our pattern
                     h,w,_ = frame.shape
-                    _b,_l,_c, _e = self._filter_detections(seq,_b,_l,_c, polygons, h, w)
+                    _b,_l,_c, _e, _m = self._filter_detections(seq,_b,_l,_c, polygons, h, w, _m)
                     if _e:
                         _e_best_in_same_model.extend(_e)
                     if not len(_l):
@@ -681,11 +694,15 @@ class DetectSequence(Base):
                         _l_best_in_same_model = _l
                         _c_best_in_same_model = _c
                         _e_best_in_same_model = _e
+                        _m_best_in_same_model = _m
+
                     elif same_model_sequence_strategy == 'union':
                         _b_best_in_same_model.extend(_b)
                         _l_best_in_same_model.extend(_l)
                         _c_best_in_same_model.extend(_c)
                         _e_best_in_same_model.extend(_e)
+                        _m_best_in_same_model.extend(_m)
+
                     if _l_best_in_same_model and self.stream_options.get('save_analyzed_frames') and self.media.get_debug_filename():
                             d = self.stream_options.get('save_frames_dir','/tmp')
                             f = '{}/{}-analyzed-{}.jpg'.format(d,self.media.get_debug_filename(), media.get_last_read_frame())
@@ -707,7 +724,8 @@ class DetectSequence(Base):
                     _boxes_in_frame.extend(_b_best_in_same_model)
                     _confs_in_frame.extend(_c_best_in_same_model)
                     _error_boxes_in_frame.extend(_e_best_in_same_model)
-                    _models_in_frame.append(seq)
+                    _detection_types_in_frame.append(seq)
+                    _model_names_in_frame.extend(_m_best_in_same_model)
                     if (frame_strategy == 'first'):
                         g.logger.Debug (2, 'Breaking out of main model loop as strategy is first')
                         break
@@ -723,7 +741,9 @@ class DetectSequence(Base):
                         'error_boxes': _error_boxes_in_frame,
                         'labels': _labels_in_frame,
                         'confidences': _confs_in_frame,
-                        'models': _models_in_frame
+                        'detection_types': _detection_types_in_frame,
+                        'model_names': _model_names_in_frame
+                        
                         
                     }
                 )
@@ -739,14 +759,15 @@ class DetectSequence(Base):
         for idx,item in enumerate(all_matches):
             if  ((frame_strategy == 'first') or 
             ((frame_strategy == 'most') and (len(item['labels']) > len(matched_l))) or
-            ((frame_strategy == 'most_models') and (len(item['models']) > len(matched_models))) or
+            ((frame_strategy == 'most_models') and (len(item['detection_types']) > len(matched_detection_types))) or
             ((frame_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l))))):
                 matched_b =item['boxes']
                 matched_e = item['error_boxes']
                 matched_c = item['confidences']
                 matched_l  = item['labels']            
                 matched_frame_id = item['frame_id']
-                matched_models = item['models']
+                matched_detection_types = item['detection_types']
+                matched_model_names = item['model_names']
                 matched_frame_img = matched_images[idx]
        
         if manual_locking:
@@ -764,7 +785,7 @@ class DetectSequence(Base):
             g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))
             #g.logger.Debug (1,'REMOVE ME BEFORE PAST: {}, {}, {}'.format(matched_b,matched_l,matched_c))
 
-            matched_b,matched_l,matched_c = self._process_past_detections(matched_b, matched_l, matched_c)
+            matched_b,matched_l,matched_c, matched_detection_types, matched_model_names = self._process_past_detections(matched_b, matched_l, matched_c, matched_detection_types, matched_model_names)
             #g.logger.Debug (1,'REMOVE ME AFTER PAST: {}, {}, {}'.format(matched_b,matched_l,matched_c))
 
         diff_time = t.stop_and_get_ms()
@@ -779,6 +800,7 @@ class DetectSequence(Base):
             'labels': matched_l,
             'confidences': matched_c,
             'frame_id': matched_frame_id,
+            'model_names': matched_model_names,
             'image_dimensions': self.media.image_dimensions(),
             #'type': matched_type,
             'image': matched_frame_img,

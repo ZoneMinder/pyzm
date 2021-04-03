@@ -221,7 +221,7 @@ class FaceDlib(Face):
                 self.processor, diff_time))
 
         if not len(face_encodings):
-            return [], [], []
+            return [], [], [],[]
 
         # Use the KNN model to find the best matches for the test face
       
@@ -298,4 +298,4 @@ class FaceDlib(Face):
             conf.append(1)
 
         g.logger.Debug(3,f'Face Dlib:Returning: {matched_face_rects}, {matched_face_names}, {conf}')
-        return matched_face_rects, matched_face_names, conf
+        return matched_face_rects, matched_face_names, conf, ['face_dlib']*len(matched_face_names)
