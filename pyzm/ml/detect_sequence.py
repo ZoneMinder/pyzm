@@ -304,7 +304,8 @@ class DetectSequence(Base):
 
             label_max_diff_area= '{}_past_det_max_diff_area'.format(label[idx])
             mda = self.ml_options.get('general',{}).get(label_max_diff_area) or self.global_config.get(label_max_diff_area)
-            if mda:
+            # handle the case where you don't have a label_ substitution for a monitor
+            if mda and not mda.startswith('{{'):
                 g.logger.Debug(4, 'Found {}={}'.format(label_max_diff_area, mda))
                 _m = re.match('(\d+)(px|%)?$',mda,re.IGNORECASE)
                 if _m:
@@ -443,7 +444,8 @@ class DetectSequence(Base):
             max_object_area = global_max_object_area
             label_max_object_area= '{}_max_detection_size'.format(label[idx])
             moa =  self.ml_options.get('general',{}).get(label_max_object_area) or self.global_config.get(label_max_object_area)
-            if moa:
+            # Handle case where you don't have a label_ substitution for a monitor
+            if moa and not moa.startswith('{{'):
                 g.logger.Debug(4,'Found {}={}'.format(label_max_object_area,moa))
                 # Let's make sure its the right size
                 _m = re.match('(\d*\.?\d*)(px|%)?$', moa,
