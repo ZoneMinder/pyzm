@@ -672,6 +672,12 @@ class DetectSequence(Base):
                 for m in self.models[seq]:
                     g.logger.Debug(3,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
                     cnt +=1
+                    pre_existing_labels = m.get_options().get('pre_existing_labels')
+                    if pre_existing_labels:
+                        g.logger.Debug(2,'Making sure we have matched one of {} in {} before we proceed'.format(pre_existing_labels, _l_best_in_same_model))
+                        if not any(x in _l_best_in_same_model for x in pre_existing_labels):
+                            g.logger.Debug(1,'Did not find pre existing labels, not running sequence in model')
+                            continue
                     try:
                         _b,_l,_c,_m = m.detect(image=frame)
                         g.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
