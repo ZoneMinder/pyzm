@@ -247,16 +247,20 @@ class MediaStream(Base):
                     self.more_images_to_read = False
                     self.next_frameid_to_read = 0
                     return None 
-                if self.frame_set[self.next_frame_set_index]=='snapshot' and self.api and self.options.get('convert_snapshot_to_fid'):
-                    g.logger.Debug(4,'Trying to convert snapshot to a real frame id')
-                    try:
-                        eurl = '{}/events/{}.json'.format(self.api.get_apibase(),self.eid)
-                        res = self.api._make_request(eurl)
-                        fid = res.get('event',{}).get('Event',{}).get('MaxScoreFrameId')
-                        g.logger.Debug(4,'At the point of analysis, Event:{} snapshot frame id was:{},so using it'.format(self.eid, fid))
-                        self.frame_set[self.next_frame_set_index]= str(fid)
-                    except Exception as e:
-                        g.logger.Debug(4,' Failed retrieving snapshot frame ID:{}'.format(e))
+                if self.frame_set[self.next_frame_set_index]=='snapshot' and self.api:
+                    if self.options.get('delay_between_snapshots') and self.frames_processed > 0:
+                        g.logger.Debug(4,'Sleeping {} seconds before reading next snapshot frame'.format(self.options.get('delay_between_snapshots')))
+                        time.sleep(int(self.options.get('delay_between_snapshots')))
+                    if self.options.get('convert_snapshot_to_fid'):
+                        g.logger.Debug(4,'Trying to convert snapshot to a real frame id')
+                        try:
+                            eurl = '{}/events/{}.json'.format(self.api.get_apibase(),self.eid)
+                            res = self.api._make_request(eurl)
+                            fid = res.get('event',{}).get('Event',{}).get('MaxScoreFrameId')
+                            g.logger.Debug(4,'At the point of analysis, Event:{} snapshot frame id was:{},so using it'.format(self.eid, fid))
+                            self.frame_set[self.next_frame_set_index]= str(fid)
+                        except Exception as e:
+                            g.logger.Debug(4,' Failed retrieving snapshot frame ID:{}'.format(e))
 
                 url = '{}&fid={}'.format(self.stream,self.frame_set[self.next_frame_set_index])
 
