@@ -615,7 +615,6 @@ class DetectSequence(Base):
 
         polygons = copy.copy(self.stream_options.get('polygons',[]))
 
-        
         # Loops across all frames
         while self.media.more():
             frame = self.media.read()
@@ -734,7 +733,7 @@ class DetectSequence(Base):
                     _boxes_in_frame.extend(_b_best_in_same_model)
                     _confs_in_frame.extend(_c_best_in_same_model)
                     _error_boxes_in_frame.extend(_e_best_in_same_model)
-                    _detection_types_in_frame.append(seq)
+                    _detection_types_in_frame.extend([seq]*len(_l_best_in_same_model))
                     _model_names_in_frame.extend(_m_best_in_same_model)
                     if (frame_strategy == 'first'):
                         g.logger.Debug (2, 'Breaking out of main model loop as strategy is first')
