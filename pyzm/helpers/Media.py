@@ -103,7 +103,7 @@ class MediaStream(Base):
         
         
         if self.options.get('frame_set'):
-            if (type(self.frame_set) is str):
+            if type(self.frame_set) is str:
                 self.frame_set = self.options.get('frame_set').split(',')
             if 'alarm' in self.frame_set or 'snapshot' in self.frame_set:
                 if not self.api or self.type == 'video':
