@@ -540,7 +540,7 @@ class DetectSequence(Base):
                 - frame_skip: (int): Number of frames to skip in video (example, 3 means process every 3rd frame)
                 - max_frames (int): Total number of frames to process before stopping
                 - pattern (string): regexp for objects that will be matched. 'frame_strategy' key below will be applied to only objects that match this pattern
-                - frame_set (string): comma separated frames to read. Example 'alarm,21,31,41,snapshot'
+                - frame_set (string or list): comma separated frames to read. Example 'alarm,21,31,41,snapshot' or ['snapshot','alarm','1','2']
                   Note that if you are specifying frame IDs and using ZM, remember that ZM has a frame buffer
                   Default is 20, I think. So you may want to start at frame 21.
                 - contig_frames_before_error (int): How many contiguous frames should fail before we give up on reading this stream. Default 5
