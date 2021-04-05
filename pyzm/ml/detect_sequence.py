@@ -794,10 +794,10 @@ class DetectSequence(Base):
         if mpd == 'yes' and self.stream_options.get('mid'):
             # point detections to post processed data set
             g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))
-            g.logger.Debug (1,'REMOVE ME BEFORE PAST: b:{}, l:{}, c:{}, dt:{}, mn:{}'.format(matched_b,matched_l,matched_c, matched_detection_types, matched_model_names))
+            #g.logger.Debug (1,'REMOVE ME BEFORE PAST: b:{}, l:{}, c:{}, dt:{}, mn:{}'.format(matched_b,matched_l,matched_c, matched_detection_types, matched_model_names))
 
             matched_b,matched_l,matched_c, matched_detection_types, matched_model_names = self._process_past_detections(matched_b, matched_l, matched_c, matched_detection_types, matched_model_names)
-            g.logger.Debug (1,'REMOVE ME AFTER PAST: b:{}, l:{}, c:{}, dt:{}, mn:{}'.format(matched_b,matched_l,matched_c, matched_detection_types, matched_model_names))
+            #g.logger.Debug (1,'REMOVE ME AFTER PAST: b:{}, l:{}, c:{}, dt:{}, mn:{}'.format(matched_b,matched_l,matched_c, matched_detection_types, matched_model_names))
 
         diff_time = t.stop_and_get_ms()
 
