@@ -41,8 +41,6 @@ class MediaStream(Base):
      
         self.debug_filename = None 
 
-
-
         if options.get('delay'):
             g.logger.Debug(1, 'Waiting for {} seconds'.format(options.get('delay')))
             time.sleep(int(options.get('delay')))
@@ -101,10 +99,11 @@ class MediaStream(Base):
                 g.logger.Debug(2,'Using URL {} for stream'.format(stream))
                 self.type = 'image'
         
-        
         if self.options.get('frame_set'):
-            if type(self.frame_set) is str:
+            if isinstance(self.options.get('frame_set'),str):
                 self.frame_set = self.options.get('frame_set').split(',')
+            else:
+                self.frame_set = [ str(i) for i in self.options.get('frame_set')]
             if 'alarm' in self.frame_set or 'snapshot' in self.frame_set:
                 if not self.api or self.type == 'video':
                     # if we are not using ZM indirection, we cannot use 'alarm' 'snapshot' etc.
