@@ -223,7 +223,7 @@ class ZMApi (Base):
             #print (vars(self.session))
 
         except requests.exceptions.HTTPError as err:
-            g.logger.Error('Got API login error: {}'.format(err), 'error')
+            g.logger.Error('Got API login error: {}'.format(err))
             self.authenticated = False
             raise err
 
