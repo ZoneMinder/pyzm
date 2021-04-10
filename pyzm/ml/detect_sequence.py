@@ -636,16 +636,17 @@ class DetectSequence(Base):
 
             # For each frame, loop across all models
             found = False
+            g.logger.Debug (1, "Sequence of detection types to execute: {}".format(self.model_sequence))
             for seq in self.model_sequence:
                 if seq not in self.ml_overrides.get('model_sequence',seq):
                     g.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
                     continue
-                g.logger.Debug(1,'============ Frame: {} Running {} model in sequence =================='.format(self.media.get_last_read_frame(),seq))
+                g.logger.Debug(1,'============ Frame: {} Running {} detection type in sequence =================='.format(self.media.get_last_read_frame(),seq))
                 pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
                 if pre_existing_labels:
                     g.logger.Debug(2,'Making sure we have matched one of {} in {} before we proceed'.format(pre_existing_labels, _labels_in_frame))
                     if not any(x in _labels_in_frame for x in pre_existing_labels):
-                        g.logger.Debug(1,'Did not find pre existing labels, not running model')
+                        g.logger.Debug(1,'Did not find pre existing labels, not running detection type')
                         continue
 
                 if not self.models.get(seq):
