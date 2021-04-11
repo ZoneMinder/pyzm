@@ -24,4 +24,13 @@ class Face(Base):
     
     def get_options(self):
         return self.model.get_options()
+
+    def acquire_lock(self):
+        return self.model.acquire_lock()
+
+    def release_lock(self):
+        return self.model.release_lock()
+
+    def load_model(self):
+        return self.model.load_model()
         
