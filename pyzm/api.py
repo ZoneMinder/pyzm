@@ -40,6 +40,8 @@ class ZMApi (Base):
             - user - username (don't specify if no auth)
             - password - password (don't specify if no auth)
             - disable_ssl_cert_check - if True will let you use self signed certs
+            - basic_auth_user - basic auth username
+            - basic_auth_password - basic auth password
             Note: you can connect your own customer logging class to the API in which case all modules will use your custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.Base.SimpleLog` for method details.
         '''
         
@@ -62,6 +64,9 @@ class ZMApi (Base):
 
         self.legacy_credentials = None
         self.session = requests.Session()
+        if (self.options.get('basic_auth_user')):
+            g.logger.Debug (4, 'Basic auth requested, configuring')
+            self.session.auth = (self.options.get('basic_auth_user'), self.options.get('basic_auth_password'))
         if options.get('disable_ssl_cert_check', True):
             self.session.verify = False
             g.logger.Debug (2, 'API SSL certificate check has been disbled')
@@ -279,6 +284,8 @@ class ZMApi (Base):
                 raise ValueError ('Unsupported request type:{}'.format(type))
             #print (url, params)
             #r = requests.get(url, params=params)
+            #print(r.request.headers)
+
             r.raise_for_status()
 
             # Empty response, e.g. to DELETE requests, can't be parsed to json

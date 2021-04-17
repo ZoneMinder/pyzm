@@ -50,7 +50,9 @@ api_options  = {
     'portalurl':utils.get(key='ZM_PORTAL', section='secrets', conf=conf),
     'user': utils.get(key='ZM_USER', section='secrets', conf=conf),
     'password': utils.get(key='ZM_PASSWORD', section='secrets', conf=conf),
-    #'disable_ssl_cert_check': True
+   # 'basic_auth_user': 'bob',
+   # 'basic_auth_password': 'bobs password'
+   #'disable_ssl_cert_check': True
 }
 
 
