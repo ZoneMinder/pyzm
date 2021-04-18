@@ -46,7 +46,7 @@ class FaceDlib(Face):
 
         upsample_times = self.options.get('upsample_times',1)
         num_jitters= self.options.get('num_jitters',0)
-        model=self.options.get('model','hog')
+        model=self.options.get('face_model','hog')
 
         g.logger.Debug(
             1,'Initializing face recognition with model:{} upsample:{}, jitters:{}'
