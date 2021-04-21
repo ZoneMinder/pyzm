@@ -9,8 +9,6 @@ import subprocess
 import uuid
 from pyzm.helpers.Base import Base
 import pyzm.helpers.globals as g
-import ast
-
 
 class AlprBase(Base):
     def __init__(self,options={}, tempdir='/tmp'):
