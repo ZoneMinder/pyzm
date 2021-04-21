@@ -9,7 +9,7 @@ import subprocess
 import uuid
 from pyzm.helpers.Base import Base
 import pyzm.helpers.globals as g
-
+import ast
 
 
 class AlprBase(Base):
@@ -194,14 +194,27 @@ class PlateRecognizer(AlprBase):
                 platerec_url = self.url
                 if self.options.get('alpr_api_type') == 'cloud':
                     platerec_url += '/plate-reader'
-                payload = self.options.get('platerec_regions')
+
+                platerec_payload = {}
+                platerec_config = None
+                if self.options.get('platerec_regions'):
+                    platerec_payload['regions'] = self.options.get('platereg_regions')
+                if self.options.get('platerec_payload'):
+                    g.logger.Debug(1, 'Found platrec_payload, overriding payload with values provided inside it')
+                    platerec_payload = self.options.get('platerec_payload')
+                    
+                if self.options.get('platerec_config'):
+                    g.logger.Debug(1, 'Found platrec_config, overriding payload with values provided inside it')
+                    platerec_config = self.options.get('platerec_config')
+
                 response = requests.post(
                    platerec_url,
                    timeout=15,
 
                     #self.url ,
                     files=dict(upload=fp),
-                    data=payload,
+                    data=platerec_payload,
+                    config=platerec_config,
                     headers={'Authorization': 'Token ' + self.apikey})
                 fp.close()
                 response.raise_for_status()
