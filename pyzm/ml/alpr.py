@@ -21,7 +21,7 @@ class AlprBase(Base):
         self.options = options
         self.disable_locks = options.get('disable_locks', 'no')
         name = self.options.get('name') or 'ALPR'
-        g.logger.Debug (4, 'Initializing ALPR:{}'.format(name))
+        g.logger.Debug (4, 'Initializing ALPR:{} with options:{}'.format(name, self.options))
 
 
         #g.logger.Debug (4, 'ALPR init params: {}'.format(options))
@@ -196,34 +196,31 @@ class PlateRecognizer(AlprBase):
                 platerec_payload = {}
                 platerec_config = None
                 if self.options.get('platerec_regions'):
-                    platerec_payload['regions'] = self.options.get('platereg_regions')
+                    platerec_payload['regions'] = self.options.get('platerec_regions')
                 if self.options.get('platerec_payload'):
-                    g.logger.Debug(1, 'Found platrec_payload, overriding payload with values provided inside it')
+                    g.logger.Debug(1, 'Found platerec_payload, overriding payload with values provided inside it')
                     platerec_payload = self.options.get('platerec_payload')
-                    
                 if self.options.get('platerec_config'):
-                    g.logger.Debug(1, 'Found platrec_config, overriding payload with values provided inside it')
-                    platerec_config = self.options.get('platerec_config')
-
+                    g.logger.Debug(1, 'Found platerec_config, using it')
+                    platerec_payload['config']= json.dumps(self.options.get('platerec_config'))
                 response = requests.post(
                    platerec_url,
                    timeout=15,
-
                     #self.url ,
                     files=dict(upload=fp),
                     data=platerec_payload,
-                    config=platerec_config,
                     headers={'Authorization': 'Token ' + self.apikey})
                 fp.close()
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
+                c = response.content
                 response = {
                     'error':
                     f'Plate recognizer rejected the upload with: {e}.',
                     'results': []
                 }
                 g.logger.Error(
-                    f'Plate recognizer rejected the upload with {e}'
+                    f'Plate recognizer rejected the upload with {e} and body:{c}'
                 )
             else:
                 response = response.json()
