@@ -333,7 +333,7 @@ def _log(level='DBG', message='', caller=None, debug_level=1):
     # If we are debug logging, show level too
     disp_level=level
     if level=='DBG':
-        disp_level = f'DBG{debug_level}'
+        disp_level = 'DBG{}'.format(debug_level)
     log_string = '{level} [{pname}] [{msg}]'.format(level=disp_level, pname=process_name, msg=message)
     # write to syslog
    

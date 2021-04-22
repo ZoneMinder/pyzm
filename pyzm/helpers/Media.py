@@ -173,7 +173,7 @@ class MediaStream(Base):
                 os.remove(self.stream)
                 g.logger.Debug(2,'Deleted {}'.format(self.stream))
             except Exception as e:
-                g.logger.Error (f'Could not delete file(s):{e}')
+                g.logger.Error ('Could not delete file(s):{}'.format(e))
 
     def read(self):
         if self.options.get('delay_between_frames') and self.frames_processed > 0:

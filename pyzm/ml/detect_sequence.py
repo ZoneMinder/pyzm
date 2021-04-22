@@ -147,7 +147,6 @@ class DetectSequence(Base):
 
 
     def _load_models(self, sequences):
-        #print (f'***** {sequences}')
         if not sequences:
             sequences = self.model_sequence
         for seq in sequences:
@@ -253,10 +252,10 @@ class DetectSequence(Base):
             try:
                 os.remove(mon_file)
             except Exception as e:
-                g.logger.Error (f'Could not delete: {e}')
+                g.logger.Error ('Could not delete: {}'.format(e))
                 pass
         except Exception as e:
-            g.logger.Error(f'Error in processPastDetection: {e}')
+            g.logger.Error('Error in processPastDetection: e}'.format(e))
             #g.logger.Error('Traceback:{}'.format(traceback.format_exc()))
             return bbox, label, conf
 
@@ -381,7 +380,7 @@ class DetectSequence(Base):
             g.logger.Debug(4, 'saving boxes:{}, labels:{} confs:{} to {}'.format(bbox,label,conf, mon_file))
             f.close()
         except Exception as e:
-            g.logger.Error(f'Error writing to {mon_file}, past detections not recorded:{e}')
+            g.logger.Error('Error writing to {}, past detections not recorded:{}'.format(mon_file, e))
         return new_bbox, new_label, new_conf, new_detection_types, new_model_names
 
 
@@ -624,7 +623,6 @@ class DetectSequence(Base):
                 g.logger.Debug(1,'Ran out of frames to read')
                 break
             #fname = '/tmp/{}.jpg'.format(self.media.get_last_read_frame())
-            #print (f'Writing to {fname}')
             #cv2.imwrite( fname ,frame)
             g.logger.Debug (1, 'perf: Starting for frame:{}'.format(self.media.get_last_read_frame()))
             _labels_in_frame = []

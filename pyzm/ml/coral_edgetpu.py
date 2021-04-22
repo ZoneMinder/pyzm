@@ -38,7 +38,7 @@ class Tpu(Base):
         self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
         self.disable_locks = options.get('disable_locks', 'no')
         if self.disable_locks == 'no':
-            g.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+            g.logger.Debug (2,'portalock: max:{}, name:{}, timeout:{}'.format(self.lock_maximum, self.lock_name, self.lock_timeout))
             self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.is_locked = False
         self.model = None

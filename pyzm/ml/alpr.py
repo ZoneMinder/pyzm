@@ -66,7 +66,7 @@ class AlprBase(Base):
             # If it is a file and zm_detect sent it, it would already be resized
             # If it is a file and zm_detect did not send it, no need to adjust scales
             # as there won't be a yolo/alpr size mismatch
-            g.logger.Debug(2,f'supplied object is a file {object}')
+            g.logger.Debug(2,'supplied object is a file {}'.format(object))
             self.filename = object
            
             self.remove_temp = False
@@ -216,11 +216,11 @@ class PlateRecognizer(AlprBase):
                 c = response.content
                 response = {
                     'error':
-                    f'Plate recognizer rejected the upload with: {e}.',
+                    'Plate recognizer rejected the upload with: {}.'.format(e),
                     'results': []
                 }
                 g.logger.Error(
-                    f'Plate recognizer rejected the upload with {e} and body:{c}'
+                    'Plate recognizer rejected the upload with {} and body:{}'.format(e,c)
                 )
             else:
                 response = response.json()
@@ -309,11 +309,11 @@ class OpenAlpr(AlprBase):
             except requests.exceptions.RequestException as e:
                 response = {
                     'error':
-                    f'Open ALPR rejected the upload with {e}',
+                    'Open ALPR rejected the upload with {}'.format(e),
                     'results': []
                 }
                 g.logger.Debug(
-                    1,f'Open APR rejected the upload with {e}'
+                    1,'Open APR rejected the upload with {}'.format(e)
                 )
             else:
                 response = response.json()

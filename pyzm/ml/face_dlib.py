@@ -71,7 +71,7 @@ class FaceDlib(Face):
         #self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
         if self.disable_locks == 'no':
-            g.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+            g.logger.Debug (2,'portalock: max:{}, name:{}, timeout:{}'.format(self.lock_maximum, self.lock_name, self.lock_timeout))
             self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
             
         encoding_file_name = self.options.get('known_images_path') + '/faces.dat'
@@ -121,9 +121,9 @@ class FaceDlib(Face):
             g.logger.Debug (2, '{} portalock already acquired'.format(self.lock_name))
             return
         try:
-            g.logger.Debug (2,f'Waiting for {self.lock_name} portalock...')
+            g.logger.Debug (2,'Waiting for {} portalock...'.format(self.lock_name))
             self.lock.acquire()
-            g.logger.Debug (2,f'Got {self.lock_name} lock...')
+            g.logger.Debug (2,'Got {} lock...'.format(self.lock_name))
             self.is_locked = True
 
         except portalocker.AlreadyLocked:
@@ -297,5 +297,5 @@ class FaceDlib(Face):
             #matched_face_names.append('face:{}'.format(label))
             conf.append(1)
 
-        g.logger.Debug(3,f'Face Dlib:Returning: {matched_face_rects}, {matched_face_names}, {conf}')
+        g.logger.Debug(3,'Face Dlib:Returning: {}, {}, {}'.format(matched_face_rects,matched_face_names, conf))
         return matched_face_rects, matched_face_names, conf, ['face_dlib']*len(matched_face_names)

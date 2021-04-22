@@ -27,7 +27,7 @@ if len(sys.argv) == 1:
 else:
     eid = sys.argv[1]
     if len(sys.argv) == 2:
-        print (f'Event to analyze:{eid}')
+        print ('Event to analyze:{}'.format(eid))
         mid = input ('Enter MID to use:')
     else:
         mid = sys.argv[2]
@@ -168,6 +168,6 @@ stream_options = {
 m = DetectSequence(options=ml_options)
 #m = ObjectDetect.Object(options=ml_options)
 matched_data,all_data = m.detect_stream(stream=eid, options=stream_options)
-print(f'ALL FRAMES: {all_data}\n\n')
-print (f"SELECTED FRAME: {matched_data['frame_id']}, SIZE: {matched_data['image_dimensions']}  LABELS: {matched_data['labels']} BOXES:{matched_data['boxes']} CONFIDENCES:{matched_data['confidences']}")
+print('ALL FRAMES: {}\n\n'.format(all_data))
+print ('SELECTED FRAME: {}, SIZE: {}  LABELS: {} BOXES:{} CONFIDENCES:{}'.format(matched_data['frame_id'],matched_data['image_dimensions'],matched_data['labels'],matched_data['boxes'],matched_data['confidences']))
 

@@ -39,7 +39,7 @@ class FaceTpu(Face):
         self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
         self.disable_locks = options.get('disable_locks', 'no')
         if self.disable_locks == 'no':
-            g.logger.Debug (2,f'portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}')
+            g.logger.Debug (2,'portalock: max:{}, name:{}, timeout:{}'.format(self.lock_maximum, self.lock_name, self.lock_timeout))
             self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,timeout=self.lock_timeout)
         self.is_locked = False
         self.model = None
@@ -55,9 +55,9 @@ class FaceTpu(Face):
             g.logger.Debug (2, '{} portalock already acquired'.format(self.lock_name))
             return
         try:
-            g.logger.Debug (2,f'Waiting for {self.lock_name} portalock...')
+            g.logger.Debug (2,'Waiting for {} portalock...'.format(self.lock_name))
             self.lock.acquire()
-            g.logger.Debug (2,f'Got {self.lock_name} lock...')
+            g.logger.Debug (2,'Got {} lock...'.format(self.lock_name))
             self.is_locked = True
 
         except portalocker.AlreadyLocked:

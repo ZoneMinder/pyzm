@@ -33,11 +33,11 @@ if use_zmes:
     
 
 def on_es_message(msg):
-    print (f'======> APP GOT MESSAGE FROM ES: {msg}')
+    print ('======> APP GOT MESSAGE FROM ES: {}'.format(msg))
 
 
 def on_es_error(err):
-    print (f'======> APP GOT ERROR  FROM ES: {err}') 
+    print ('======> APP GOT ERROR  FROM ES: {}'.format(err)) 
 
 
 # ----------------- MAIN -------------------------
@@ -63,10 +63,10 @@ if i == 'y':
     import cv2
     fname = input ('Enter full path to image file:')
     if fname:
-        print (f'Reading {fname}')
+        print ('Reading {}'.format(fname))
         img = cv2.imread(fname)
     else:
-        print (f'Reading /tmp/image.jpg')
+        print ('Reading /tmp/image.jpg')
         img = cv2.imread('/tmp/image.jpg')
 
     i = input ('Try TPU tests? [y/N]').lower()

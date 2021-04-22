@@ -45,6 +45,4 @@ class Hog(Base):
             i = i.tolist()
             (x1,y1,x2,y2) = (round(i[0]),round(i[1]),round(i[0]+i[2]), round(i[1]+i[3]))
             rects.append((x1,y1,x2,y2))
-
-        #g.logger.Debug(f'HOG:Returning: {rects}, {labels}, {conf}')
         return rects, labels, conf
