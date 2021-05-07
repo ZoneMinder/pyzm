@@ -28,10 +28,6 @@ class Tpu(Base):
     def __init__(self, options={} ):
         self.classes = {}
         self.options = options
-       #g.logger.Debug (1, 'UID:{} EUID:{}'.format( os.getuid(), os.geteuid()))
-
-        #g.logger.Debug (4, 'TPU init params: {}'.format(options))
-        
         self.processor='tpu'
         self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)

@@ -300,15 +300,11 @@ def close():
     """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     if conn: 
-        #Debug (4, "Closing DB connection")
         conn.close()
     if engine: 
-        #Debug (4, "Closing DB engine")
         engine.dispose()
-    #Debug (4, "Closing syslog connection")
     syslog.closelog()
     if (log_fhandle): 
-        #Debug (4, "Closing log file handle")
         log_fhandle.close()
     inited = False
 
