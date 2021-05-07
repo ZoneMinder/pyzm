@@ -156,11 +156,11 @@ class DetectSequence(Base):
                     self.models[seq] = []
                     for ndx,obj_seq in enumerate(self.ml_options.get(seq,{}).get('sequence')):
                         if obj_seq.get('enabled') == 'no':
-                            g.logger.Debug(4, 'Skipping {} as it is disabled'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
+                            g.logger.Debug(2, 'Skipping {} as it is disabled'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
                             continue
                         try:
                             obj_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
-                            g.logger.Debug(4,'Loading sequence: {}'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
+                            g.logger.Debug(2,'Loading sequence: {}'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
                             g.logger.Debug (2,'Initializing model  type:{} with options:{}'.format(seq,obj_seq ))
                             self.models[seq].append(ObjectDetect.Object(options=obj_seq))
                         except Exception as e:
@@ -172,7 +172,7 @@ class DetectSequence(Base):
                     self.models[seq] = []
                     for ndx,face_seq in enumerate(self.ml_options.get(seq,{}).get('sequence')):
                         if face_seq.get('enabled') == 'no':
-                            g.logger.Debug(4, 'Skipping {} as it is disabled'.format(face_seq.get('name') or 'index:{}'.format(ndx)))
+                            g.logger.Debug(2, 'Skipping {} as it is disabled'.format(face_seq.get('name') or 'index:{}'.format(ndx)))
                             continue
                         try:
                             face_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
@@ -280,7 +280,7 @@ class DetectSequence(Base):
                 global_max_diff_area=5
        
         #g.logger.Debug (1,'loaded past: bbox={}, labels={}'.format(saved_bs, saved_ls));
-        g.logger.Debug (4, 'Globals:past detection:use_percent:{}, max_diff_area:{}'.format(global_use_percent,global_max_diff_area))
+        g.logger.Debug (3, 'Globals:past detection:use_percent:{}, max_diff_area:{}'.format(global_use_percent,global_max_diff_area))
         new_label = []
         new_bbox = []
         new_conf = []
@@ -290,7 +290,7 @@ class DetectSequence(Base):
         for idx, b in enumerate(bbox):
 
             if label[idx] in self.ml_options.get('general',{}).get('ignore_past_detection_labels',[]):
-                g.logger.Debug (4, '{} is in ignore list for past detection match, skipping'.format(label[idx]))
+                g.logger.Debug (2, '{} is in ignore list for past detection match, skipping'.format(label[idx]))
                 new_bbox.append(b)
                 new_label.append(label[idx])
                 new_conf.append(conf[idx])
@@ -305,7 +305,7 @@ class DetectSequence(Base):
             mda = self.ml_options.get('general',{}).get(label_max_diff_area) or self.global_config.get(label_max_diff_area)
             # handle the case where you don't have a label_ substitution for a monitor
             if mda and not mda.startswith('{{'):
-                g.logger.Debug(4, 'Found {}={}'.format(label_max_diff_area, mda))
+                g.logger.Debug(3, 'Found {}={}'.format(label_max_diff_area, mda))
                 _m = re.match('(\d+)(px|%)?$',mda,re.IGNORECASE)
                 if _m:
                     max_diff_area = int(_m.group(1))
@@ -341,7 +341,7 @@ class DetectSequence(Base):
                 saved_b.insert(3, (saved_b[0][0], saved_b[2][1]))
                 saved_obj = Polygon(saved_b)
                 max_diff_pixels = max_diff_area
-                g.logger.Debug (4, 'match_past_detections: Comparing  saved {}@{} to {}@{}'.format(saved_ls[saved_idx], saved_b, label[idx],b))
+                g.logger.Debug (2, 'match_past_detections: Comparing  saved {}@{} to {}@{}'.format(saved_ls[saved_idx], saved_b, label[idx],b))
                 if saved_obj.intersects(obj):
                     if obj.contains(saved_obj):
                         diff_area = obj.difference(saved_obj).area
@@ -359,7 +359,7 @@ class DetectSequence(Base):
                         foundMatch = True
                         break
                     else:
-                        g.logger.Debug(4,'Diff area of:{} > max_diff_pixels:{} for {}@{}, allowing it'
+                        g.logger.Debug(2,'Diff area of:{} > max_diff_pixels:{} for {}@{}, allowing it'
                         .format(diff_area, max_diff_pixels,label[idx], b))
             if not foundMatch:
                 new_bbox.append(old_b)
@@ -377,7 +377,7 @@ class DetectSequence(Base):
             pickle.dump(bbox, f)
             pickle.dump(label, f)
             pickle.dump(conf, f)
-            g.logger.Debug(4, 'saving boxes:{}, labels:{} confs:{} to {}'.format(bbox,label,conf, mon_file))
+            g.logger.Debug(2, 'saving boxes:{}, labels:{} confs:{} to {}'.format(bbox,label,conf, mon_file))
             f.close()
         except Exception as e:
             g.logger.Error('Error writing to {}, past detections not recorded:{}'.format(mon_file, e))
@@ -395,7 +395,7 @@ class DetectSequence(Base):
         global_max_object_area = 0
         mds= self.ml_options.get('general',{}).get('max_detection_size') or self.global_config.get('max_detection_size')
         if mds:  
-                g.logger.Debug(3,'Max object size found to be: {}'.format(mds))
+                g.logger.Debug(2,'Max object size found to be: {}'.format(mds))
                 # Let's make sure its the right size
                 _m = re.match('(\d*\.?\d*)(px|%)?$', mds,
                             re.IGNORECASE)
@@ -445,7 +445,7 @@ class DetectSequence(Base):
             moa =  self.ml_options.get('general',{}).get(label_max_object_area) or self.global_config.get(label_max_object_area)
             # Handle case where you don't have a label_ substitution for a monitor
             if moa and not moa.startswith('{{'):
-                g.logger.Debug(4,'Found {}={}'.format(label_max_object_area,moa))
+                g.logger.Debug(2,'Found {}={}'.format(label_max_object_area,moa))
                 # Let's make sure its the right size
                 _m = re.match('(\d*\.?\d*)(px|%)?$', moa,
                             re.IGNORECASE)
@@ -471,11 +471,11 @@ class DetectSequence(Base):
 
             for p in polygons:
                 poly = Polygon(p['value'])
-                g.logger.Debug(3,"intersection: comparing object:{},{} to polygon:{},{}".format(label[idx],obj,p['name'],poly))
+                g.logger.Debug(2,"intersection: comparing object:{},{} to polygon:{},{}".format(label[idx],obj,p['name'],poly))
 
                 if obj.intersects(poly):
                     if  p['pattern']:
-                        g.logger.Debug(3, '{} polygon/zone has its own pattern of {}, using that'.format(p['name'],p['pattern']))
+                        g.logger.Debug(2, '{} polygon/zone has its own pattern of {}, using that'.format(p['name'],p['pattern']))
                         r = re.compile(p['pattern'])
                         match = list(filter(r.match, label))
                     else:
@@ -497,7 +497,7 @@ class DetectSequence(Base):
 
                     #if label[idx].startswith('face:') or label[idx].startswith('alpr:') or label[idx] in match:
                     if label[idx] in match:
-                        g.logger.Debug(3,'{} intersects object:{}[{}]'.format(
+                        g.logger.Debug(2,'{} intersects object:{}[{}]'.format(
                             p['name'], label[idx], b))
                         new_label.append(label[idx])
                         new_bbox.append(old_b)
@@ -506,7 +506,7 @@ class DetectSequence(Base):
                     else:
                         new_err.append(old_b)
 
-                        g.logger.Debug(3,
+                        g.logger.Debug(2,
                             '{} intersects object:{}[{}] but does NOT match your detect pattern filter'
                             .format(p['name'], label[idx], b))
                     doesIntersect = True
@@ -681,7 +681,7 @@ class DetectSequence(Base):
                             continue
                     try:
                         _b,_l,_c,_m = m.detect(image=frame)
-                        g.logger.Debug(4,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
+                        g.logger.Debug(2,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
                     except Exception as e:
                         g.logger.Error ('Error running model: {}'.format(e))
                         g.logger.Debug(2,traceback.format_exc())
@@ -716,14 +716,14 @@ class DetectSequence(Base):
                     if _l_best_in_same_model and self.stream_options.get('save_analyzed_frames') and self.media.get_debug_filename():
                             d = self.stream_options.get('save_frames_dir','/tmp')
                             f = '{}/{}-analyzed-{}.jpg'.format(d,self.media.get_debug_filename(), media.get_last_read_frame())
-                            g.logger.Debug (4, 'Saving analyzed frame: {}'.format(f))
+                            g.logger.Debug (2, 'Saving analyzed frame: {}'.format(f))
                             a = utils.draw_bbox(frame,_b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model,self.stream_options.get('polygons'))
                             for _b in _e_best_in_same_model:
                                 cv2.rectangle(a, (_b[0], _b[1]), (_b[2], _b[3]),
                                     (0,0,255), 1)
                             cv2.imwrite(f,a)
                     if (same_model_sequence_strategy=='first') and len(_b):
-                        g.logger.Debug(3, 'breaking out of same model loop, as matches found and strategy is "first"')
+                        g.logger.Debug(2, 'breaking out of same model loop, as matches found and strategy is "first"')
                         break
                 # end of same model sequence iteration
                 # at this state x_best_in_model contains the best match across 
@@ -788,15 +788,12 @@ class DetectSequence(Base):
         
         # Now let's take past detections into consideration 
         # let's remove past detections first, if enabled 
-        #g.logger.Debug (4, 'REMOVE ME: {}'.format(self.ml_options.get('general')))        
         mpd = self.ml_options.get('general',{}).get('match_past_detections') or self.global_config.get('match_past_detections')
         if mpd == 'yes' and self.stream_options.get('mid'):
             # point detections to post processed data set
             g.logger.Info('Removing matches to past detections for monitor:{}'.format(self.stream_options.get('mid')))
-            #g.logger.Debug (1,'REMOVE ME BEFORE PAST: b:{}, l:{}, c:{}, dt:{}, mn:{}'.format(matched_b,matched_l,matched_c, matched_detection_types, matched_model_names))
 
             matched_b,matched_l,matched_c, matched_detection_types, matched_model_names = self._process_past_detections(matched_b, matched_l, matched_c, matched_detection_types, matched_model_names)
-            #g.logger.Debug (1,'REMOVE ME AFTER PAST: b:{}, l:{}, c:{}, dt:{}, mn:{}'.format(matched_b,matched_l,matched_c, matched_detection_types, matched_model_names))
 
         diff_time = t.stop_and_get_ms()
 

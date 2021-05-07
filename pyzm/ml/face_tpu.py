@@ -27,7 +27,6 @@ from pycoral.utils.edgetpu import make_interpreter
 class FaceTpu(Face):
     def __init__(self, options={}):
         global g_diff_time
-        #g.logger.Debug (4, 'Face init params: {}'.format(options))
         self.options = options
       
         g.logger.Debug(
@@ -159,7 +158,7 @@ class FaceTpu(Face):
         
             labels.append(self.options.get('unknown_face_name', 'face'))
             conf.append(float(obj.score))
-        g.logger.Debug (4, 'Coral face is detection only. Skipping recognition phase')
-        g.logger.Debug(3,'Coral face returning: {},{},{}'.format(bbox,labels,conf))
+        g.logger.Debug (2, 'Coral face is detection only. Skipping recognition phase')
+        g.logger.Debug(2,'Coral face returning: {},{},{}'.format(bbox,labels,conf))
         return bbox, labels, conf, ['face_tpu'] * len(labels)
 

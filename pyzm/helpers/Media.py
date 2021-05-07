@@ -177,7 +177,7 @@ class MediaStream(Base):
 
     def read(self):
         if self.options.get('delay_between_frames') and self.frames_processed > 0:
-            g.logger.Debug(4,'Sleeping {} seconds before reading next frame'.format(self.options.get('delay_between_frames')))
+            g.logger.Debug(2,'Sleeping {} seconds before reading next frame'.format(self.options.get('delay_between_frames')))
             time.sleep(int(self.options.get('delay_between_frames')))
 
         if (self.type == 'file'):
@@ -215,13 +215,13 @@ class MediaStream(Base):
                     self.last_frameid_read = self.frame_set[self.next_frame_set_index]
                     self.next_frame_set_index += 1
                     if self.next_frame_set_index < len (self.frame_set):
-                        g.logger.Debug (4,"Now moving to frame: {}".format(self.frame_set[self.next_frame_set_index])) 
+                        g.logger.Debug (3,"Now moving to frame: {}".format(self.frame_set[self.next_frame_set_index])) 
 
                 else:
                     self.last_frameid_read = self.next_frameid_to_read
                     self.next_frameid_to_read +=1
                     if (self.last_frameid_read - 1 ) % self.frame_skip:
-                        g.logger.Debug(5,'Skipping frame {}'.format(self.last_frameid_read))
+                        g.logger.Debug(2,'Skipping frame {}'.format(self.last_frameid_read))
                         continue    
                     
                 g.logger.Debug(2, 'Processing frame:{}'.format(self.last_frameid_read))
@@ -235,7 +235,7 @@ class MediaStream(Base):
             if self.options.get('save_frames') and self.debug_filename:
                 d = self.options.get('save_frames_dir','/tmp')
                 fname = '{}/{}-{}.jpg'.format(d,self.debug_filename,self.last_frameid_read) 
-                g.logger.Debug (4, 'Saving image to {}'.format(fname))
+                g.logger.Debug (2, 'Saving image to {}'.format(fname))
                 cv2.imwrite(fname,frame)        
 
             return frame
@@ -249,18 +249,18 @@ class MediaStream(Base):
                     return None 
                 if self.frame_set[self.next_frame_set_index]=='snapshot' and self.api:
                     if self.options.get('delay_between_snapshots') and self.frames_processed > 0:
-                        g.logger.Debug(4,'Sleeping {} seconds before reading next snapshot frame'.format(self.options.get('delay_between_snapshots')))
+                        g.logger.Debug(2,'Sleeping {} seconds before reading next snapshot frame'.format(self.options.get('delay_between_snapshots')))
                         time.sleep(int(self.options.get('delay_between_snapshots')))
                     if self.options.get('convert_snapshot_to_fid'):
-                        g.logger.Debug(4,'Trying to convert snapshot to a real frame id')
+                        g.logger.Debug(2,'Trying to convert snapshot to a real frame id')
                         try:
                             eurl = '{}/events/{}.json'.format(self.api.get_apibase(),self.eid)
                             res = self.api._make_request(eurl)
                             fid = res.get('event',{}).get('Event',{}).get('MaxScoreFrameId')
-                            g.logger.Debug(4,'At the point of analysis, Event:{} snapshot frame id was:{},so using it'.format(self.eid, fid))
+                            g.logger.Debug(2,'At the point of analysis, Event:{} snapshot frame id was:{},so using it'.format(self.eid, fid))
                             self.frame_set[self.next_frame_set_index]= str(fid)
                         except Exception as e:
-                            g.logger.Debug(4,' Failed retrieving snapshot frame ID:{}'.format(e))
+                            g.logger.Debug(2,' Failed retrieving snapshot frame ID:{}'.format(e))
 
                 url = '{}&fid={}'.format(self.stream,self.frame_set[self.next_frame_set_index])
 
@@ -326,7 +326,7 @@ class MediaStream(Base):
                     if self.options.get('save_frames') and self.debug_filename:
                         d = self.options.get('save_frames_dir','/tmp')
                         fname = '{}/{}-{}.jpg'.format(d,self.debug_filename,self.last_frameid_read) 
-                        g.logger.Debug (4, 'Saving image to {}'.format(fname))
+                        g.logger.Debug (2, 'Saving image to {}'.format(fname))
                         cv2.imwrite(fname,img)        
 
                     return img

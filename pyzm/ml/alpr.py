@@ -21,10 +21,7 @@ class AlprBase(Base):
         self.options = options
         self.disable_locks = options.get('disable_locks', 'no')
         name = self.options.get('name') or 'ALPR'
-        g.logger.Debug (4, 'Initializing ALPR:{} with options:{}'.format(name, self.options))
-
-
-        #g.logger.Debug (4, 'ALPR init params: {}'.format(options))
+        g.logger.Debug (2, 'Initializing ALPR:{} with options:{}'.format(name, self.options))
 
     def get_options(self):
         return self.options
@@ -224,7 +221,7 @@ class PlateRecognizer(AlprBase):
                 )
             else:
                 response = response.json()
-                g.logger.Debug(3,'ALPR JSON: {}'.format(response))
+                g.logger.Debug(2,'ALPR JSON: {}'.format(response))
 
         #(xfactor, yfactor) = self.getscale()
 

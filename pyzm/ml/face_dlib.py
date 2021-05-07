@@ -33,7 +33,6 @@ class FaceDlib(Face):
     def __init__(self, options={}):
         self.options = options
         global g_diff_time
-        #g.logger.Debug (4, 'Face init params: {}'.format(options))
 
         if dlib.DLIB_USE_CUDA and dlib.cuda.get_num_devices() >=1 :
             self.processor = 'gpu'
@@ -172,7 +171,7 @@ class FaceDlib(Face):
         max_size = self.options.get('max_size', Width)
         old_image = None
 
-        g.logger.Debug(5, 'Face options={}'.format(self.options))
+        g.logger.Debug(3, 'Face options={}'.format(self.options))
         
         if Width > max_size:
             downscaled = True
@@ -231,14 +230,13 @@ class FaceDlib(Face):
         if self.knn:
             #g.logger.Debug(5, 'FACE ENCODINGS={}'.format(face_encodings))
             closest_distances = self.knn.kneighbors(face_encodings, n_neighbors=1)
-            g.logger.Debug(5, 'Closest knn match indexes (lesser is better): {}'.format(closest_distances))
+            g.logger.Debug(3, 'Closest knn match indexes (lesser is better): {}'.format(closest_distances))
             are_matches = [
                 closest_distances[0][i][0] <= float(self.options.get('face_recog_dist_threshold',0.6))
                 for i in range(len(face_locations))
                 
             ]
             prediction_labels = self.knn.predict(face_encodings)
-            #g.logger.Debug(5, 'KNN predictions: {} are_matches: {}'.format(prediction_labels, are_matches))
 
         else:
             # There were no faces to compare
@@ -297,5 +295,5 @@ class FaceDlib(Face):
             #matched_face_names.append('face:{}'.format(label))
             conf.append(1)
 
-        g.logger.Debug(3,'Face Dlib:Returning: {}, {}, {}'.format(matched_face_rects,matched_face_names, conf))
+        g.logger.Debug(2,'Face Dlib:Returning: {}, {}, {}'.format(matched_face_rects,matched_face_names, conf))
         return matched_face_rects, matched_face_names, conf, ['face_dlib']*len(matched_face_names)

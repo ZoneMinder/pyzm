@@ -56,11 +56,11 @@ class Object(Base):
     def detect(self,image=None):
         h,w = image.shape[:2]
         b,l,c,_model_names = self.model.detect(image)
-        g.logger.Debug (3,'core model detection over, got {} objects. Now filtering'.format(len(b)))
+        g.logger.Debug (2,'core model detection over, got {} objects. Now filtering'.format(len(b)))
         # Apply various object filtering rules
         max_object_area = 0
         if self.options.get('max_detection_size'):
-                g.logger.Debug(3,'Max object size found to be: {}'.format(self.options.get('max_detection_size')))
+                g.logger.Debug(2,'Max object size found to be: {}'.format(self.options.get('max_detection_size')))
                 # Let's make sure its the right size
                 m = re.match('(\d*\.?\d*)(px|%)?$', self.options.get('max_detection_size'),
                             re.IGNORECASE)

@@ -24,9 +24,6 @@ class Yolo(Base):
         self.classes = None
         self.options = options
         self.is_locked = False
-
-        #g.logger.Debug (4, 'Yolo init params: {}'.format(options))
-
         self.processor=self.options.get('object_processor') or 'cpu'
         self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
         self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
