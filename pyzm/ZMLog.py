@@ -24,6 +24,7 @@ import datetime
 import signal
 import sys
 import pyzm.helpers.globals as g
+from dotenv import load_dotenv
 
 
 pid = None
@@ -77,13 +78,13 @@ def init(name=None, override={}):
             {
                 'dump_console': False,
                 'conf_path': '/etc/zm',
-                'user' : None,
-                'password' : None,
-                'host' : None,
+                'dbuser' : None,
+                'dbpassword' : None,
+                'dbhost' : None,
                 'webuser': 'www-data',
                 'webgroup': 'www-data',
                 'dbname' : None,
-                'logpath' : '/var/log',
+                'logpath' : '/var/log/zm',
                 'log_level_syslog' : 0,
                 'log_level_file' : 0,
                 'log_level_db' : 0,
@@ -94,6 +95,36 @@ def init(name=None, override={}):
                 'server_id': 0,
                 'driver': 'mysql+mysqlconnector'
             }
+
+            You can also pass environment variables (supports .env files too):
+            - PYZM_CONFPATH : path to zm.conf. Default is /etc/zm. Note that if you have a conf file, the values below
+                              will automatically be picked up from the conf. You can choose to override them by using 
+                              the variables below 
+
+            - PYZM_DBUSER: ZM DB user
+            - PYZM_DBPASSWORD : ZM DB password
+            - PYZM_DBHOST: ZM DB host
+            - PYZM_DBNAME  ZM DB Name
+            - PYZM_WEBUSER: web user
+            - PYZM_WEBGROUP: web group
+            - PYZM_LOGPATH: path to ZM logs
+            - PYZM_SYSLOGLEVEL
+            - PYZM_FILELOGLEVEL
+            - PYZM_DBLOGLEVEL
+            - PYZM_LOGDEBUG
+            - PYZM_LOGDEBUGLEVEL
+            - PYZM_LOGDEBUGTARGET
+            - PYZM_LOGDEBUGFILE
+            - PYZM_SERVERID
+
+            These are specific to pyzm:
+            - PYZM_DUMPCONSOLE: If True will print logs to terminal
+            - PYZM_DBDRIVER: Switch the driver pyzm uses to connect to the DB
+
+        The order of priority is:
+        a) pyzm_overrides takes priority over env variables
+        b) env variables (supports .env file) take priority over ZM config files 
+        c) ZM config files is used for whatever is not overriden above
     """
     global logger, pid, process_name, inited, config, engine, conn, cstr, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     global logger_name, logger_overrides
@@ -101,6 +132,7 @@ def init(name=None, override={}):
         Debug (1, "Logs already inited")
         return
 
+    load_dotenv() 
     inited = True
     logger_name = name 
     logger_overrides = override
@@ -108,35 +140,53 @@ def init(name=None, override={}):
     process_name = name or psutil.Process(pid).name()
     syslog.openlog(logoption=syslog.LOG_PID)
 
-    config = {
-        'conf_path': '/etc/zm',
-        'user' : None,
-        'password' : None,
-        'host' : None,
+    defaults = {
+        'dbuser' : None,
         'webuser': 'www-data',
-        'webgroup': 'www-data',
-        'dbname' : None,
-        'logpath' : '/var/log',
-        'log_level_syslog' : 0,
+        'webgroup':'www-data',
+        'logpath' : '/var/log/zm',
+        'log_level_syslog' :0,
         'log_level_file' : 0,
         'log_level_db' : 0,
         'log_debug' : 0,
-        'log_level_debug' : 1,
-        'log_debug_target' : '',
-        'log_debug_file' :'',
+        'log_level_debug' : 0,
+        'log_debug_target' :'',
+        'log_debug_file' :0,
         'server_id': 0,
-        'driver': 'mysql+mysqlconnector',
-        'dump_console': False
+       
+        'dump_console':False
+    }
+
+    config = {
+        'conf_path': os.getenv('PYZM_CONFPATH', '/etc/zm'), # we need this to get started
+        'dbuser' : os.getenv('PYZM_DBUSER'),
+        'dbpassword' : os.getenv('PYZM_DBPASSWORD'),
+        'dbhost' :os.getenv('PYZM_DBHOST'),
+        'webuser': os.getenv('PYZM_WEBUSER'),
+        'webgroup': os.getenv('PYZM_WEBGROUP'),
+        'dbname' : os.getenv('PYZM_DBNAME'),
+        'logpath' : os.getenv('PYZM_LOGPATH'),
+        'log_level_syslog' : os.getenv('PYZM_SYSLOGLEVEL'),
+        'log_level_file' : os.getenv('PYZM_FILELOGLEVEL'),
+        'log_level_db' : os.getenv('PYZM_DBLOGLEVEL'),
+        'log_debug' : os.getenv('PYZM_LOGDEBUG'),
+        'log_level_debug' : os.getenv('PYZM_LOGDEBUGLEVEL'),
+        'log_debug_target' : os.getenv('PYZM_LOGDEBUGTARGET'),
+        'log_debug_file' :os.getenv('PYZM_LOGDEBUGFILE'),
+        'server_id': os.getenv('PYZM_SERVERID'),
+        'dump_console': os.getenv('PYZM_DUMPCONSOLE'),
+        'driver': os.getenv('PYZM_DBDRIVER','mysql+mysqlconnector')
     }
 
     # Round 1 of overrides, before we read params from DB
-        # Override with locals if present
-    for key in config:
-        if key in override:
+    # Override with locals if present
+    for key in override:
+        if override[key]:
             config[key] = override[key]
     
+        #print('**********************A-R1 {}'. format(config))
 
-
+    
     # read all config files in order
     files=[]
     for f in glob.glob(config['conf_path']+'/conf.d/*.conf'):
@@ -149,21 +199,29 @@ def init(name=None, override={}):
             #print ('reading {}'.format(f))
             config_file.read_string('[zm_root]\n' + s.read())
             s.close()
-
     # config_file will now contained merged data
     conf_data=config_file['zm_root']
 
-    config['user'] = conf_data.get('ZM_DB_USER', 'zmuser')
-    config['password'] = conf_data.get('ZM_DB_PASS', 'zmpass')
-    config['webuser'] = conf_data.get('ZM_WEB_USER', 'www-data')
-    config['webgroup'] = conf_data.get('ZM_WEB_GROUP', 'www-data')
-    config['host'] = conf_data.get('ZM_DB_HOST', 'localhost')
-    config['dbname'] = conf_data.get('ZM_DB_NAME', 'zm')
-    config['logpath'] =  config_file['zm_root']['ZM_PATH_LOGS']
+    if not config.get('dbuser'):
+        config['dbuser'] = conf_data.get('ZM_DB_USER')
+    if not config.get('dbpassword'):
+        config['dbpassword'] = conf_data.get('ZM_DB_PASS')
+    if not config.get('webuser'):
+        config['webuser'] = conf_data.get('ZM_WEB_USER')
+    if not config.get('webgroup'):
+        config['webgroup'] = conf_data.get('ZM_WEB_GROUP')
+    if not config.get('dbhost'):
+        config['dbhost'] = conf_data.get('ZM_DB_HOST')
+    if not config.get('dbname'):
+        config['dbname'] = conf_data.get('ZM_DB_NAME')
+    if not config.get('logpath'):
+        config['logpath'] =  config_file['zm_root'].get('ZM_PATH_LOGS')
 
-    cstr = config['driver']+'://{}:{}@{}/{}'.format(config['user'],
-        config['password'],config['host'],config['dbname'])
 
+    cstr = config['driver']+'://{}:{}@{}/{}'.format(config['dbuser'],
+        config['dbpassword'],config['dbhost'],config['dbname'])
+
+   # print ('BEFORE DB {}'.format(config))
     try:
         engine = create_engine(cstr, pool_recycle=3600)
         conn = engine.connect()
@@ -202,17 +260,25 @@ def init(name=None, override={}):
         config['server_id'] = db_vals.get('ZM_SERVER_ID',0)
     # Round 2 of overrides, after DB data is read
     # Override with locals if present
-    for key in config:
-        if key in override:
+
+    #print('**********************B-R2 {}'. format(config))
+
+    for key in override:
+        if override[key]:
             config[key] = override[key]
 
+    for key in defaults:
+        if not config.get(key):
+            config[key] = defaults[key]
+
+    #print ('FINAL CONFIGS {}'.format(config))
     log_fname = None
     log_fhandle = None
 
-    if config['log_level_file'] > levels['OFF']:
-        
+    if config['log_level_file'] > levels['OFF']:        
         n = os.path.split(process_name)[1].split('.')[0]
         log_fname = config['logpath']+'/'+n+'.log' 
+        #print ('WRITING TO {}'.format(log_fname))
         try:
             log_fhandle = open (log_fname,'a')
             uid = pwd.getpwnam(config['webuser']).pw_uid
@@ -233,6 +299,7 @@ def init(name=None, override={}):
     #print (sys.modules[__name__])
     Info ('Switching global logger to ZMLog')
 
+    #print('**********************A-R2 {}'. format(config))
 
 def sig_log_rot(sig,frame):
     #time.sleep(3) # do we need this?
