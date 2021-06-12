@@ -121,7 +121,7 @@ def init(name=None, override={}):
             - PYZM_DUMPCONSOLE: If True will print logs to terminal
             - PYZM_DBDRIVER: Switch the driver pyzm uses to connect to the DB
 
-        The order of priority is:
+            The order of priority is:
 
             - pyzm_overrides takes priority over env variables
             - env variables (supports .env file) take priority over ZM config files 
