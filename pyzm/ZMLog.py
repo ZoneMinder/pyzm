@@ -122,9 +122,10 @@ def init(name=None, override={}):
             - PYZM_DBDRIVER: Switch the driver pyzm uses to connect to the DB
 
         The order of priority is:
-        a) pyzm_overrides takes priority over env variables
-        b) env variables (supports .env file) take priority over ZM config files 
-        c) ZM config files is used for whatever is not overriden above
+
+            - pyzm_overrides takes priority over env variables
+            - env variables (supports .env file) take priority over ZM config files 
+            - ZM config files is used for whatever is not overriden above
     """
     global logger, pid, process_name, inited, config, engine, conn, cstr, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
     global logger_name, logger_overrides
