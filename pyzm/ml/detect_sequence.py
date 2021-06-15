@@ -255,7 +255,7 @@ class DetectSequence(Base):
                 g.logger.Error ('Could not delete: {}'.format(e))
                 pass
         except Exception as e:
-            g.logger.Error('Error in processPastDetection: e}'.format(e))
+            g.logger.Error('Error in processPastDetection: {e}'.format(e))
             #g.logger.Error('Traceback:{}'.format(traceback.format_exc()))
             return bbox, label, conf
 
