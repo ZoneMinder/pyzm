@@ -10,6 +10,7 @@ import portalocker
 import os
 from pyzm.helpers.utils import Timer
 import pyzm.helpers.globals as g
+import imutils
 
 # Class to handle Yolo based detection
 
@@ -119,6 +120,7 @@ class Yolo(Base):
 
     def detect(self, image=None):
         Height, Width = image.shape[:2]
+        g.logger.Debug(2,'detect extracted image dimensions as: {}wx{}h'.format(Width,Height))
         downscaled =  False
         upsize_xfactor = None
         upsize_yfactor = None
