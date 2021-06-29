@@ -251,7 +251,7 @@ class MediaStream(Base):
                     if self.options.get('delay_between_snapshots') and self.frames_processed > 0:
                         g.logger.Debug(2,'Sleeping {} seconds before reading next snapshot frame'.format(self.options.get('delay_between_snapshots')))
                         time.sleep(int(self.options.get('delay_between_snapshots')))
-                    if self.options.get('convert_snapshot_to_fid'):
+                    if self.options.get('convert_snapshot_to_fid') and self.options.get('convert_snapshot_to_fid') != 'no':
                         g.logger.Debug(2,'Trying to convert snapshot to a real frame id')
                         try:
                             eurl = '{}/events/{}.json'.format(self.api.get_apibase(),self.eid)

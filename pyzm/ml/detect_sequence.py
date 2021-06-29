@@ -557,7 +557,7 @@ class DetectSequence(Base):
            
                 - resize (int): Width to resize image, default 800
                 - polygons(object): object # set of polygons that the detected image needs to intersect
-                - convert_snapshot_to_fid (bool): if True, will convert 'snapshot' to an actual fid. If you are seeing 
+                - convert_snapshot_to_fid (bool or 'yes'): if True/'yes', will convert 'snapshot' to an actual fid. If you are seeing 
                   boxes at wrong places for snapshot frames, this may fix it. However, it can also result in frame 404 errors 
                   if that frame ID is not yet written to disk. So you may want to add a delay if you enable this. Default is False.
                 
