@@ -262,21 +262,21 @@ class DetectSequence(Base):
         # load past detection
         global_use_percent = False
         global_max_diff_area = 0
-        global_mda = self.global_config.get('past_det_max_diff_area')
+        global_mda = self.global_config.get('past_det_max_diff_area')  or self.ml_options.get('general',{}).get('past_det_max_diff_area') 
         if global_mda:
             _m = re.match('(\d+)(px|%)?$', global_mda,re.IGNORECASE)
             if _m:
                 global_max_diff_area = int(_m.group(1))
                 global_use_percent = True if _m.group(2) is None or _m.group(2) == '%' else False
             else:
-                g.logger.Error('past_det_max_diff_area misformatted: {}'.format(mda))
+                g.logger.Error('global past_det_max_diff_area misformatted: {}'.format(global_mda))
 
 
              # it's very easy to forget to add 'px' when using pixels
             if global_use_percent and (global_max_diff_area < 0 or global_max_diff_area > 100):
                 g.logger.Error(
                     'past_det_max_diff_area must be in the range 0-100 when using percentages. Setting to 5%, was {}'
-                    .format(self.global_config.get(label_max_diff_area)))
+                    .format(self.global_config.get(global_max_diff_area)))
                 global_max_diff_area=5
        
         #g.logger.Debug (1,'loaded past: bbox={}, labels={}'.format(saved_bs, saved_ls));
@@ -368,19 +368,21 @@ class DetectSequence(Base):
                 new_detection_types.append(matched_detection_types[idx])
                 new_model_names.append(matched_model_names[idx])
 
-          # save current objects for future comparisons
-        g.logger.Debug(1,
-            'Saving detections for monitor {} for future match'.format(
-                self.stream_options.get('mid')))
-        try:
-            f = open(mon_file, "wb")
-            pickle.dump(bbox, f)
-            pickle.dump(label, f)
-            pickle.dump(conf, f)
-            g.logger.Debug(2, 'saving boxes:{}, labels:{} confs:{} to {}'.format(bbox,label,conf, mon_file))
-            f.close()
-        except Exception as e:
-            g.logger.Error('Error writing to {}, past detections not recorded:{}'.format(mon_file, e))
+        # save current objects for future comparisons
+        # do this only if we have objects to save
+        if label:
+            g.logger.Debug(1,
+                'Saving detections for monitor {} for future match'.format(
+                    self.stream_options.get('mid')))
+            try:
+                f = open(mon_file, "wb")
+                pickle.dump(bbox, f)
+                pickle.dump(label, f)
+                pickle.dump(conf, f)
+                g.logger.Debug(2, 'saving boxes:{}, labels:{} confs:{} to {}'.format(bbox,label,conf, mon_file))
+                f.close()
+            except Exception as e:
+                g.logger.Error('Error writing to {}, past detections not recorded:{}'.format(mon_file, e))
         return new_bbox, new_label, new_conf, new_detection_types, new_model_names
 
 
