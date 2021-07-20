@@ -334,7 +334,16 @@ class DetectSequence(Base):
             foundMatch = False
             for saved_idx, saved_b in enumerate(saved_bs):
                 # compare current detection element with saved list from file
-                if saved_ls[saved_idx] != label[idx]: continue
+                if saved_ls[saved_idx] != label[idx]:
+                    foundAlias = False 
+                    for item in self.ml_options.get('general',{}).get('aliases',[]):
+                        if saved_ls[saved_idx] in item and label[idx] in item:
+                            g.logger.Debug(2, 'found label:{} and stored label:{} are aliases:{}'.format(label[idx], saved_ls[saved_idx], item))
+                            foundAlias = True
+                            break
+                    if not foundAlias:
+                        continue
+
                 it = iter(saved_b)
                 saved_b = list(zip(it, it))
                 saved_b.insert(1, (saved_b[1][0], saved_b[0][1]))
