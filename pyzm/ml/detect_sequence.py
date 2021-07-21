@@ -682,7 +682,7 @@ class DetectSequence(Base):
                 cnt = 1
                 # For each model, loop across different variations
                 for m in self.models[seq]:
-                    g.logger.Debug(3,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
+                    g.logger.Debug(1,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
                     cnt +=1
                     pre_existing_labels = m.get_options().get('pre_existing_labels')
                     if pre_existing_labels:
