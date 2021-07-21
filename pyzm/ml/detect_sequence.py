@@ -231,7 +231,7 @@ class DetectSequence(Base):
                 'Monitor ID not specified, cannot match past detections')
             return bbox, label, conf
 
-        image_path = self.global_config.get('image_path') or self.ml_options.get('general',{}).get('image_path') 
+        image_path = self.ml_options.get('general',{}).get('image_path') or self.global_config.get('image_path')
         mon_file = '{}/monitor-{}-data.pkl'.format(image_path,mid)
         g.logger.Debug(2,'trying to load ' + mon_file)
         saved_bs=[]
@@ -262,7 +262,7 @@ class DetectSequence(Base):
         # load past detection
         global_use_percent = False
         global_max_diff_area = 0
-        global_mda = self.global_config.get('past_det_max_diff_area')  or self.ml_options.get('general',{}).get('past_det_max_diff_area') 
+        global_mda = self.ml_options.get('general',{}).get('past_det_max_diff_area')  or self.global_config.get('past_det_max_diff_area')
         if global_mda:
             _m = re.match('(\d+)(px|%)?$', global_mda,re.IGNORECASE)
             if _m:
@@ -318,7 +318,7 @@ class DetectSequence(Base):
                 if use_percent and (max_diff_area < 0 or max_diff_area > 100):
                     g.logger.Error(
                         '{} must be in the range 0-100 when using percentages. Setting to 5%, was {}'
-                        .format(label_max_diff_area, self.global_config.get(label_max_diff_area)))
+                        .format(label_max_diff_area,mda))
                     max_diff_area = 5
 
             # iterate list of detections
@@ -682,7 +682,7 @@ class DetectSequence(Base):
                 cnt = 1
                 # For each model, loop across different variations
                 for m in self.models[seq]:
-                    g.logger.Debug(3,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
+                    g.logger.Debug(1,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
                     cnt +=1
                     pre_existing_labels = m.get_options().get('pre_existing_labels')
                     if pre_existing_labels:
