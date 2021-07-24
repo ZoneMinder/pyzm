@@ -363,12 +363,12 @@ class DetectSequence(Base):
 
                     if diff_area <= max_diff_pixels:
                         g.logger.Debug(1,
-                            'past detection {}@{} approximately matches {}@{} removing'
+                            'match_past_detection: past detection {}@{} approximately matches {}@{} removing'
                             .format(saved_ls[saved_idx], saved_b, label[idx], b))
                         foundMatch = True
                         break
                     else:
-                        g.logger.Debug(2,'Diff area of:{} > max_diff_pixels:{} for {}@{}, allowing it'
+                        g.logger.Debug(2,'match_past_detection: Diff area of:{} > max_diff_pixels:{} for {}@{}, allowing it'
                         .format(diff_area, max_diff_pixels,label[idx], b))
             if not foundMatch:
                 new_bbox.append(old_b)
