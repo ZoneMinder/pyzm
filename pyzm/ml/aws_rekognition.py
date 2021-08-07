@@ -12,9 +12,12 @@ import pyzm.helpers.globals as g
 class AwsRekognition(Base):
     def __init__(self, options={}, logger=None):
         self.options = options
+        self.min_confidence = self.options.get('object_min_confidence', 0.7)
+        if self.min_confidence < 1: # Rekognition wants the confidence as 0% ~ 100%, not 0.00 ~ 1.00
+            self.min_confidence *= 100
 
         self._rekognition = boto3.client('rekognition')
-        g.logger.Debug (2, f'AWS Rekognition initialised')
+        g.logger.Debug (2, f'AWS Rekognition initialised (min confidence: {self.min_confidence}%')
 
     def detect(self, image=None):
         height, width = image.shape[:2]
@@ -30,15 +33,35 @@ class AwsRekognition(Base):
         image_jpg = _buff.tobytes()
 
         # Call AWS Rekognition
-        labels = self._rekognition.detect_labels(
+        response = self._rekognition.detect_labels(
             Image={ 'Bytes': image_jpg },
             MinConfidence=self.min_confidence
         )
-        g.logger.Debug(2, f'Detected labels: {labels}')
+        g.logger.Debug(2, f'Detection response: {response}')
 
         # Parse the returned labels
-        bbox = []
+        bboxes = []
         labels = []
-        conf = []
+        confs = []  # Confidences
 
-        return bbox, labels, conf, ['aws']*len(labels)
+        for item in response['Labels']:
+            if 'Instances' not in item:
+                continue
+            for instance in item['Instances']:
+                if not 'BoundingBox' in instance or not 'Confidence' in instance:
+                    continue
+                label = item['Name']
+                conf = instance['Confidence']/100
+                bbox = (
+                    round(width * instance['BoundingBox']['Left']),
+                    round(height * instance['BoundingBox']['Top']),
+                    round(width * (instance['BoundingBox']['Left'] + instance['BoundingBox']['Width'])),
+                    round(height * (instance['BoundingBox']['Top'] + instance['BoundingBox']['Height']))
+                )
+                g.logger.Debug(3, f"{bbox=} / {label=} / {conf=}")
+
+                bboxes.append(bbox)
+                labels.append(label)
+                confs.append(conf)
+
+        return bboxes, labels, confs, ['aws']*len(labels)
