@@ -50,7 +50,7 @@ class AwsRekognition(Base):
             for instance in item['Instances']:
                 if not 'BoundingBox' in instance or not 'Confidence' in instance:
                     continue
-                label = item['Name']
+                label = item['Name'].lower()
                 conf = instance['Confidence']/100
                 bbox = (
                     round(width * instance['BoundingBox']['Left']),
