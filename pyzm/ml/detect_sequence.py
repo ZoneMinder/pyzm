@@ -53,9 +53,16 @@ class DetectSequence(Base):
                             },
 
                             # within object, this is a sequence of object detection libraries. In this case,
-                            # I want to first try on my TPU and if it fails, try GPU
-                            'sequence': [{
-                                #First run on TPU
+                            # I want to first try on AWS Rekognition, then on Coral TPU and if it fails, try GPU
+                            'sequence': [
+                            {
+                                # AWS Rekognition object detection
+                                'object_framework': 'aws_rekognition'
+                                'object_min_confidence': 0.7
+                                # no other parameters are required
+                            },
+                            {
+                                # Intel Coral TPU
                                 'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
                                 'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
                                 'object_min_confidence': 0.3,
@@ -72,7 +79,8 @@ class DetectSequence(Base):
                                 # These are optional below. Default is 416. Change if your model is trained for larger sizes
                                 'model_width': 416, 
                                 'model_height': 416
-                            }]
+                            }
+                            ]
                         },
 
                         # We repeat the same exercise with 'face' as it is next in model_sequence

@@ -23,6 +23,7 @@ Features
 - EventNotification callbacks
 - Mapped Memory access
 - Direct access to ML algorithms
+- Amazon Rekognition support for object detection
 
 Limitations
 ============
