@@ -87,6 +87,7 @@ setup(name = NAME,
                     'pyzm.ml.face_train_dlib',
                     'pyzm.ml.object',
                     'pyzm.ml.coral_edgetpu',
+                    'pyzm.ml.aws_rekognition',
                     'pyzm.ml.hog',
                     'pyzm.ml.yolo',
                     'pyzm.ml.detect_sequence'
