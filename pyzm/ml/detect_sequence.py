@@ -154,7 +154,7 @@ class DetectSequence(Base):
                 if seq == 'object':
                     import pyzm.ml.object as  ObjectDetect
                     self.models[seq] = []
-                    for ndx,obj_seq in enumerate(self.ml_options.get(seq,{}).get('sequence')):
+                    for ndx,obj_seq in enumerate(self.ml_options.get(seq,{}).get('sequence', [])):
                         if obj_seq.get('enabled') == 'no':
                             g.logger.Debug(2, 'Skipping {} as it is disabled'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
                             continue
@@ -170,7 +170,7 @@ class DetectSequence(Base):
                 elif seq == 'face':
                     import pyzm.ml.face as FaceDetect
                     self.models[seq] = []
-                    for ndx,face_seq in enumerate(self.ml_options.get(seq,{}).get('sequence')):
+                    for ndx,face_seq in enumerate(self.ml_options.get(seq,{}).get('sequence', [])):
                         if face_seq.get('enabled') == 'no':
                             g.logger.Debug(2, 'Skipping {} as it is disabled'.format(face_seq.get('name') or 'index:{}'.format(ndx)))
                             continue
@@ -184,7 +184,7 @@ class DetectSequence(Base):
                 elif seq == 'alpr':
                     import pyzm.ml.alpr as AlprDetect
                     self.models[seq] = []
-                    for alpr_seq in self.ml_options.get(seq,{}).get('sequence'):
+                    for alpr_seq in self.ml_options.get(seq,{}).get('sequence', []):
                         
                         try:
                             alpr_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
