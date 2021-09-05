@@ -56,19 +56,6 @@ class DetectSequence(Base):
                             # I want to first try on AWS Rekognition, then on Coral TPU and if it fails, try GPU
                             'sequence': [
                             {
-                                # AWS Rekognition object detection
-                                # More info: https://medium.com/@michael-ludvig/aws-rekognition-support-for-zoneminder-object-detection-40b71f926a80
-                                'object_framework': 'aws_rekognition'
-                                'object_min_confidence': 0.7,
-                                # AWS region unless configured otherwise, e.g. in ~www-data/.aws/config
-                                'aws_region': 'us-east-1',
-                                # AWS credentials from /etc/zm/secrets.ini
-                                # unless running on EC2 instance with instance IAM role (which is preferable)
-                                'aws_access_key_id': '!AWS_ACCESS_KEY_ID',
-                                'aws_secret_access_key': '!AWS_SECRET_ACCESS_KEY',
-                                # no other parameters are required
-                            },
-                            {
                                 # Intel Coral TPU
                                 'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
                                 'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
@@ -86,6 +73,19 @@ class DetectSequence(Base):
                                 # These are optional below. Default is 416. Change if your model is trained for larger sizes
                                 'model_width': 416, 
                                 'model_height': 416
+                            },
+                            {
+                                # AWS Rekognition object detection
+                                # More info: https://medium.com/@michael-ludvig/aws-rekognition-support-for-zoneminder-object-detection-40b71f926a80
+                                'object_framework': 'aws_rekognition'
+                                'object_min_confidence': 0.7,
+                                # AWS region unless configured otherwise, e.g. in ~www-data/.aws/config
+                                'aws_region': 'us-east-1',
+                                # AWS credentials from /etc/zm/secrets.ini
+                                # unless running on EC2 instance with instance IAM role (which is preferable)
+                                'aws_access_key_id': '!AWS_ACCESS_KEY_ID',
+                                'aws_secret_access_key': '!AWS_SECRET_ACCESS_KEY',
+                                # no other parameters are required
                             }
                             ]
                         },
