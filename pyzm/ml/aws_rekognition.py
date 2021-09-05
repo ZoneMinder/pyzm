@@ -1,3 +1,6 @@
+# AWS Rekognition support for ZM object detection
+# Author: Michael Ludvig
+
 import io
 import sys
 import base64
@@ -10,13 +13,23 @@ import pyzm.helpers.globals as g
 
 
 class AwsRekognition(Base):
-    def __init__(self, options={}, logger=None):
+    def __init__(self, options={}):
         self.options = options
         self.min_confidence = self.options.get('object_min_confidence', 0.7)
         if self.min_confidence < 1: # Rekognition wants the confidence as 0% ~ 100%, not 0.00 ~ 1.00
             self.min_confidence *= 100
 
-        self._rekognition = boto3.client('rekognition')
+        # Extract AWS config values from options
+        boto3_args = ['aws_region', 'aws_access_key_id', 'aws_secret_access_key']
+        boto3_kwargs = {}
+        for arg in boto3_args:
+            if self.options.get(arg):
+                boto3_kwargs[arg] = self.options.get(arg)
+        if 'aws_region' in boto3_kwargs:
+            boto3_kwargs['region_name'] = boto3_kwargs['aws_region']
+            del boto3_kwargs['aws_region']
+
+        self._rekognition = boto3.client('rekognition', **boto3_kwargs)
         g.logger.Debug (2, f'AWS Rekognition initialised (min confidence: {self.min_confidence}%')
 
     def detect(self, image=None):
@@ -65,3 +78,11 @@ class AwsRekognition(Base):
                 confs.append(conf)
 
         return bboxes, labels, confs, ['aws']*len(labels)
+
+    def acquire_lock(self):
+        # AWS Rekognition doesn't need locking
+        pass
+
+    def release_lock(self):
+        # AWS Rekognition doesn't need locking
+        pass
