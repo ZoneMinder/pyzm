@@ -53,7 +53,7 @@ class DetectSequence(Base):
                             },
 
                             # within object, this is a sequence of object detection libraries. In this case,
-                            # I want to first try on AWS Rekognition, then on Coral TPU and if it fails, try GPU
+                            # First try Coral TPU, if it fails try GPU, and finally, if configured, try AWS Rekognition
                             'sequence': [
                             {
                                 # Intel Coral TPU
