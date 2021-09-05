@@ -65,3 +65,11 @@ class AwsRekognition(Base):
                 confs.append(conf)
 
         return bboxes, labels, confs, ['aws']*len(labels)
+
+    def acquire_lock(self):
+        # AWS Rekognition doesn't need locking
+        pass
+
+    def release_lock(self):
+        # AWS Rekognition doesn't need locking
+        pass
