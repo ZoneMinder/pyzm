@@ -34,8 +34,12 @@ class Object(Base):
             self.model = tpu.Tpu(options=options)
 
         elif self.options.get('object_framework') == 'aws_rekognition':
-            import pyzm.ml.aws_rekognition as awsr
-            self.model = awsr.AwsRekognition(options=options)
+            try:
+                import pyzm.ml.aws_rekognition as awsr
+                self.model = awsr.AwsRekognition(options=options)
+            except ModuleNotFoundError as e:
+                g.logger.Error(f'Module {e.name} not found. Please install with: sudo pip3 install {e.name}')
+                raise e
 
         else:
             raise ValueError ('Invalid object_framework:{}'.format(self.options.get('object_framework')))
