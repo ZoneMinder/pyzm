@@ -58,7 +58,13 @@ class DetectSequence(Base):
                             {
                                 # AWS Rekognition object detection
                                 'object_framework': 'aws_rekognition'
-                                'object_min_confidence': 0.7
+                                'object_min_confidence': 0.7,
+                                # AWS region unless configured otherwise, e.g. in ~www-data/.aws/config
+                                'aws_region': 'us-east-1',
+                                # AWS credentials from /etc/zm/secrets.ini
+                                # unless running on EC2 instance with instance IAM role (which is preferable)
+                                'aws_access_key_id': '!AWS_ACCESS_KEY_ID',
+                                'aws_secret_access_key': '!AWS_SECRET_ACCESS_KEY',
                                 # no other parameters are required
                             },
                             {
