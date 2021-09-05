@@ -23,7 +23,7 @@ Features
 - EventNotification callbacks
 - Mapped Memory access
 - Direct access to ML algorithms
-- Amazon Rekognition support for object detection
+- [Amazon Rekognition support](https://medium.com/@michael-ludvig/aws-rekognition-support-for-zoneminder-object-detection-40b71f926a80) for object detection
 
 Limitations
 ============

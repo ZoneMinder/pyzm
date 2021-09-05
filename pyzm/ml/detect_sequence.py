@@ -57,6 +57,7 @@ class DetectSequence(Base):
                             'sequence': [
                             {
                                 # AWS Rekognition object detection
+                                # More info: https://medium.com/@michael-ludvig/aws-rekognition-support-for-zoneminder-object-detection-40b71f926a80
                                 'object_framework': 'aws_rekognition'
                                 'object_min_confidence': 0.7,
                                 # AWS region unless configured otherwise, e.g. in ~www-data/.aws/config
