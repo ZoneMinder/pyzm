@@ -482,9 +482,9 @@ class DetectSequence(Base):
 
             for p in polygons:
                 poly = Polygon(p['value'])
-                g.logger.Debug(2,"intersection: comparing object:{},{} to polygon:{},{}".format(label[idx],obj,p['name'],poly))
-
+                
                 if obj.intersects(poly):
+                    g.logger.Debug(2,'intersection: object:{},{} intersects polygon:{},{}'.format(label[idx],obj,p['name'],poly))
                     if  p['pattern']:
                         g.logger.Debug(2, '{} polygon/zone has its own pattern of {}, using that'.format(p['name'],p['pattern']))
                         r = re.compile(p['pattern'])
@@ -522,7 +522,8 @@ class DetectSequence(Base):
                             .format(p['name'], label[idx], b))
                     doesIntersect = True
                     break
-
+                else:
+                    g.logger.Debug(2,'intersection: object:{},{} DOES NOT intersect polygon:{},{}'.format(label[idx],obj,p['name'],poly))
             # out of poly loop
             if not doesIntersect:
                 new_err.append(old_b)
