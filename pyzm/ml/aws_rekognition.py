@@ -30,12 +30,12 @@ class AwsRekognition(Base):
             del boto3_kwargs['aws_region']
 
         self._rekognition = boto3.client('rekognition', **boto3_kwargs)
-        g.logger.Debug (2, f'AWS Rekognition initialised (min confidence: {self.min_confidence}%')
+        g.logger.Debug (2, 'AWS Rekognition initialised (min confidence: {}%'.format(self.min_confidence))
 
     def detect(self, image=None):
         height, width = image.shape[:2]
 
-        g.logger.Debug(1, f'|---------- AWS Rekognition (image: {width}x{height}) ----------|')
+        g.logger.Debug(1, '|---------- AWS Rekognition (image: {}x{}) ----------|'.format(width,height))
 
         # Convert 'image' to Base64-encoded JPG format
         #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -50,7 +50,7 @@ class AwsRekognition(Base):
             Image={ 'Bytes': image_jpg },
             MinConfidence=self.min_confidence
         )
-        g.logger.Debug(2, f'Detection response: {response}')
+        g.logger.Debug(2, 'Detection response: {}'.format(response))
 
         # Parse the returned labels
         bboxes = []
@@ -71,7 +71,7 @@ class AwsRekognition(Base):
                     round(width * (instance['BoundingBox']['Left'] + instance['BoundingBox']['Width'])),
                     round(height * (instance['BoundingBox']['Top'] + instance['BoundingBox']['Height']))
                 )
-                g.logger.Debug(3, f"{bbox=} / {label=} / {conf=}")
+                g.logger.Debug(3, 'bbox={} / label={} / conf={}'.format(bbox, label, conf))
 
                 bboxes.append(bbox)
                 labels.append(label)

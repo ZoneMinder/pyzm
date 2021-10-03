@@ -38,7 +38,7 @@ class Object(Base):
                 import pyzm.ml.aws_rekognition as awsr
                 self.model = awsr.AwsRekognition(options=options)
             except ModuleNotFoundError as e:
-                g.logger.Error(f'Module {e.name} not found. Please install with: sudo pip3 install {e.name}')
+                g.logger.Error('Module {} not found. Please install with: sudo pip3 install {}'.format(e.name, e.name))
                 raise e
 
         else:
