@@ -510,7 +510,7 @@ class DetectSequence(Base):
                         g.logger.Debug (1,'{}'.format(self.ml_overrides))
                         g.logger.Debug (1,'**********************************')
                         '''
-                        if self.ml_overrides.get(seq,{}).get('pattern'):
+                        if self.ml_overrides.get(seq,{}).get('pattern') and False:
                             match_pattern = self.ml_overrides.get(seq,{}).get('pattern')
                             g.logger.Debug(2,'Match pattern overridden to {} in ml_overrides'.format(match_pattern))
                         else:
@@ -663,9 +663,9 @@ class DetectSequence(Base):
             found = False
             g.logger.Debug (1, "Sequence of detection types to execute: {}".format(self.model_sequence))
             for seq in self.model_sequence:
-                if seq not in self.ml_overrides.get('model_sequence',seq):
-                    g.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
-                    continue
+                #if seq not in self.ml_overrides.get('model_sequence',seq):
+                #    g.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
+                #    continue
                 g.logger.Debug(1,'============ Frame: {} Running {} detection type in sequence =================='.format(self.media.get_last_read_frame(),seq))
                 pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
                 if pre_existing_labels:
