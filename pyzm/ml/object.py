@@ -28,11 +28,18 @@ class Object(Base):
         if self.options.get('object_framework') == 'opencv':
             import pyzm.ml.yolo as yolo
             self.model =  yolo.Yolo(options=options)
-            
 
         elif self.options.get('object_framework') == 'coral_edgetpu':
             import pyzm.ml.coral_edgetpu as tpu
             self.model = tpu.Tpu(options=options)
+
+        elif self.options.get('object_framework') == 'aws_rekognition':
+            try:
+                import pyzm.ml.aws_rekognition as awsr
+                self.model = awsr.AwsRekognition(options=options)
+            except ModuleNotFoundError as e:
+                g.logger.Error('Module {} not found. Please install with: sudo pip3 install {}'.format(e.name, e.name))
+                raise e
 
         else:
             raise ValueError ('Invalid object_framework:{}'.format(self.options.get('object_framework')))

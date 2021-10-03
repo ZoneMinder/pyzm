@@ -53,9 +53,10 @@ class DetectSequence(Base):
                             },
 
                             # within object, this is a sequence of object detection libraries. In this case,
-                            # I want to first try on my TPU and if it fails, try GPU
-                            'sequence': [{
-                                #First run on TPU
+                            # First try Coral TPU, if it fails try GPU, and finally, if configured, try AWS Rekognition
+                            'sequence': [
+                            {
+                                # Intel Coral TPU
                                 'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
                                 'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
                                 'object_min_confidence': 0.3,
@@ -72,7 +73,21 @@ class DetectSequence(Base):
                                 # These are optional below. Default is 416. Change if your model is trained for larger sizes
                                 'model_width': 416, 
                                 'model_height': 416
-                            }]
+                            },
+                            {
+                                # AWS Rekognition object detection
+                                # More info: https://medium.com/@michael-ludvig/aws-rekognition-support-for-zoneminder-object-detection-40b71f926a80
+                                'object_framework': 'aws_rekognition'
+                                'object_min_confidence': 0.7,
+                                # AWS region unless configured otherwise, e.g. in ~www-data/.aws/config
+                                'aws_region': 'us-east-1',
+                                # AWS credentials from /etc/zm/secrets.ini
+                                # unless running on EC2 instance with instance IAM role (which is preferable)
+                                'aws_access_key_id': '!AWS_ACCESS_KEY_ID',
+                                'aws_secret_access_key': '!AWS_SECRET_ACCESS_KEY',
+                                # no other parameters are required
+                            }
+                            ]
                         },
 
                         # We repeat the same exercise with 'face' as it is next in model_sequence
@@ -154,7 +169,7 @@ class DetectSequence(Base):
                 if seq == 'object':
                     import pyzm.ml.object as  ObjectDetect
                     self.models[seq] = []
-                    for ndx,obj_seq in enumerate(self.ml_options.get(seq,{}).get('sequence')):
+                    for ndx,obj_seq in enumerate(self.ml_options.get(seq,{}).get('sequence', [])):
                         if obj_seq.get('enabled') == 'no':
                             g.logger.Debug(2, 'Skipping {} as it is disabled'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
                             continue
@@ -170,7 +185,7 @@ class DetectSequence(Base):
                 elif seq == 'face':
                     import pyzm.ml.face as FaceDetect
                     self.models[seq] = []
-                    for ndx,face_seq in enumerate(self.ml_options.get(seq,{}).get('sequence')):
+                    for ndx,face_seq in enumerate(self.ml_options.get(seq,{}).get('sequence', [])):
                         if face_seq.get('enabled') == 'no':
                             g.logger.Debug(2, 'Skipping {} as it is disabled'.format(face_seq.get('name') or 'index:{}'.format(ndx)))
                             continue
@@ -184,7 +199,7 @@ class DetectSequence(Base):
                 elif seq == 'alpr':
                     import pyzm.ml.alpr as AlprDetect
                     self.models[seq] = []
-                    for alpr_seq in self.ml_options.get(seq,{}).get('sequence'):
+                    for alpr_seq in self.ml_options.get(seq,{}).get('sequence', []):
                         
                         try:
                             alpr_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
@@ -363,12 +378,12 @@ class DetectSequence(Base):
 
                     if diff_area <= max_diff_pixels:
                         g.logger.Debug(1,
-                            'past detection {}@{} approximately matches {}@{} removing'
+                            'match_past_detection: past detection {}@{} approximately matches {}@{} removing'
                             .format(saved_ls[saved_idx], saved_b, label[idx], b))
                         foundMatch = True
                         break
                     else:
-                        g.logger.Debug(2,'Diff area of:{} > max_diff_pixels:{} for {}@{}, allowing it'
+                        g.logger.Debug(2,'match_past_detection: Diff area of:{} > max_diff_pixels:{} for {}@{}, allowing it'
                         .format(diff_area, max_diff_pixels,label[idx], b))
             if not foundMatch:
                 new_bbox.append(old_b)
@@ -482,9 +497,9 @@ class DetectSequence(Base):
 
             for p in polygons:
                 poly = Polygon(p['value'])
-                g.logger.Debug(2,"intersection: comparing object:{},{} to polygon:{},{}".format(label[idx],obj,p['name'],poly))
-
+                
                 if obj.intersects(poly):
+                    g.logger.Debug(2,'intersection: object:{},{} intersects polygon:{},{}'.format(label[idx],obj,p['name'],poly))
                     if  p['pattern']:
                         g.logger.Debug(2, '{} polygon/zone has its own pattern of {}, using that'.format(p['name'],p['pattern']))
                         r = re.compile(p['pattern'])
@@ -495,7 +510,7 @@ class DetectSequence(Base):
                         g.logger.Debug (1,'{}'.format(self.ml_overrides))
                         g.logger.Debug (1,'**********************************')
                         '''
-                        if self.ml_overrides.get(seq,{}).get('pattern'):
+                        if self.ml_overrides.get(seq,{}).get('pattern') and False:
                             match_pattern = self.ml_overrides.get(seq,{}).get('pattern')
                             g.logger.Debug(2,'Match pattern overridden to {} in ml_overrides'.format(match_pattern))
                         else:
@@ -522,7 +537,8 @@ class DetectSequence(Base):
                             .format(p['name'], label[idx], b))
                     doesIntersect = True
                     break
-
+                else:
+                    g.logger.Debug(2,'intersection: object:{},{} DOES NOT intersect polygon:{},{}'.format(label[idx],obj,p['name'],poly))
             # out of poly loop
             if not doesIntersect:
                 new_err.append(old_b)
@@ -647,9 +663,9 @@ class DetectSequence(Base):
             found = False
             g.logger.Debug (1, "Sequence of detection types to execute: {}".format(self.model_sequence))
             for seq in self.model_sequence:
-                if seq not in self.ml_overrides.get('model_sequence',seq):
-                    g.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
-                    continue
+                #if seq not in self.ml_overrides.get('model_sequence',seq):
+                #    g.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
+                #    continue
                 g.logger.Debug(1,'============ Frame: {} Running {} detection type in sequence =================='.format(self.media.get_last_read_frame(),seq))
                 pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
                 if pre_existing_labels:
