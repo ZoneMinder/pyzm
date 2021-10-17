@@ -87,7 +87,7 @@ ml_options = {
             'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
             'object_min_confidence': 0.3,
             'object_framework':'opencv',
-            'object_processor': 'cpu',
+            'object_processor': 'gpu',
             #'car_past_det_max_diff_area': '10%',
             #'match_past_detections': 'yes',
             #'car_max_detection_size': '13000',
