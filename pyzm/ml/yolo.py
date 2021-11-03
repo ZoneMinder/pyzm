@@ -28,6 +28,7 @@ class Yolo(Base):
         self.processor=self.options.get('object_processor') or 'cpu'
         self.lock_maximum=int(options.get(self.processor+'_max_processes') or 1)
         self.lock_timeout = int(options.get(self.processor+'_max_lock_wait') or 120)
+        self.is_get_unconnected_api_list = False
         
         #self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_name='pyzm_uid{}_{}_lock'.format(os.getuid(),self.processor)
@@ -88,12 +89,19 @@ class Yolo(Base):
         #self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
         diff_time = t.stop_and_get_ms()
 
+        (maj, minor, patch) = cv2.__version__.split('.')
+        min_ver = int(maj + minor)
+        patch = int(patch) if patch.isdigit() else 0
+        if min_ver >= 45 and patch >=4:
+            # see https://github.com/opencv/opencv/issues/20923
+            # we need to modify Yolo code not to expect a nested structure 
+            g.logger.Debug(1, 'You are using OpenCV >= 4.5.4, making sure we fix getUnconnectedOutLayers() API')
+            self.is_get_unconnected_api_list = True
         g.logger.Debug(
             1,'perf: processor:{} Yolo initialization (loading {} model from disk) took: {}'
             .format(self.processor, self.options.get('object_weights'), diff_time))
         if self.processor == 'gpu':
-            (maj, minor, patch) = cv2.__version__.split('.')
-            min_ver = int(maj + minor)
+
             if min_ver < 42:
                 g.logger.Error('Not setting CUDA backend for OpenCV DNN')
                 g.logger.Error(
@@ -113,9 +121,14 @@ class Yolo(Base):
 
     def get_output_layers(self):
         layer_names = self.net.getLayerNames()
-        output_layers = [
-            layer_names[i[0] - 1] for i in self.net.getUnconnectedOutLayers()
-        ]
+        if self.is_get_unconnected_api_list:
+            output_layers = [
+                layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()
+            ] 
+        else:
+            output_layers = [
+                layer_names[i[0] - 1] for i in self.net.getUnconnectedOutLayers()
+            ]
         return output_layers
 
     def detect(self, image=None):
@@ -152,8 +165,7 @@ class Yolo(Base):
             scale = 0.00392  # 1/255, really. Normalize inputs.
                 
             t = Timer()
-            ln = self.net.getLayerNames()
-            ln = [ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()]
+            ln = self.get_output_layers()
             blob = cv2.dnn.blobFromImage(image,
                                         scale, (self.model_width, self.model_height), (0, 0, 0),
                                         True,
@@ -214,7 +226,8 @@ class Yolo(Base):
 
         # now filter out with configured yolo confidence, so we can see rejections in log
         for i in indices:
-            i = i[0]
+            if not self.is_get_unconnected_api_list:
+                i = i[0]
             box = boxes[i]
             x = box[0]
             y = box[1]
