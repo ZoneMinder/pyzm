@@ -6,16 +6,16 @@ It is basically a bunch of getters for each access to event data.
 If you don't see a specific getter, just use the generic get function to get
 the full object
 """
+from typing import Optional
+g: Optional[object] = None
 
 
-from pyzm.helpers.Base import Base
-import pyzm.helpers.globals as g
-
-
-class Monitor(Base):
-    def __init__(self, api=None, monitor=None):
+class Monitor:
+    def __init__(self, globs=None, monitor=None):
+        global g
+        g = globs
         self.monitor = monitor
-        self.api = api
+        self.api = g.api
     
     def get(self):
         """Returns monitor object
@@ -56,6 +56,14 @@ class Monitor(Base):
             int: Monitor Id
         """
         return int(self.monitor['Monitor']['Id'])
+
+    def linked(self):
+        """Returns monitor Id
+
+        Returns:
+            int: Monitor Id
+        """
+        return self.monitor['Monitor']['LinkedMonitors']
 
     def type(self):
         """Returns monitor type
@@ -116,7 +124,7 @@ class Monitor(Base):
             json: API response
         """
         url = self.api.api_url+'/monitors/{}.json'.format(self.id())
-        return self.api._make_request(url=url, type='delete')
+        return self.api.make_request(url=url, type_action='delete')
 
 
     def set_parameter(self, options={}):
@@ -156,7 +164,7 @@ class Monitor(Base):
                 payload[k] = options.get('raw')[k]
                
         if payload:
-            return self.api._make_request(url=url, payload=payload, type='post')
+            return self.api.make_request(url=url, payload=payload, type_action='post')
 
     def arm(self):
         """Arms monitor (forces alarm)
@@ -176,7 +184,7 @@ class Monitor(Base):
 
     def _set_alarm(self,type='on'):
         url = self.api.api_url+'/monitors/alarm/id:{}/command:{}.json'.format(self.id(), type)
-        return self.api._make_request(url=url)
+        return self.api.make_request(url=url)
 
 
 
@@ -188,4 +196,4 @@ class Monitor(Base):
             json: API response
         """
         url = self.api.api_url+'/monitors/daemonStatus/id:{}/daemon:zmc.json'.format(self.id())
-        return self.api._make_request(url=url)
+        return self.api.make_request(url=url)

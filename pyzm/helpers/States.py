@@ -8,24 +8,31 @@ which can be overriden
 
 
 from pyzm.helpers.State import State
-from pyzm.helpers.Base import Base
-import requests
-import pyzm.helpers.globals as g
+from typing import Optional
+
+g: Optional[object] = None
 
 
-class States(Base):
-    def __init__(self, api=None):
-        self.api = api
+class States:
+    def __init__(self, globs=g):
+        global g
+        g = globs
+        self.api = g.api
+        self.states = []
         self._load()
 
+    def __iter__(self):
+        if self.states:
+            for state in self.states:
+                yield state
+
     def _load(self,options={}):
-        g.logger.Debug(2,'Retrieving states via API')
+        g.logger.debug(2, 'Retrieving states via API')
         url = self.api.api_url +'/states.json'
-        r = self.api._make_request(url=url)
+        r = self.api.make_request(url=url)
         states = r.get('states')
-        self.states = []
         for state in states:
-           self.states.append(State(state=state,api=self.api))
+           self.states.append(State(state=state, globs=g))
 
 
     def list(self):

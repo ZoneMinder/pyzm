@@ -6,61 +6,86 @@ It is basically a bunch of getters for each access to event data.
 If you don't see a specific getter, just use the generic get function to get
 the full object
 """
-
-from pyzm.helpers.Base import Base
-import progressbar as pb
+from typing import Optional, AnyStr
 import requests
-import os
-import sys
-import pyzm.helpers.globals as g
+from pathlib import Path
+
+from progressbar import ProgressBar as pb
+
+g = None
 
 
-class Event(Base):
-    def __init__(self, event=None, api=None):
+class Event:
+    def __init__(self, event=None, globs=None):
+        global g
+        g = globs
         self.event = event
-        self.api = api
-               
-    def get(self):
-        """Returns event object.
+        self.api = g.api
 
-        Returns:
-            :class:`pyzm.helpers.Event`: Event object
-        """
-        return self.event['Event']
-    
-    def get_image_url(self,fid='snapshot'):
+    @property
+    def get(self) -> Optional[dict]:
+        """There are 3 sections returned from an event request **'Event'**, **'Frame'** and **'Monitor'**.
+           This will return the complete **'Event'** section which has information about this event.
+            :returns: Dict containing all event information"""
+        return self.event.get('Event')
+
+    @property
+    def get_Frames(self) -> Optional[list]:
+        """There are 3 sections returned from an event request **'Event'**, **'Frame'** and **'Monitor'**.
+           This will return the complete **'Frame'** section which has a list whose length corresponds to how many
+           frames this event has along with information in each frame.
+                    [
+                    {'Id': '4971397', 'EventId': '29547', 'FrameId': '1', 'Type': 'Normal', 'TimeStamp': '2021-09-10 18:29:35', 'Delta': '0.00', 'Score': '0'},
+                    {'Id': '4971501', 'EventId': '29547', 'FrameId': '105', 'Type': 'Normal', 'TimeStamp': '2021-09-10 18:29:42', 'Delta': '6.94', 'Score': '0'}
+                    ]
+            :returns: List of Dict containing all frames with their associated data for this event."""
+        return self.event['Frame']
+
+    @property
+    def get_Monitor(self) -> Optional[dict]:
+        """There are 3 sections returned from an event request **'Event'**, **'Frames'** and **'Monitor'**.
+           This will return the complete 'Monitor' section which has information about the monitor
+           that created this event.
+            :returns: Dict containing monitor information"""
+        return self.event['Monitor']
+
+    @property
+    def get_image_url(self, fid='snapshot'):
         """Returns the image URL for the specified frame
         
         Args:
-            fid (str, optional): Default frame identification. Defaults to 'snapshot'.
+            fid (str, optional): Frame ID to grab. Defaults to 'snapshot'.
         
         Returns:
             string: URL for the image
         """        
         eid = self.id()
-        url = self.api.portal_url+'/index.php?view=image&eid={}&fid={}'.format(eid,fid)+'&'+self.api.get_auth()
+        url = f"{self.api.portal_url}/index.php?view=image&eid={eid}&fid={fid}&{self.api.get_auth()}"
         return url
 
-    def get_video_url(self):
-        """Returms the video URL for the specified event
+    @property
+    def get_video_url(self) -> Optional[AnyStr]:
+        """Returns the video URL for the specified event
         
         Returns:
             string: URL for the video file
         """        
         if not self.video_file():
-            g.logger.Error ('Event {} does not have a video file'.format(self.id()))
+            g.logger.error(f"Event '{self.id()}' does not have a video file, do you have 'Video Writer' set to "
+                           f"'Encode' or 'Camera Passthrough'?"
+                           )
             return None
         eid = self.id()
         url = self.api.portal_url+'/index.php?mode=mpeg&eid={}&view=view_video'.format(eid)+'&'+self.api.get_auth()
         return url
     
-    def download_image(self, fid='snapshot', dir='.', show_progress=False):     
-       
+    def download_image(self, fid='snapshot', download_dir='.', show_progress=False):
+
         """Downloads an image frame of the current event object
         
         Args:
             fid (str, optional): Frame ID. Defaults to 'snapshot'.
-            dir (str, optional): Path to save the image to. Defaults to '.'.
+            download_dir (str, optional): Path to save the image to. Defaults to '.'.
             show_progress (bool, optional): If enabled shows a progress bar (if possible). Defaults to False.
         
         Returns:
@@ -69,16 +94,16 @@ class Event(Base):
         """           
            
         url = self.get_image_url(fid)
-        f =  self._download_file(url, str(self.id())+'-'+fid+'.jpg', dir, show_progress)
-        g.logger.Info('File downloaded to {}'.format(f))
+        f = self._download_file(url, f"{self.id()}-{fid}.jpg", download_dir, show_progress)
+        g.logger.info(f"Image file downloaded to '{f}'")
         return f
 
-    def download_video(self, dir='.', show_progress=False):
+    def download_video(self, download_dir='.', show_progress=False):
         """Downloads a video mp4 of the current event object
-        Only works if there an actual video 
+        Only works if there is an actual video
         
         Args:
-            dir (str, optional): Path to save the image to. Defaults to '.'.
+            download_dir (str, optional): Path to save the image to. Defaults to '.'.
             show_progress (bool, optional): If enabled shows a progress bar (if possible). Defaults to False.
         
         Returns:
@@ -86,11 +111,11 @@ class Event(Base):
         
         """           
            
-        url = self.get_video_url()
+        url = self.get_video_url
         if not url:
             return None
-        f =  self._download_file(url, str(self.id())+'-video'+'.mp4', dir, show_progress)
-        g.logger.Info('File downloaded to {}'.format(f))
+        f = self._download_file(url, f"{self.id()}-video.mp4", download_dir, show_progress)
+        g.logger.info(f"Video file downloaded to {f}")
         return f
 
     def delete(self):
@@ -99,9 +124,10 @@ class Event(Base):
         Returns:
             json: API response
         """
-        url = self.api.api_url+'/events/{}.json'.format(self.id())
-        return self.api._make_request(url=url, type='delete')
+        url = f"{self.api.api_url}/events/{self.id()}.json"
+        return self.api.make_request(url=url, type_action='delete')
 
+    @property
     def monitor_id(self):
         """returns monitor ID of event object.
 
@@ -109,7 +135,18 @@ class Event(Base):
             int: monitor id
         """
         return int(self.event['Event']['MonitorId'])
-    
+
+    @property
+    def start_time(self) -> AnyStr:
+        """returns start time of event.
+
+        Returns:
+            str: start time
+        """
+        # print(f"{self.event = }")
+        return self.event['Event']['StartTime']
+
+    @property
     def id(self):
         """returns event id of event.
 
@@ -118,6 +155,7 @@ class Event(Base):
         """
         return int(self.event['Event']['Id'])
 
+    @property
     def name(self):
         """returns name of event.
 
@@ -125,7 +163,8 @@ class Event(Base):
             string: name of event
         """      
         return self.event['Event']['Name'] or None
-    
+
+    @property
     def video_file(self):
         """returns name of video file in which the event was stored.
 
@@ -133,7 +172,8 @@ class Event(Base):
             string: name of video file
         """
         return self.event['Event'].get('DefaultVideo')
-    
+
+    @property
     def cause(self):
         """returns event cause.
 
@@ -141,15 +181,17 @@ class Event(Base):
             string: event cause
         """ 
         return self.event['Event']['Cause'] or None
-    
+
+    @property
     def notes(self):
         """returns event notes.
 
         Returns:
             string: event notes
         """
-        return self.event['Event']['Notes'] or None
-    
+        return self.event['Event'].get('Notes')
+
+    @property
     def fspath(self):
         """returns the filesystem path where the event is stored. Only
         available in ZM 1.33+
@@ -158,7 +200,8 @@ class Event(Base):
             string: path
         """
         return self.event['Event'].get('FileSystemPath')
-    
+
+    @property
     def duration(self):
         """Returns duration of event in seconds.
 
@@ -166,7 +209,8 @@ class Event(Base):
             float: duration
         """
         return float(self.event['Event']['Length'])
-    
+
+    @property
     def total_frames(self):
         """Returns total frames in event.
 
@@ -174,7 +218,8 @@ class Event(Base):
             int: total frames
         """
         return int(self.event['Event']['Frames'])
-    
+
+    @property
     def alarmed_frames(self):
         """Returns total alarmed frames in event.
 
@@ -182,7 +227,8 @@ class Event(Base):
             int: total alarmed frames
         """
         return int(self.event['Event']['AlarmFrames'])
-    
+
+    @property
     def score(self):
         """Returns total, average and max scores of event.
 
@@ -197,52 +243,49 @@ class Event(Base):
         """
         return {
             'total': float(self.event['Event']['TotScore']),
-            'average':float(self.event['Event']['AvgScore']),
-            'max':float(self.event['Event']['MaxScore'])
+            'average': float(self.event['Event']['AvgScore']),
+            'max': float(self.event['Event']['MaxScore'])
         }
     
-    def _download_file(self,url, file_name, dest_dir, show_progress=False, reauth=True):
+    def _download_file(self, url, file_name, dest_dir, show_progress=False, reauth=True):
+        if not Path(dest_dir).exists():
+            Path(dest_dir).mkdir()
 
-        
-        if not os.path.exists(dest_dir):
-            os.makedirs(dest_dir)
+        full_path_to_file = Path(dest_dir/file_name)
 
-        full_path_to_file = dest_dir + os.path.sep + file_name
+        if full_path_to_file.exists():
+            return full_path_to_file.absolute()
 
-        if os.path.exists(dest_dir + os.path.sep + file_name):
-            return full_path_to_file
-
-        g.logger.Info("Downloading " + file_name + " from " + url)
+        g.logger.info(f"Downloading '{file_name}' from '{url}'")
 
         try:
-            req = requests
+            req = requests  # fall back
             if self.api and self.api.get_session():
                 req = self.api.get_session()
-                #print ("OVERRIDING")
+                # print ("OVERRIDING")
             r = req.get(url, allow_redirects=True, stream=True)
 
 #            r = requests.get(url, allow_redirects=True, stream=True)
         except requests.exceptions.HTTPError as err:
-            g.logger.Debug(1, 'Got download access error: {}'.format(err), 'error')
+            g.logger.debug(f"Got download access error: {err}")
             if err.response.status_code == 401 and reauth:
-                g.logger.Debug (1, 'Retrying login once')
-                self._relogin()
-                g.logger.Debug (1,'Retrying failed request again...')
+                g.logger.debug('Retrying login once')
+                req._relogin()
+                g.logger.debug('Retrying failed request again...')
                 return self._download_file(url, file_name, dest_dir, show_progress, reauth=False)
             else:
                 raise err
-        except:
-            #e = sys.exc_info()[0]
-            #print(e)
-            g.logger.Error("Could not establish connection. Download failed")
+        except Exception as all_ex:
+            g.logger.error("Could not establish connection. Download failed.")
+            g.logger.debug(f"Exception -> {all_ex}")
             return None
 
         if r.headers.get('Content-Type') and "text/html" in r.headers.get('Content-Type'):
             if reauth:
-                g.logger.Error ('We got redirected to login while trying to download, trying one more time')
+                g.logger.error('It seems we were redirected to login page while trying to download, trying one more time')
                 return self._download_file(url, file_name, dest_dir, show_progress, reauth=False)
             else:
-                g.logger.Error ('Failed doing reauth, not trying again')
+                g.logger.error('Failed trying to reauthorize, not trying again')
                 return None
         
         if r.headers.get('Content-Length'):
@@ -255,25 +298,25 @@ class Event(Base):
             num_bars = round(file_size / chunk_size)
         else:
             num_bars = 0
-
+        bar: Optional[pb] = None
         if show_progress:
             if file_size:
-                bar = pb.ProgressBar(maxval=num_bars).start()
+                bar = pb(maxval=num_bars).start()
             else:
-                bar = pb.ProgressBar().start()
+                bar = pb().start()
         
         if r.status_code != requests.codes.ok:
-            g.logger.Error("Error occurred while downloading file")
+            g.logger.error("Error occurred while downloading file")
             return None
 
         count = 0
         
         with open(full_path_to_file, 'wb') as fp:
-            for chunk in  r.iter_content(chunk_size=chunk_size):
+            for chunk in r.iter_content(chunk_size=chunk_size):
                 fp.write(chunk)
-                if show_progress:
+                if show_progress and bar:
                     bar.update(count)
-                    count +=1
+                    count += 1
             fp.close()
 
         return full_path_to_file

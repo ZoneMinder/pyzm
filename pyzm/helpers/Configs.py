@@ -3,24 +3,27 @@ Configs
 =======
 Hold all ZM Config data. No need for a separate config class
 """
+from typing import Optional
+g: Optional[object] = None
 
 
-from pyzm.helpers.Base import Base
-import pyzm.helpers.globals as g
-
-
-import requests
-
-class Configs(Base):
-    def __init__(self, api=None):
-        self.api = api
+class Configs:
+    def __init__(self, globs=None):
+        global g
+        g = globs
+        self.api = g.api
+        self.configs = None
         self._load()
 
     def _load(self,options={}):
-        g.logger.Debug(1,'Retrieving config via API')
+        g.logger.debug(1, 'Retrieving config via API')
         url = self.api.api_url +'/configs.json'
-        r = self.api._make_request(url=url)
-        self.configs = r.get('configs')
+        try:
+            r = self.api.make_request(url=url)
+        except Exception as exc:
+            g.logger.error(f"Error retrieving configuration from API -> {exc}")
+        else:
+            self.configs = r.get('configs')
 
     def list(self):
         """Returns list of configuration
@@ -83,7 +86,7 @@ class Configs(Base):
             return
         url = self.api.api_url + '/configs/edit/{}.json'.format(name)
         data = {'Config[Value]':val}
-        return self.api._make_request(url=url, payload=data, type='put')
+        return self.api.make_request(url=url, payload=data, type_action='put')
         
         
 

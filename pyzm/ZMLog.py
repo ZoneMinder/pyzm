@@ -1,519 +1,672 @@
 """
 ZMLog
 =======
-Implements a python implementation of ZoneMinder's logging system
-You could use this to connect it to the APIs if you want
-
+A python implementation of ZoneMinder's logging system
+You can use this to connect it to the APIs if you want
 """
+import copy
+import glob
+import grp
+import os
+from traceback import format_exc
+from typing import Optional
 
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData
-from sqlalchemy import Table
-from sqlalchemy import select
-from sqlalchemy import or_
-from sqlalchemy import inspect
-from sqlalchemy.exc import SQLAlchemyError
-
-import configparser
-import glob,os,psutil
-import syslog
-from inspect import getframeinfo,stack
-import time
-import pwd,grp
-import datetime
+import psutil
+import pwd
 import signal
 import sys
-import pyzm.helpers.globals as g
+import syslog
+import time
+from configparser import ConfigParser
+from datetime import datetime
 from dotenv import load_dotenv
+from getpass import getuser
+from inspect import getframeinfo, stack
+from pathlib import Path
+from shutil import which
+from sqlalchemy import create_engine, MetaData, select, or_  # ,Table,inspect
+from sqlalchemy.exc import SQLAlchemyError
+
+g: Optional[object] = None
+lp = 'ZM Log:'
+zm_inst = which('zmdc.pl')
 
 
-pid = None
-process_name = None
-inited = False
-config={}
-engine = None
-conn = None
-connected = False
-config_table = None
-log_table = None
-meta = None
-log_fname = None
-log_fhandle = None
-cstr = None
-log_reload_needed = False
-
-logger_name = None 
-logger_overrides = {}
+def sig_log_rot(sig, frame):
+    lp = 'signal handler:'
+    name = g.logger.logger_name
+    overrides = g.logger.logger_overrides
+    # close handlers
+    g.logger.log_close()
+    # re-init logger
+    g.logger = ZMLog(name=name, override=overrides, no_signal=True)
+    g.logger.info(f"{lp} ready after log re-initialization due to receiving HUP signal: {sig=}")
 
 
-connected = False
-levels = {
-    'DBG':1,
-    'INF':0,
-    'WAR':-1,
-    'ERR':-2,
-    'FAT':-3,
-    'PNC':-4,
-    'OFF':-5
-    }
-
-priorities = {
-        'DBG':syslog.LOG_DEBUG,
-        'INF':syslog.LOG_INFO,
-        'WAR':syslog.LOG_WARNING,
-        'ERR':syslog.LOG_ERR,
-        'FAT':syslog.LOG_ERR,
-        'PNC':syslog.LOG_ERR
-    }
-
-def init(name=None, override={}):
-    """Initializes the ZM logging system. It follows ZM logging principles and ties into appropriate ZM logging levels. Like the rest of ZM, it can write to files, syslog and the ZM DB.
-
-    To make it simpler to override, you can pass various options in the override dict. When passed, they will override any ZM setting
-    
-    Args:
-        name (string, optional): Name to be used while writing logs. If not specified, it will use the process name. Defaults to None.
-        override (dict, optional): Various parameters that can supercede standard ZM logs. Defaults to {}. The parameters that can be overriden are::
-
-            {
-                'dump_console': False,
-                'conf_path': '/etc/zm',
-                'dbuser' : None,
-                'dbpassword' : None,
-                'dbhost' : None,
-                'webuser': 'www-data',
-                'webgroup': 'www-data',
-                'dbname' : None,
-                'logpath' : '/var/log/zm',
-                'log_level_syslog' : 0,
-                'log_level_file' : 0,
-                'log_level_db' : 0,
-                'log_debug' : 0,
-                'log_level_debug' : 1,
-                'log_debug_target' : '',
-                'log_debug_file' :'',
-                'server_id': 0,
-                'driver': 'mysql+mysqlconnector'
-            }
-
-            You can also pass environment variables (supports .env files too):
-            - PYZM_CONFPATH : path to zm.conf. Default is /etc/zm. Note that if you have a conf file, the values below
-                              will automatically be picked up from the conf. You can choose to override them by using 
-                              the variables below 
-
-            - PYZM_DBUSER: ZM DB user
-            - PYZM_DBPASSWORD : ZM DB password
-            - PYZM_DBHOST: ZM DB host
-            - PYZM_DBNAME  ZM DB Name
-            - PYZM_WEBUSER: web user
-            - PYZM_WEBGROUP: web group
-            - PYZM_LOGPATH: path to ZM logs
-            - PYZM_SYSLOGLEVEL
-            - PYZM_FILELOGLEVEL
-            - PYZM_DBLOGLEVEL
-            - PYZM_LOGDEBUG
-            - PYZM_LOGDEBUGLEVEL
-            - PYZM_LOGDEBUGTARGET
-            - PYZM_LOGDEBUGFILE
-            - PYZM_SERVERID
-
-            These are specific to pyzm:
-            - PYZM_DUMPCONSOLE: If True will print logs to terminal
-            - PYZM_DBDRIVER: Switch the driver pyzm uses to connect to the DB
-
-            The order of priority is:
-
-            - pyzm_overrides takes priority over env variables
-            - env variables (supports .env file) take priority over ZM config files 
-            - ZM config files is used for whatever is not overriden above
-    """
-    global logger, pid, process_name, inited, config, engine, conn, cstr, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    global logger_name, logger_overrides
-    if inited:
-        Debug (1, "Logs already inited")
-        return
-
-    load_dotenv() 
-    inited = True
-    logger_name = name 
-    logger_overrides = override
-    pid =  os.getpid()
-    process_name = name or psutil.Process(pid).name()
-    syslog.openlog(logoption=syslog.LOG_PID)
-
-    defaults = {
-        'dbuser' : None,
-        'webuser': 'www-data',
-        'webgroup':'www-data',
-        'logpath' : '/var/log/zm',
-        'log_level_syslog' :0,
-        'log_level_file' : 0,
-        'log_level_db' : 0,
-        'log_debug' : 0,
-        'log_level_debug' : 0,
-        'log_debug_target' :'',
-        'log_debug_file' :0,
-        'server_id': 0,
-       
-        'dump_console':False
-    }
-
-    config = {
-        'conf_path': os.getenv('PYZM_CONFPATH', '/etc/zm'), # we need this to get started
-        'dbuser' : os.getenv('PYZM_DBUSER'),
-        'dbpassword' : os.getenv('PYZM_DBPASSWORD'),
-        'dbhost' :os.getenv('PYZM_DBHOST'),
-        'webuser': os.getenv('PYZM_WEBUSER'),
-        'webgroup': os.getenv('PYZM_WEBGROUP'),
-        'dbname' : os.getenv('PYZM_DBNAME'),
-        'logpath' : os.getenv('PYZM_LOGPATH'),
-        'log_level_syslog' : os.getenv('PYZM_SYSLOGLEVEL'),
-        'log_level_file' : os.getenv('PYZM_FILELOGLEVEL'),
-        'log_level_db' : os.getenv('PYZM_DBLOGLEVEL'),
-        'log_debug' : os.getenv('PYZM_LOGDEBUG'),
-        'log_level_debug' : os.getenv('PYZM_LOGDEBUGLEVEL'),
-        'log_debug_target' : os.getenv('PYZM_LOGDEBUGTARGET'),
-        'log_debug_file' :os.getenv('PYZM_LOGDEBUGFILE'),
-        'server_id': os.getenv('PYZM_SERVERID'),
-        'dump_console': os.getenv('PYZM_DUMPCONSOLE'),
-        'driver': os.getenv('PYZM_DBDRIVER','mysql+mysqlconnector')
-    }
-
-    # Round 1 of overrides, before we read params from DB
-    # Override with locals if present
-    for key in override:
-        if override[key]:
-            config[key] = override[key]
-    
-        #print('**********************A-R1 {}'. format(config))
-
-    
-    # read all config files in order
-    files=[]
-    for f in glob.glob(config['conf_path']+'/conf.d/*.conf'):
-        files.append(f)
-    files.sort()
-    files.insert(0,config['conf_path']+'/zm.conf')
-    config_file = configparser.ConfigParser(interpolation=None, inline_comment_prefixes='#')
-    for f in files:
-        with open(f) as s:
-            #print ('reading {}'.format(f))
-            config_file.read_string('[zm_root]\n' + s.read())
-            s.close()
-    # config_file will now contained merged data
-    conf_data=config_file['zm_root']
-
-    if not config.get('dbuser'):
-        config['dbuser'] = conf_data.get('ZM_DB_USER')
-    if not config.get('dbpassword'):
-        config['dbpassword'] = conf_data.get('ZM_DB_PASS')
-    if not config.get('webuser'):
-        config['webuser'] = conf_data.get('ZM_WEB_USER')
-    if not config.get('webgroup'):
-        config['webgroup'] = conf_data.get('ZM_WEB_GROUP')
-    if not config.get('dbhost'):
-        config['dbhost'] = conf_data.get('ZM_DB_HOST')
-    if not config.get('dbname'):
-        config['dbname'] = conf_data.get('ZM_DB_NAME')
-    if not config.get('logpath'):
-        config['logpath'] =  config_file['zm_root'].get('ZM_PATH_LOGS')
-
-
-    cstr = config['driver']+'://{}:{}@{}/{}'.format(config['dbuser'],
-        config['dbpassword'],config['dbhost'],config['dbname'])
-
-   # print ('BEFORE DB {}'.format(config))
-    try:
-        engine = create_engine(cstr, pool_recycle=3600)
-        conn = engine.connect()
-        connected = True
-    except SQLAlchemyError as e:
-        connected = False
-        conn = None
-        engine = None
-        syslog.syslog (syslog.LOG_ERR, _format_string("Turning DB logging off. Could not connect to DB, message was:" + str(e)))
-        config['log_level_db'] = levels['OFF']
-        
+def sig_intr(sig, frame):
+    lp = 'signal handler:'
+    if sig == 2:
+        g.logger.error(f"{lp} KeyBoard Interrupt -> 2:SIGINT received!")
+    elif sig == 6:
+        g.logger.error(f"{lp} Abort Interrupt -> 6:SIGABRT")
+        g.logger.log_close()
+        os.abort()
     else:
-        meta = MetaData(engine,reflect=True)
-        config_table = meta.tables['Config']
-        log_table = meta.tables['Logs']
-
-        select_st = select([config_table.c.Name, config_table.c.Value]).where(
-                or_(config_table.c.Name=='ZM_LOG_LEVEL_SYSLOG',
-                    config_table.c.Name=='ZM_LOG_LEVEL_FILE',
-                    config_table.c.Name=='ZM_LOG_LEVEL_DATABASE',
-                    config_table.c.Name=='ZM_LOG_DEBUG',
-                    config_table.c.Name=='ZM_LOG_DEBUG_LEVEL',
-                    config_table.c.Name=='ZM_LOG_DEBUG_FILE',
-                    config_table.c.Name=='ZM_LOG_DEBUG_TARGET',
-                    config_table.c.Name=='ZM_SERVER_ID',
-                    ))
-        resultproxy = conn.execute(select_st)
-        db_vals = {row[0]:row[1] for row in resultproxy}
-        config['log_level_syslog'] = int(db_vals['ZM_LOG_LEVEL_SYSLOG']) 
-        config['log_level_file'] = int(db_vals['ZM_LOG_LEVEL_FILE'])
-        config['log_level_db'] = int(db_vals['ZM_LOG_LEVEL_DATABASE'])
-        config['log_debug'] = int(db_vals['ZM_LOG_DEBUG'])
-        config['log_level_debug'] = int(db_vals['ZM_LOG_DEBUG_LEVEL'])
-        config['log_debug_file'] = db_vals['ZM_LOG_DEBUG_FILE']
-        config['log_debug_target'] = db_vals['ZM_LOG_DEBUG_TARGET']
-        config['server_id'] = db_vals.get('ZM_SERVER_ID',0)
-    # Round 2 of overrides, after DB data is read
-    # Override with locals if present
-
-    #print('**********************B-R2 {}'. format(config))
-
-    for key in override:
-        if override[key]:
-            config[key] = override[key]
-
-    for key in defaults:
-        if not config.get(key):
-            config[key] = defaults[key]
-
-    #print ('FINAL CONFIGS {}'.format(config))
-    log_fname = None
-    log_fhandle = None
-
-    if config['log_level_file'] > levels['OFF']:        
-        n = os.path.split(process_name)[1].split('.')[0]
-        log_fname = config['logpath']+'/'+n+'.log' 
-        #print ('WRITING TO {}'.format(log_fname))
-        try:
-            log_fhandle = open (log_fname,'a')
-            uid = pwd.getpwnam(config['webuser']).pw_uid
-            gid = grp.getgrnam(config['webgroup']).gr_gid
-            os.chown(log_fname, uid,gid)
-        except OSError as e:
-            syslog.syslog (syslog.LOG_ERR, _format_string("Error opening file log:" + str(e)))
-            log_fhandle = None
-    try:
-        Info('Setting up signal handler for logs')
-        signal.signal(signal.SIGHUP, sig_log_rot)
-        signal.signal(signal.SIGINT, sig_intr)
-
-    except Exception as e:
-        Error('Error setting up signal handler: {}'.format(e))
-
-    g.logger = sys.modules[__name__]
-    #print (sys.modules[__name__])
-    Info ('Switching global logger to ZMLog')
-
-    #print('**********************A-R2 {}'. format(config))
-
-def sig_log_rot(sig,frame):
-    #time.sleep(3) # do we need this?
-    global log_reload_needed, inited, logger_name, logger_overrides
-
-    log_reload_needed = True
-    if inited:
-        close()
-        init(name=logger_name, override=logger_overrides)
-        Info ('Ready after log re-init')
-    log_reload_needed = False
-    Info('Got HUP signal:{}, re-inited logs'.format(sig))
-    
-def sig_intr(sig,frame):
-    Info ('Got interrupt, exiting')
-    close()
+        g.logger.info(
+            f"{lp} received interrupt signal ({sig}), safely closing logging handlers and exiting")
+    if g.logger:
+        # close the handlers, but don't remove them
+        g.logger.log_close()
     exit(0)
 
-def set_level(level):
-    pass
 
-def get_config():
-    """Returns configuration of ZM logger
-    
-    Returns:
-        dict: config params
-    """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    return config
+levels = {
+    'PRT': 1,
+    'BLK': 1,
+    'DBG': 1,
+    'INF': 0,
+    'WAR': -1,
+    'ERR': -2,
+    'FAT': -3,
+    'PNC': -4,
+    'OFF': -5
+}
 
-def _db_reconnect():
-    """Invoked by the logger if disconnection occurs
-    
-    Returns:
-        boolean: True if reconnected
-    """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    try:
-        conn.close()
-    except:
+priorities = {
+    'DBG': syslog.LOG_DEBUG,
+    'INF': syslog.LOG_INFO,
+    'WAR': syslog.LOG_WARNING,
+    'ERR': syslog.LOG_ERR,
+    'FAT': syslog.LOG_ERR,
+    'PNC': syslog.LOG_ERR
+}
+
+
+class ZMLog:
+    def __init__(self, name, override=None, caller=None, globs=None, no_signal=False):
+        self.no_signal = no_signal
+        global g
+        g = globs
+        self.buffer = g.logger
+        self.is__active = None
+        self.config = None
+        self.engine = None
+        self.conn = None
+        self.sql_connected = False
+        self.config_table = None
+        self.log_table = None
+        self.meta = None
+        # File handler
+        self.log_filename = None
+        self.log_file_handler = None
+        self.cstr = None
+        load_dotenv()
+        self.logger_name = None
+        self.logger_overrides = None
+        self.pid = None
+        self.process_name = None
+        self.syslog = None
+        self.tot_errmsg = []
+        self.exit_times_called: int = 0
+        self.is_active = None
+        self.initialize(name=name, override=override, caller=caller)
+
+
+    def initialize(self, name, override=None, caller=None):
+        if not override:
+            override = {}
+        self.config = {}
+        self.syslog = syslog
+        self.syslog.openlog(logoption=syslog.LOG_PID)
+        self.pid = os.getpid()
+        self.process_name = name or psutil.Process(self.pid).name()
+        self.logger_name = name
+        self.logger_overrides = override
+
+        defaults = {
+            'dbuser': None,
+            'webuser': 'www-data',
+            'webgroup': 'www-data',
+            'logpath': '/var/log/zm',
+            'log_level_syslog': 0,
+            'log_level_file': 0,
+            'log_level_db': 0,
+            'log_debug': 0,
+            'log_level_debug': 0,
+            'log_debug_target': '',
+            'log_debug_file': 0,
+            'server_id': 0,
+
+            'dump_console': False
+        }
+
+        self.config = {
+            'conf_path': os.getenv('PYZM_CONFPATH', '/etc/zm'),  # we need this to get started
+            'dbuser': os.getenv('PYZM_DBUSER'),
+            'dbpassword': os.getenv('PYZM_DBPASSWORD'),
+            'dbhost': os.getenv('PYZM_DBHOST'),
+            'webuser': os.getenv('PYZM_WEBUSER'),
+            'webgroup': os.getenv('PYZM_WEBGROUP'),
+            'dbname': os.getenv('PYZM_DBNAME'),
+            'logpath': os.getenv('PYZM_LOGPATH'),
+            'log_level_syslog': os.getenv('PYZM_SYSLOGLEVEL'),
+            'log_level_file': os.getenv('PYZM_FILELOGLEVEL'),
+            'log_level_db': os.getenv('PYZM_DBLOGLEVEL'),
+            'log_debug': os.getenv('PYZM_LOGDEBUG'),
+            'log_level_debug': os.getenv('PYZM_LOGDEBUGLEVEL'),
+            'log_debug_target': os.getenv('PYZM_LOGDEBUGTARGET'),
+            'log_debug_file': os.getenv('PYZM_LOGDEBUGFILE'),
+            'server_id': os.getenv('PYZM_SERVERID'),
+            'dump_console': os.getenv('PYZM_DUMPCONSOLE'),
+            'driver': os.getenv('PYZM_DBDRIVER', 'mysql+mysqlconnector')
+        }
+        # Round 1 of overrides, before we read params from DB
+        # Override with locals if present
+        self.config.update(override)
+        if zm_inst:  # ZoneMinder is installed so use DB and read ZM' conf files
+            if self.config.get('conf_path'):
+                # read all config files in order
+                files = []
+                # Pythonic?
+                # map(files.append, glob.glob(f'{self.config["conf_path"]}/conf.d/*.conf'))
+
+                for f in glob.glob(f'{self.config["conf_path"]}/conf.d/*.conf'):
+                    files.append(f)
+                files.sort()
+                files.insert(0, f"{self.config['conf_path']}/zm.conf")
+                config_file = ConfigParser(interpolation=None, inline_comment_prefixes='#')
+                f = None
+                try:
+                    for f in files:
+                        with open(f, 'r') as s:
+                            # print(f'reading {f}')
+                            # This adds [zm_root] section to the head of each zm .conf.d config file,
+                            # not physically only in memory
+                            config_file.read_string(f'[zm_root]\n{s.read()}')
+                except Exception as exc:
+                    self.buffer.error(f"Error opening {f if f else files} -> {exc}")
+                    self.buffer.error(f"{format_exc()}")
+                    print(f"Error opening {f if f else files} -> {exc}")
+                    print(f"{format_exc()}")
+                    self.buffer.log_close(exit=1)
+                    exit(1)
+                else:
+                    conf_data = config_file['zm_root']
+
+                    if not self.config.get('dbuser'):
+                        self.config['dbuser'] = conf_data.get('ZM_DB_USER')
+                    if not self.config.get('dbpassword'):
+                        self.config['dbpassword'] = conf_data.get('ZM_DB_PASS')
+                    if not self.config.get('webuser'):
+                        self.config['webuser'] = conf_data.get('ZM_WEB_USER')
+                    if not self.config.get('webgroup'):
+                        self.config['webgroup'] = conf_data.get('ZM_WEB_GROUP')
+                    if not self.config.get('dbhost'):
+                        self.config['dbhost'] = conf_data.get('ZM_DB_HOST')
+                    if not self.config.get('dbname'):
+                        self.config['dbname'] = conf_data.get('ZM_DB_NAME')
+                    if not self.config.get('logpath'):
+                        self.config['logpath'] = config_file['zm_root'].get('ZM_PATH_LOGS')
+                    self.cstr = f"{self.config['driver']}://{self.config['dbuser']}:{self.config['dbpassword']}@" \
+                                f"{self.config['dbhost']}/{self.config['dbname']}"
+
+                    try:
+                        self.engine = create_engine(self.cstr, pool_recycle=3600)
+                        self.conn = self.engine.connect()
+                        self.sql_connected = True
+                    except SQLAlchemyError as e:
+                        self.sql_connected = False
+                        self.conn = None
+                        self.engine = None
+                        self.buffer.error(f"{lp} Turning DB logging off. Could not connect to DB, message was: {e}")
+                        self.syslog.syslog(syslog.LOG_ERR, self._format_string(
+                            f"Turning DB logging off. Could not connect to DB, message was: {e}"))
+                        self.config['log_level_db'] = levels['OFF']
+
+                    else:
+                        self.meta = MetaData(self.engine, reflect=True)
+                        self.config_table = self.meta.tables['Config']
+                        self.log_table = self.meta.tables['Logs']
+
+                        select_st = select([self.config_table.c.Name, self.config_table.c.Value]).where(
+                            or_(self.config_table.c.Name == 'ZM_LOG_LEVEL_SYSLOG',
+                                self.config_table.c.Name == 'ZM_LOG_LEVEL_FILE',
+                                self.config_table.c.Name == 'ZM_LOG_LEVEL_DATABASE',
+                                self.config_table.c.Name == 'ZM_LOG_DEBUG',
+                                self.config_table.c.Name == 'ZM_LOG_DEBUG_LEVEL',
+                                self.config_table.c.Name == 'ZM_LOG_DEBUG_FILE',
+                                self.config_table.c.Name == 'ZM_LOG_DEBUG_TARGET',
+                                self.config_table.c.Name == 'ZM_SERVER_ID',
+                                ))
+                        resultproxy = self.conn.execute(select_st)
+                        db_vals = {row[0]: row[1] for row in resultproxy}
+                        self.config['log_level_syslog'] = int(db_vals['ZM_LOG_LEVEL_SYSLOG'])
+                        self.config['log_level_file'] = int(db_vals['ZM_LOG_LEVEL_FILE'])
+                        self.config['log_level_db'] = int(db_vals['ZM_LOG_LEVEL_DATABASE'])
+                        self.config['log_debug'] = int(db_vals['ZM_LOG_DEBUG'])
+                        self.config['log_level_debug'] = int(db_vals['ZM_LOG_DEBUG_LEVEL'])
+                        self.config['log_debug_file'] = db_vals['ZM_LOG_DEBUG_FILE']
+                        self.config['log_debug_target'] = db_vals['ZM_LOG_DEBUG_TARGET']
+                        self.config['server_id'] = db_vals.get('ZM_SERVER_ID', 0)
+        else:  # There is no ZM installed on this system determined by zmdc.pl not being accessible in $PATH environment
+            self.no_signal = True
+            if self.buffer:
+                self.buffer.info(f"(buffer)->ZoneMinder installation not detected, configuring mlapi accordingly...")
+            else:
+                self.info(f"ZoneMinder installation not detected, configuring mlapi accordingly...")
+        # Round 2 of overrides, after DB data is read
+        # Override with locals if present
+        for key in defaults:
+            if not self.config.get(key):
+                self.config[key] = defaults[key]
+        for key in self.config:
+            if key in override:
+                self.config[key] = override[key]
+        # print ('FINAL CONFIGS {}'.format(self.config))
+        # file handler
+        self.log_filename = None
+        self.log_file_handler = None
+        # print('**********************A-R2 {}'. format(self.config))
+        uid = pwd.getpwnam(self.config['webuser']).pw_uid
+        gid = grp.getgrnam(self.config['webgroup']).gr_gid
+        if self.config['log_level_file'] > levels['OFF']:
+            self.log_filename = f"{self.config['logpath']}/{self.process_name}.log"
+            try:
+                log_file = Path(self.log_filename)
+                log_file.touch(exist_ok=True)
+                # Don't forget to close the file handler
+                self.log_file_handler = log_file.open('a')
+                os.chown(self.log_filename, uid, gid)  # proper permissions
+            except Exception as e:
+                self.buffer.error(f"{lp} Error for user: '{getuser()}' creating and changing permissions of file: "
+                                  f"'{self.log_filename}'")
+                self.buffer.error(f"{e}")
+                self.syslog.syslog(
+                    syslog.LOG_ERR,
+                    self._format_string(
+                        f"Error for user: {getuser()} while creating and changing permissions of log file -> {e}"
+                    )
+                )
+        # Debug(f"File logging handler setup correctly -> {log_fhandle.name}") if log_fhandle else None
+        if not self.no_signal:
+            try:
+                if self.buffer:
+                    self.buffer.info(f"{lp}(buffer)->'Setting up signal handlers for log rotation and log interrupt'")
+                else:
+                    self.info(f"{lp}'Setting up signal handlers for log rotation and log interrupt'")
+                signal.signal(signal.SIGHUP, sig_log_rot)
+                signal.signal(signal.SIGINT, sig_intr)
+            except Exception as e:
+                if self.buffer:
+                    self.buffer.error(f'{lp}(buffer)->Error setting up log rotate and interrupt signal handlers -> \n{e}\n')
+                else:
+                    self.error(f'Error setting up log rotate and interrupt signal handlers -> \n{e}\n')
+        # This does some funky stuff when you thread log creation, instead just assign this object to g.logger
+        # This is left over from when ZMLog was not a class but a bunch of functions
+        # g.logger = sys.modules[__name__]
+
+        self.is__active = True
+        show_log_name = f"'{self.log_filename}'"
+        if zm_inst:
+            if self.buffer:
+                self.buffer.info(
+                    f"Connected to ZoneMinder Logging system with user '{getuser()}'"
+                    f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
+                )
+            else:
+                self.info(
+                    f"Connected to ZoneMinder Logging system with user '{getuser()}'"
+                    f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
+                )
+        else:
+            if self.buffer:
+                self.buffer.info(
+                    f"Logging to {'syslog ' if self.syslog else ''}{'and ' if self.syslog and self.log_file_handler else ''}"
+                    f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
+                    f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
+                )
+            else:
+                self.info(
+                    f"Logging to {'syslog ' if self.syslog else ''}{'and ' if self.syslog and self.log_file_handler else ''}"
+                    f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
+                    f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
+                )
+        if self.buffer:
+            for line in self.buffer:
+                self.debug(line)
+
+    def is_active(self):
+        if self.is__active:
+            return self.is__active
+
+    def set_level(self, level):
         pass
 
-    try:
-        engine = create_engine(cstr, pool_recycle=3600)
-        conn = engine.connect()
-        #inspector = inspect(engine)
-        #print(inspector.get_columns('Config'))
-        meta = MetaData(engine,reflect=True)
-        config_table = meta.tables['Config']
-        log_table = meta.tables['Logs']
-        message = 'reconnecting to Database...'
-        log_string = '{level} [{pname}] [{msg}]'.format(level='INF', pname=process_name, msg=message)
-        syslog.syslog (syslog.LOG_INFO, log_string)
-    except SQLAlchemyError as e:
-        connected = False
-        syslog.syslog (syslog.LOG_ERR, _format_string("Turning off DB logging due to error received:" + str(e)))
-        return False
-    else:
-        connected = True
-        return True
-        
+    def get_buff(self):
+        return
 
-def close():
-    """Closes all handles. Invoke this before you exit your app
-    """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    if conn: 
-        conn.close()
-    if engine: 
-        engine.dispose()
-    syslog.closelog()
-    if (log_fhandle): 
-        log_fhandle.close()
-    inited = False
+    def get_config(self, ):
+        pass
 
-def _format_string(message='', level='ERR'):
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    log_string = '{level} [{pname}] [{message}]'.format(level=level, pname=process_name, message=message)
-    return (log_string)
+    def _db_reconnect(self, ):
+        try:
+            self.conn.close()
+        except Exception:
+            pass
+        if zm_inst:
+            try:
+                self.engine = create_engine(self.cstr, pool_recycle=3600)
+                self.conn = self.engine.connect()
+                # inspector = inspect(engine)
+                # print(inspector.get_columns('Config'))
+                self.meta = MetaData(self.engine, reflect=True)
+                self.config_table = self.meta.tables['Config']
+                self.log_table = self.meta.tables['Logs']
+                message = 'reconnecting to Database...'
+                log_string = '{level} [{pname}] [{msg}]'.format(level='INF', pname=self.process_name, msg=message)
+                self.syslog.syslog(syslog.LOG_INFO, log_string)
+            except SQLAlchemyError as e:
+                self.sql_connected = False
+                self.syslog.syslog(syslog.LOG_ERR,
+                                   self._format_string("Turning off DB logging due to error received:" + str(e)))
+                return False
+            else:
+                self.sql_connected = True
+                return True
 
-def _log(level='DBG', message='', caller=None, debug_level=1):
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    log_string=''
-    if not inited:
-        raise ValueError ('Logs not initialized')
-    # first stack element will be the wrapper log function
-    # second stack element will be the actual calling function
-    #print (len(stack()))
-    if not caller:
-        idx = min(len(stack()), 2) #incase someone calls this directly
+    def log_close(self, *args, **kwargs):
+        idx = min(len(stack()), 1)  # in case someone calls this directly
         caller = getframeinfo(stack()[idx][0])
-        #print ('Called from {}:{}'.format(caller.filename, caller.lineno))
 
-    # If we are debug logging, show level too
-    disp_level=level
-    if level=='DBG':
-        disp_level = 'DBG{}'.format(debug_level)
-    log_string = '{level} [{pname}] [{msg}]'.format(level=disp_level, pname=process_name, msg=message)
-    # write to syslog
-   
-    if levels[level] <= config['log_level_syslog']:
-        syslog.syslog (priorities[level], log_string)
+        self.exit_times_called += 1
+        self.is__active = False
+        if self.exit_times_called <= 1:
+            if self.conn:
+                # self.Debug (4, "Closing DB connection")
+                self.conn.close()
+            if self.engine:
+                # self.Debug (4, "Closing DB engine")
+                self.engine.dispose()
+                # Put this here so it logs to syslog and file before closing those handlers
+            self.debug(f"{lp} Closing all log handlers NOW", caller=caller)
+            if not g.logger:
+                print(f"{lp} Closing all log handlers NOW")
+            if self.syslog:
+                # self.Debug (4, "Closing syslog connection")
+                self.syslog.closelog()
+            if self.log_file_handler:
+                # self.Debug (4, "Closing log file handle")
+                self.log_file_handler.close()
+                self.log_file_handler = None
+            self.config['dump_console'] = True
+            # Restore stdout and stderr
+            if sys.stdout != sys.__stdout__:
+                sys.stdout = sys.__stdout__
+            if sys.stderr != sys.__stderr__:
+                sys.stderr = sys.__stderr__
 
-    # write to db
-    if levels[level] <= config['log_level_db']:
-        if not connected:
-            syslog.syslog (syslog.LOG_INFO, _format_string("Trying to reconnect"))
-            if not _db_reconnect():
-                syslog.syslog (syslog.LOG_ERR, _format_string("reconnection failed, not writing to DB"))
-            return False
+    def _format_string(self, message='', level='ERR'):
+        log_string = '{level} [{pname}] [{message}]'.format(level=level, pname=self.process_name, message=message)
+        return (log_string)
 
-        log_string = '{level} [{pname}] [{msg}]'.format(level=disp_level, pname=process_name, msg=message)
-        component = process_name
-        serverid = config['server_id']
-        pid = pid
-        l = levels[level]
+    def time_format(self, dt_form):
+        if len(str(float(f"{dt_form.microsecond / 1e6}")).split(".")) > 1:
+            micro_sec = str(float(f"{dt_form.microsecond / 1e6}")).split(".")[1]
+        else:
+            micro_sec = str(float(f"{dt_form.microsecond / 1e6}")).split(".")[0]
+        return "%s.%s" % (
+            dt_form.strftime('%m/%d/%y %H:%M:%S'),
+            micro_sec
+        )
+
+    def _log(self, **kwargs):
+        blank, caller, nl, level, tight, debug_level, message = None, None, None, 'DBG', False, 1, None
+        dt = None
+        display_level = None
+        fnfl = None
+        for k, v in kwargs.items():
+            if k == 'caller':
+                caller = v
+            elif k == 'tight':
+                tight = v
+            elif k == 'nl':
+                nl = v
+            elif k == 'level':
+                level = v
+            elif k == 'message':
+                message = v
+            elif k == 'debug_level':
+                debug_level = v
+            elif k == 'blank':
+                blank = v
+            elif k == 'timestamp':
+                dt = v
+            elif k == 'display_level':
+                display_level = v
+            elif k == 'filename' and v is not None:
+                fnfl = f"{v}:{kwargs['lineno']}"
+        file_log_string = ''
+        if not dt:
+            dt = self.time_format(datetime.now())
+        # first stack element will be the wrapper log function
+        # second stack element will be the actual calling function or maybe class wrapper?
+        # third will be actual func?
+        # print (len(stack()))
+        if not caller or caller and fnfl:  # if caller was not passed we create it here, meaning in logs this modules name and line no will show up
+            idx = min(len(stack()), 2)  # in the case of someone calls this directly
+            caller = getframeinfo(stack()[idx][0])
+        # print ('CALLER INFO --> FILE: {} LINE: {}'.format(caller.filename, caller.lineno))
+        # If we are debug logging, show level too
+        if not display_level:
+            display_level = level
+        file_log_string = '{level} [{pname}] [{msg}]'.format(level=display_level, pname=self.process_name, msg=message)
+
+        if level == 'DBG':
+            display_level = f'DBG{debug_level}'
+
+        # write to syslog
+        if levels[level] <= self.config['log_level_syslog']:
+            file_log_string = '{level} [{pname}] [{msg}]'.format(level=display_level, pname=self.process_name,
+                                                                 msg=message)
+            self.syslog.syslog(priorities[level], file_log_string)
+
+        component = self.process_name
+        serverid = self.config.get('server_id')
+        pid = self.pid
+        level_ = levels[level]
         code = level
         line = caller.lineno
+        # write to db only if ZM installed
+        send_to_db = True
+        if levels[level] <= self.config['log_level_db'] and zm_inst:
+            if not self.sql_connected:
+                self.syslog.syslog(syslog.LOG_INFO, self._format_string("Connecting to ZoneMinder SQL DB"))
+                if not self._db_reconnect():
+                    self.syslog.syslog(syslog.LOG_ERR, self._format_string("Reconnecting failed, not writing to ZM DB"))
+                    send_to_db = False
+            if send_to_db:
+                try:
+                    cmd = self.log_table.insert().values(TimeKey=time.time(), Component=component, ServerId=serverid,
+                                                         Pid=pid, Level=level_, Code=code, Message=message,
+                                                         File=os.path.split(caller.filename)[1], Line=line)
+                    self.conn.execute(cmd)
+                except SQLAlchemyError as e:
+                    self.sql_connected = False
+                    self.syslog.syslog(syslog.LOG_ERR, self._format_string("Error writing to DB:" + str(e)))
 
-        try:
-            cmd = log_table.insert().values(TimeKey=time.time(), Component=component, ServerId=serverid, Pid=pid, Level=l, Code=code, Message=message,File=os.path.split(caller.filename)[1], Line=line)
-            conn.execute(cmd)
-        except SQLAlchemyError as e:
-            connected = False
-            syslog.syslog (syslog.LOG_ERR, _format_string("Error writing to DB:" + str(e)))
- 
-    # write to file components
-    if levels[level] <= config['log_level_file']:
-        timestamp = datetime.datetime.now().strftime('%x %H:%M:%S')
-        # 07/15/19 10:10:14.050651 zmc_m8[4128].INF-zm_monitor.cpp/2516 [Driveway: images:218900 - Capturing at 3.70 fps, capturing bandwidth 98350bytes/sec]
-        fnfl ='{}:{}'.format(os.path.split(caller.filename)[1], caller.lineno)
-        log_string = '{timestamp} {pname}[{pid}] {level} {fnfl} [{msg}]\n'.format(timestamp=timestamp, level=disp_level, pname=process_name, pid=pid, msg=message, fnfl=fnfl)
-        if log_fhandle: 
-            log_fhandle.write(log_string)
-            log_fhandle.flush()
+        print_log_string = None
+        if levels[level] <= self.config['log_level_file']:
+            if not fnfl:
+                fnfl = f"{os.path.split(caller.filename)[1].split('.')[0]}:{caller.lineno}"
+            print_log_string = '{timestamp} {pname}[{pid}] {level} {fnfl}->[{msg}]'.format(timestamp=dt,
+                                                                                           level=display_level,
+                                                                                           pname=self.process_name,
+                                                                                           pid=pid, msg=message,
+                                                                                           fnfl=fnfl)
+            file_log_string = '{timestamp} {pname}[{pid}] {level} {fnfl} [{msg}]\n'.format(timestamp=dt,
+                                                                                           level=display_level,
+                                                                                           pname=self.process_name,
+                                                                                           pid=pid, msg=message,
+                                                                                           fnfl=fnfl)
 
-    if config['dump_console']:
-        print (log_string)
+            if self.log_file_handler:
+                try:
+                    self.log_file_handler.write(file_log_string)  # write to file
+                    self.log_file_handler.flush()
+                except Exception as e:
+                    sys.stdout = sys.__stdout__
+                    print(f"'{file_log_string}' is not available to be written to, trying to create a new log file")
+                    # make log file
+                    uid = pwd.getpwnam(self.config['webuser']).pw_uid
+                    gid = grp.getgrnam(self.config['webgroup']).gr_gid
+                    if self.config['log_level_file'] > levels['OFF']:
+                        n = os.path.split
+                        self.log_filename = f"{self.config['logpath']}/{n(self.process_name)[1].split('.')[0]}.log"
+                        # print ('WRITING TO {}'.format(self.log_fname))
+                        try:
+                            log_file = Path(self.log_filename)
+                            log_file.touch(exist_ok=True)
+                            self.log_file_handler = log_file.open('a')
+                            os.chown(self.log_filename, uid, gid)  # proper permissions
+                        except Exception as e:
+                            self.syslog.syslog(
+                                syslog.LOG_ERR,
+                                self._format_string(
+                                    f"Error for user: {getuser()} while creating and changing permissions of "
+                                    f"log file -> {str(e)}"
+                                )
+                            )
+                            self.log_file_handler = None
+                        else:
+                            self.log_file_handler.write(file_log_string)  # write to file after re creating log file
+                            self.log_file_handler.flush()
 
-def Info(message=None,caller=None):
-    """Info level ZM message
-    
-    Args:
-        message (string): Message to log
-        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
-    """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    _log('INF',message,caller)
+        if self.config['dump_console']:
+            if tight:
+                if nl:
+                    print(f"\n{print_log_string}")
+                else:
+                    print(print_log_string)
+            else:
+                print(f"\n{print_log_string}")
 
-def Debug(level=1, message=None,caller=None):
-    """Debug level ZM message
-    
-    Args:
-        level (int): ZM Debug level
-        message (string): Message to log
-        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
-    """
+    def info(self, message, **kwargs):
+        tight = False
+        caller, nl, level = None, None, None
+        for k, v in kwargs.items():
+            if k == 'caller':
+                caller = v
+            elif k == 'tight':
+                tight = v
+            elif k == 'nl':
+                nl = v
+        self._log(level='INF', message=message, caller=caller, tight=tight, nl=nl)
 
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    target = config['log_debug_target']
+    def debug(self, *args, **kwargs):
+        tight = False
+        caller, nl, level, message = None, None, None, None
+        level = 1
+        ts = None
+        message = None
+        lineno = None
+        display_level = None
+        filename = None
+        if isinstance(args[0], dict):
+            a = args[0]
+            ts = a['timestamp']
+            lineno = a['lineno']
+            display_level = a['display_level']
+            filename = a['filename']
+            message = a['message']
 
-    if target and not config['dump_console']:
-        targets = [x.strip().lstrip('_') for x in target.split('|')]
-        # if current name does not fall into debug targets don't log
-        if not any(map(process_name.startswith, targets)):
-            return
+        elif len(args) == 1:
+            message = args[0]
+        elif len(args) == 2:
+            level = args[0]
+            message = args[1]
 
-    
-    if config['log_debug'] and level <= config['log_level_debug']:
-        _log('DBG', message,caller, level)
+        for k, v in kwargs.items():
+            if k == 'caller':
+                caller = v
+            elif k == 'tight':
+                tight = v
+            elif k == 'nl':
+                nl = v
+        if not caller:
+            idx = min(len(stack()), 1)  # in the case of someone calls this directly
+            caller = getframeinfo(stack()[idx][0])
 
-def Warning(message=None,caller=None):
-    """Warning level ZM message
-    
-    Args:
-        message (string): Message to log
-        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
-    """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    _log('WAR',message,caller)
+        target = self.config['log_debug_target']
+        if target and not self.config['dump_console']:
+            targets = [x.strip().lstrip('_') for x in target.split('|')]
+            # if current name does not fall into debug targets don't log
+            if not any(map(self.process_name.startswith, targets)):
+                return
+        if self.config['log_debug'] and level <= self.config['log_level_debug']:
+            self._log(
+                level='DBG',
+                message=message,
+                caller=caller,
+                debug_level=level,
+                tight=tight,
+                nl=nl,
+                timestamp=ts,
+                display_level=display_level,
+                filename=filename,
+                lineno=lineno
+            )
 
-def Error(message=None,caller=None):
-    """Error level ZM message
-    
-    Args:
-        message (string): Message to log
-        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
-    """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    _log('ERR',message,caller)
-    
-def Fatal(message=None,caller=None):
-    """Fatal level ZM message. Quits after logging
-    
-    Args:
-        message (string): Message to log
-        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
-    """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    _log('FAT',message,caller)
-    close()
-    exit(-1)
+    def warning(self, message, **kwargs):
+        tight = False
+        caller, nl, level = None, None, None
+        for k, v in kwargs.items():
+            if k == 'caller':
+                caller = v
+            elif k == 'tight':
+                tight = v
+            elif k == 'nl':
+                nl = v
 
-def Panic(message=None,caller=None):
-    """Panic level ZM message. Quits after logging
-    
-    Args:
-        message (string): Message to log
-        caller (stack frame info, optional): Used to log caller id/line #. Picked up automatically if none. Defaults to None.
-    """
-    global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    _log('PNC',message,caller)
-    close()
-    exit(-1)
+        self._log(level='WAR', message=message, caller=caller, tight=tight, nl=nl)
 
+    def error(self, message, **kwargs):
+        tight = False
+        caller, nl, level = None, None, None
+        for k, v in kwargs.items():
+            if k == 'caller':
+                caller = v
+            elif k == 'tight':
+                tight = v
+            elif k == 'nl':
+                nl = v
 
+        self._log(level='ERR', message=message, caller=caller, tight=tight, nl=nl)
+
+    def fatal(self, message, **kwargs):
+        tight = False
+        caller, nl, level = None, None, None
+        for k, v in kwargs.items():
+            if k == 'caller':
+                caller = v
+            elif k == 'tight':
+                tight = v
+            elif k == 'nl':
+                nl = v
+
+        self._log(level='FAT', message=message, caller=caller, tight=tight, nl=nl)
+        self.log_close()
+        exit(-1)
+
+    def panic(self, message, **kwargs):
+        tight = False
+        caller, nl, level = None, None, None
+        for k, v in kwargs.items():
+            if k == 'caller':
+                caller = v
+            elif k == 'tight':
+                tight = v
+            elif k == 'nl':
+                nl = v
+        self._log(level='PNC', message=message, caller=caller, tight=tight, nl=nl)
+        self.log_close()
+        exit(-1)

@@ -1,26 +1,28 @@
-
-from pyzm.helpers.Base import Base
-import pyzm.helpers.globals as g
+# Face wrapper class for recognition, detection is completely separate
 
 
+class Face:
+    def __init__(self, options=None, **kwargs):
 
-
-class Face(Base):
-    def __init__(self, options={}):
-
+        if options is None:
+            options = {}
         self.model = None
         self.options = options
+        name = self.options.get('name') or 'Face wrapper'
+
+        self.sequence_name: str = name
+
         if self.options.get('face_detection_framework') == 'dlib':
             import pyzm.ml.face_dlib as face_dlib
-            self.model = face_dlib.FaceDlib(self.options)
+            self.model = face_dlib.FaceDlib(self.options, **kwargs)
         elif self.options.get('face_detection_framework') == 'tpu':
             import pyzm.ml.face_tpu as face_tpu
-            self.model = face_tpu.FaceTpu(self.options)
+            self.model = face_tpu.FaceTpu(self.options, **kwargs)
         else:
-            raise ValueError ('{} face detection framework is unknown'.format(self.options.get('face_detection_framework')))
+            raise ValueError(f"{self.options.get('face_detection_framework')} face detection framework is unknown")
    
-    def detect(self, image):
-        return self.model.detect(image)
+    def detect(self, input_image):
+        return self.model.detect(input_image)
     
     def get_options(self):
         return self.model.get_options()
@@ -32,5 +34,8 @@ class Face(Base):
         return self.model.release_lock()
 
     def load_model(self):
-        return self.model.load_model()
+        return
+
+    def get_model_name(self):
+        return
         

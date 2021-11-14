@@ -6,16 +6,17 @@ It is basically a bunch of getters for each access to event data.
 If you don't see a specific getter, just use the generic get function to get
 the full object
 """
+from typing import Optional
+
+g: Optional[object] = None
 
 
-from pyzm.helpers.Base import Base
-import pyzm.helpers.globals as g
-
-
-class State(Base):
-    def __init__(self, api=None, state=None):
+class State:
+    def __init__(self, globs=None, state=None):
+        global g
+        g = globs
         self.state = state
-        self.api = api
+        self.api = g.api
     
     def get(self):
         """Returns raw state object

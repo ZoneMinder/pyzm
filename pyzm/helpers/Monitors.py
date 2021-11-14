@@ -6,32 +6,39 @@ Given monitors are fairly static, maintains a cache of monitors
 which can be overriden 
 """
 
-
 from pyzm.helpers.Monitor import Monitor
-from pyzm.helpers.Base import Base
-import requests
-import pyzm.helpers.globals as g
+from typing import Optional
+
+g: Optional[object] = None
 
 
-class Monitors(Base):
-    def __init__(self, api=None):
-        self.api = api
+class Monitors:
+    def __init__(self, globs=None):
+        global g
+        g = globs
+        self.api = g.api
+        self.monitors = []
         self._load()
 
-    def _load(self,options={}):
-        g.logger.Debug(2,'Retrieving monitors via API')
-        url = self.api.api_url +'/monitors.json'
-        r = self.api._make_request(url=url)
+    def _load(self, options=None):
+        if options is None:
+            options = {}
+        g.logger.debug(2, 'Retrieving monitors via API')
+        url = f"{self.api.api_url}/monitors.json"
+        r = self.api.make_request(url=url)
         ms = r.get('monitors')
-        self.monitors = []
         for m in ms:
-           self.monitors.append(Monitor(monitor=m,api=self.api))
+            self.monitors.append(Monitor(monitor=m, globs=g))
 
+    def __iter__(self):
+        if self.monitors:
+            for mon in self.monitors:
+                yield mon
 
     def list(self):
         return self.monitors
 
-    def add(self, options={}):
+    def add(self, options=None):
         """Adds a new monitor
         
         Args:
@@ -58,7 +65,9 @@ class Monitors(Base):
         Returns:
             json: json response of API request
         """
-        url = self.api.api_url +'/monitors.json'
+        if options is None:
+            options = {}
+        url = self.api.api_url + '/monitors.json'
         payload = {}
         if options.get('function'):
             payload['Monitor[Function]'] = options.get('function')
@@ -83,10 +92,10 @@ class Monitors(Base):
         if options.get('raw'):
             for k in options.get('raw'):
                 payload[k] = options.get('raw')[k]
-               
+
         if payload:
-            return self.api._make_request(url=url, payload=payload, type='post')
-    
+            return self.api.make_request(url=url, payload=payload, type_action='post')
+
     def find(self, id=None, name=None):
         """Given an id or name, returns matching monitor object
         
@@ -104,7 +113,7 @@ class Monitors(Base):
             key = 'Id'
         else:
             key = 'Name'
-    
+
         for mon in self.monitors:
             if id and mon.id() == id:
                 match = mon
@@ -113,8 +122,3 @@ class Monitors(Base):
                 match = mon
                 break
         return match
-        
-
-
-    
-
