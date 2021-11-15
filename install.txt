@@ -1,0 +1,2 @@
+If you want to install as a system wide package, cd into this directory and use - sudo pip3 install -e .
+Locally - pip3 install -e .
