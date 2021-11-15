@@ -619,6 +619,7 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
     config['pyzm_overrides']['log_level_debug'] = 5
 
     if _type == 'mlapi':
+        log_path: str = ''
         if not ZM_INSTALLED:
             g.logger.debug(f"{lp}init:log: Zoneminder is not installed")
             if config.get('log_user'):
@@ -628,11 +629,24 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
             elif not config.get('log_group') and config.get('log_user'):
                 # use log user as log group as well
                 log_group = config['log_user']
+            log_path = f"{config['base_data_path']}/logs"
+            Path(log_path).mkdir(exist_ok=True)
+
         elif ZM_INSTALLED:
             g.logger.debug(f"{lp}init:log: Zoneminder is installed")
             # get the system's apache user (www-data, apache, etc.....)
             from pyzm.helpers.pyzm_utils import get_www_user
             log_user, log_group = get_www_user()
+            # fixme: what if system logs are elsewhere?
+            if Path("/var/log/zm").is_dir():
+                print(f"TESTING! mlapi is on same host as ZM, using '/var/log/zm' as logging path")
+                log_path = "/var/log/zm"
+            else:
+                print(f"TESTING! mlapi is on the same host as ZM but '/var/log/zm' is not created or inaccessible, "
+                      f"using the configured (possibly default) log path '{config['base_data_path']}/logs'")
+                log_path = f"{config['base_data_path']}/logs"
+                Path(log_path).mkdir(exist_ok=True)
+
         else:
             print(f"It seems there is no user to log with, there will only be console output, if anything"
                   f" at all. Configure log_user and log_group in your config file -> '{args.get('config')}'")
@@ -641,7 +655,6 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
 
         # strip the .log just in case
         log_name = config.get('log_name').rstrip('.log')
-        log_path = f"{config['base_data_path']}/logs"
         # Validate log path
         if args.get('log_path'):
             log_p = Path(args.get('log_path'))

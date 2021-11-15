@@ -270,11 +270,6 @@ class ZMLog:
         uid = pwd.getpwnam(self.config['webuser']).pw_uid
         gid = grp.getgrnam(self.config['webgroup']).gr_gid
         if self.config['log_level_file'] > levels['OFF']:
-            # Testing - When mlapi is on same host as ZM it should save its log files to the same dir as ZM and ZMES
-            if zm_inst:
-                print(f"TESTING! ZoneMinder is installed on the same host as mlapi, setting log directory to: "
-                      f"{defaults['logpath']}")
-                self.config['logpath'] = defaults['logpath']
             self.log_filename = f"{self.config['logpath']}/{self.process_name}.log"
             try:
                 log_file = Path(self.log_filename)
