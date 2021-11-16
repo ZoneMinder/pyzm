@@ -630,6 +630,7 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
                 # use log user as log group as well
                 log_group = config['log_user']
             log_path = f"{config['base_data_path']}/logs"
+            # create the log dir in base_data_path, if it exists do not throw an exception
             Path(log_path).mkdir(exist_ok=True)
 
         elif ZM_INSTALLED:
@@ -645,6 +646,7 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
                 print(f"TESTING! mlapi is on the same host as ZM but '/var/log/zm' is not created or inaccessible, "
                       f"using the configured (possibly default) log path '{config['base_data_path']}/logs'")
                 log_path = f"{config['base_data_path']}/logs"
+                # create the log dir in base_data_path, if it exists do not throw an exception
                 Path(log_path).mkdir(exist_ok=True)
 
         else:
@@ -654,19 +656,19 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
             log_group = None
 
         # strip the .log just in case
-        log_name = config.get('log_name').rstrip('.log')
-        # Validate log path
+        log_name = config.get('log_name', 'zmes_default_logfile').rstrip('.log')
+        # Validate log path if supplied in args
         if args.get('log_path'):
             log_p = Path(args.get('log_path'))
             if log_p.is_dir():
-                log_path = log_p.absolute()
+                log_path = args.get('log_path')
             elif log_p.exists() and not log_p.is_dir():
                 print(
                     f"{lp}init: the specified 'log_path' ({log_p.name}) exists BUT it is not a directory! using "
-                    f"default log dir.")
+                    f"'{log_path}'.")
             elif not log_p.exists():
                 print(
-                    f"{lp}init: the specified 'log_path' ({log_p.name}) does not exist! using default log dir.")
+                    f"{lp}init: the specified 'log_path' ({log_p.name}) does not exist! using '{log_path}'.")
 
         config['pyzm_overrides']['logpath'] = log_path
         config['pyzm_overrides']['webuser'] = log_user
