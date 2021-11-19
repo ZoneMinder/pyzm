@@ -4,11 +4,16 @@
 
 # Note
 All credit goes to the original author @pliablepixels. Please see https://github.com/pliablepixels
+
 I taught myself python to work on this project, I am learning git, etc. Please forgive the terrible commits.
 
-Please be aware that the 'neo' versions are NOT compatible with the source repos. The module structure is different, functions and args are different and processing the configs are a completely different syntax and structure. My goal is to add some more options for power users and speed things up. In my personal testing I can say that I have blazing fast detections compared to the source repos. Gotify is basically instant as long as the app is not battery optimized (I am unaware of if gotify has an iOS app).
+Please be aware that the 'neo' versions are NOT compatible with the source repos. The module structure is different,
+functions and args are different and processing the configs are a completely different syntax and structure. My goal 
+is to add some more options for power users and speed things up. In my personal testing I can say that I have blazing
+fast detections compared to the source repos. Gotify is basically instant as long as the app is not battery optimized 
+(I am unaware of if gotify has an iOS app).
 
-I am actively taking enhancement requests for new features and improvements.
+**I am actively taking enhancement requests for new features and improvements.**
 
 MAJOR CHANGES
 ---
@@ -44,7 +49,10 @@ Features
 
 Limitations
 ============
-* Only for Python3
+* Only for Python 3.6+
+* OpenCV 4.1.1+ required for image manipulation. Available from pip (opencv-contrib-python) or self compiled with 
+GPU support
+* YOLO requires OpenCV 4.4+
 
 
 
