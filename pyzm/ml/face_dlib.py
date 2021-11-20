@@ -2,15 +2,17 @@ import os
 import pickle
 import time
 from pathlib import Path
+from typing import Optional
 
 import cv2
 import dlib
 import portalocker
 
+from pyzm.helpers.new_yaml import GlobalConfig
 from pyzm.helpers.pyzm_utils import Timer, id_generator, str2bool, resize_image
 from pyzm.ml.face import Face
 
-g = None
+g: Optional[GlobalConfig] = None
 g_start = Timer()
 import face_recognition
 
@@ -22,7 +24,7 @@ lp = 'dlib:face:'
 # Class to handle face recognition
 class FaceDlib(Face):
     def __init__(self, options=None, globs=None):
-        global face_rec_libs, g
+        global g
         if globs:
             g = globs
         if options is None:
@@ -105,7 +107,7 @@ class FaceDlib(Face):
             g.logger.debug(2, f"{lp}portalock: already acquired -> '{self.lock_name}'")
             return
         try:
-            g.logger.Debug(2, f"{lp}portalock: Waiting for '{self.lock_name}'")
+            g.logger.debug(2, f"{lp}portalock: Waiting for '{self.lock_name}'")
             self.lock.acquire()
             g.logger.debug(2, f"{lp}portalock: acquired -> '{self.lock_name}'")
             self.is_locked = True
@@ -118,7 +120,7 @@ class FaceDlib(Face):
         if str2bool(self.disable_locks):
             return
         if not self.is_locked:
-            # g.logger.Debug(2, f"portalock: already released: {self.lock_name}")
+            # g.logger.debug(2, f"portalock: already released: {self.lock_name}")
             return
         self.lock.release()
         self.is_locked = False
@@ -150,7 +152,7 @@ class FaceDlib(Face):
         return self.sequence_name
 
     def detect(self, input_image):
-        global face_rec_libs
+        # global face_rec_libs
         detect_start_timer = Timer()
         Height, Width = input_image.shape[:2]
 
@@ -185,7 +187,7 @@ class FaceDlib(Face):
         # rgb_image = image
         t = Timer()
         # Find all the faces and face encodings in the target image
-        # g.logger.Debug(self.options)
+        # g.logger.debug(self.options)
         if self.options.get('auto_lock', True):
             self.acquire_lock()
 
@@ -219,7 +221,7 @@ class FaceDlib(Face):
 
         t = Timer()
         if self.knn:
-            # g.logger.Debug(5, 'FACE ENCODINGS={}'.format(face_encodings))
+            # g.logger.debug(5, 'FACE ENCODINGS={}'.format(face_encodings))
             closest_distances = self.knn.kneighbors(face_encodings, n_neighbors=1)
             g.logger.debug(5, f"{lp} closest knn match indexes (smaller is better): {closest_distances}")
             are_matches = [
