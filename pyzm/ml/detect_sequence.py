@@ -159,11 +159,20 @@ class DetectSequence:
     def get_ml_options(self):
         return self.ml_options
 
-    def set_ml_options(self, options: dict, force_reload: bool = False):
+    def set_ml_options(self, options: dict, force_reload: bool = False, globs=None):
         """Use this to change ml options later. Note that models will not be reloaded
         unless you add force_reload=True
         """
-        # g.logger is not used because it is not initialized yet on first start
+        if globs:
+            g = globs
+
+        if force_reload:
+            if self.models:
+                if globs:
+                    g.logger.debug(f"{lp} resetting the loaded models!")
+                self.models = {}
+            if not options:
+                return
         model_sequence = options.get("general", {}).get('model_sequence', None)
         if isinstance(model_sequence, str):
             self.model_sequence = (
@@ -180,9 +189,7 @@ class DetectSequence:
         self.stream_options = None
         self.media = None
         self.ml_overrides = {}
-        if force_reload:
-            if self.models:
-                self.models = {}
+
 
     def _load_models(self, models=None):
         def get_correct_model(frame_work):
