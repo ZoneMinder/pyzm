@@ -16,30 +16,30 @@ from pyzm.helpers.pyzm_utils import grab_frameid, str2bool, resize_image
 # from pyzm.helpers.pydantic_models import StreamSequence
 g = None
 # log prefix to add onto
-lp = 'media:'
+lp: str = 'media:'
 
 
 class MediaStream:
     frames_processed: int
 
     def __init__(self, stream=None, type_="video", options=None, m_globals=None):
-        self.fids_global = []
-        self.fids_skipped = []
+        self.fids_global: list[str] = []
+        self.fids_skipped: list[str] = []
         # <frame id>: int : cv2.im(de?)encoded image
         self.encoded_images = {}
         global g
         if m_globals:
             g = m_globals
-        self.skip_all_count = 0
+        self.skip_all_count: int = 0
         if not options:
             raise ValueError(f"{lp} no stream options provided!")
 
-        self.stream = stream
+        self.stream: str = stream
         self.type = type_
         self.fvs = None
         self.next_frame_id_to_read = 1
         self.last_frame_id_read = 0
-        self.options = options
+        self.options: Optional[dict] = options
         self.more_images_to_read = True
         self.frames_processed = 0
         self.frames_skipped = 0
@@ -123,7 +123,7 @@ class MediaStream:
             if isinstance(self.options.get("frame_set"), str):
                 self.frame_set = self.options.get("frame_set").split(",")
             elif isinstance(self.options.get("frame_set"), list):
-                self.frame_set = [str(i) for i in self.options.get("frame_set")]
+                self.frame_set = [str(i).strip() for i in self.options.get("frame_set")]
             else:
                 g.logger.debug(
                     2,
@@ -139,10 +139,11 @@ class MediaStream:
                         for i in self.options.get("frame_set")
                         if i != "snapshot" or i != "alarm"
                     ]
-                    if not self.frame_set_len:
+                    if not self.frame_set:
                         g.logger.error(
-                            f"{lp} you are only using frame_set types with a VIDEO FILE that require ZM API"
-                            f" access try adding frame ID's and removing snapshot and alarm"
+                            f"{lp} you are using 'snapshot' or 'alarm' frame ids inside of frame_set with a VIDEO FILE"
+                            f", 'snapshot' or 'alarm' are a sepcial feature of grabbing frames from the ZM API. You"
+                            f"must specify actual frame ID' when detecting on a VIDEO FILE"
                         )
                         raise ValueError("WRONG FRAME_SET TYPE")
 
@@ -403,7 +404,7 @@ class MediaStream:
                                                      self.options.get("delay_between_frames"))
             val_err(delay_succ, f"{lp} error converting 'delay_between_frames' to float")
             if self.frame_set_index >= self.frame_set_len:
-                # todo: add the ability to add more frames to the buffer if no detetcions have been found
+                # todo: add the ability to add more frames to the buffer if no detections have been found
                 #  with the configured frame_set.
                 return None
             if not past_event and (self.frames_processed > 0 or self.frames_skipped > 0) and delay_frames:

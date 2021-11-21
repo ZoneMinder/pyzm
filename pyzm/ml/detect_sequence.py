@@ -354,13 +354,10 @@ class DetectSequence:
                     f"{label[idx]}_min_confidence"
                 )
                 min_conf_found = "overridden:ml_sequence->general"
-            if self.ml_options.get("general", {}).get(
-                    f"{label[idx]}_min_confidence"
-            ):
-                min_conf = self.ml_options.get("general", {}).get(
-                    f"{label[idx]}_min_confidence"
-                )
-                min_conf_found = "global config->ml_sequence->general"
+                
+                if min_conf.startswith("{{"):
+                    min_conf = g.config.get("object_min_confidence")
+                    min_conf_found = "RESET to default"
 
             # get intersection area of bounding box inside polygon zone
             if self.ml_options.get("general", {}).get(f"{label[idx]}_contained_area"):
@@ -368,6 +365,9 @@ class DetectSequence:
                     f"{label[idx]}_contained_area"
                 )
                 ioa_found = "overriden:ml_sequence->general"
+                if ioa.startswith("{{"):
+                    ioa = g.config.get("contained_area")
+                    ioa_found = "RESET to default"
 
             # max detected object area
             if self.ml_options.get("general", {}).get(
@@ -377,6 +377,9 @@ class DetectSequence:
                     f"{label[idx]}_max_detection_size"
                 )
                 moa_found = "overriden:ml_sequence->general"
+                if moa.startswith("{{"):
+                    moa = g.config.get("max_detection_size")
+                    moa_found = "RESET to default"
 
             # do confidence filtering first then max object area
             try:
@@ -570,6 +573,10 @@ class DetectSequence:
                             f"{label[idx]}_past_det_max_diff_area"
                         )
                         mda_found = "overriden:general"
+                        if mda.startswith('{{'):
+                            mda = g.config.get('past_det_max_diff_area')
+                            mda_found = 'RESET to Default' \
+                                        ''
                     mpd_ig = seq_opt.get(
                         "ignore_past_detection_labels",
                         self.ml_options.get("general", {}).get(
@@ -611,6 +618,8 @@ class DetectSequence:
                         continue
 
                     if mda:
+                        if mda.startswith('{{'):
+                            mda = g.config.get('past_det_max_diff_area')
                         _m = re.match(r"(\d+)(px|%)?$", mda, re.IGNORECASE)
                         if _m:
                             max_diff_area = float(_m.group(1))

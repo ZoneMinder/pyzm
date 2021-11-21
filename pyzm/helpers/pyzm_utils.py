@@ -66,6 +66,7 @@ class Timer:
 def createAnimation(
         image=None,
         options: dict = None,
+        perf=None
 ):
     import imageio
 
@@ -361,8 +362,7 @@ def createAnimation(
                         f"{log_prefix}{'fast ' if fast_gif is not None else ''}gif: range is weird start: s1='{s1}' "
                         f"end offset: s2='-{s2}'"
                     )
-    start = g.animation_seconds
-    g.animation_seconds = (datetime.datetime.now() - start).total_seconds()
+    g.animation_seconds = time.perf_counter()-perf
 
 
 def resize_image(img: cv2, resize_w, quiet=None):

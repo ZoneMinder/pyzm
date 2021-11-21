@@ -2,6 +2,7 @@ from datetime import datetime
 
 from yaml import safe_load
 from typing import Optional
+
 #MLAPI
 MAX_FILE_SIZE_MB: int = 5
 ALLOWED_EXTENSIONS: set = {'.png', '.jpg', '.gif', '.mp4'}
@@ -39,7 +40,6 @@ save_image_train: no
 save_image_train_dir: '/var/lib/zmeventnotification/images'
 force_debug: no
 frame_set: snapshot,alarm,snapshot
-version: 1.2
 cpu_max_processes: 2
 gpu_max_processes: 2
 tpu_max_processes: 2
@@ -62,7 +62,7 @@ max_detection_size: ''
 contained_area: 1px
 model_sequence: 'object,face,alpr'
 base_data_path: '/var/lib/zmeventnotification'
-resize: 800
+resize: no
 picture_timestamp:
   enabled: no
   date format: '%Y-%m-%d %H:%M:%S'
@@ -76,11 +76,13 @@ write_debug_image: no
 write_image_to_zm: yes
 show_percent: yes
 draw_poly_zone: yes
+contained_area: 1px
 poly_color: (0,0,255)
 poly_thickness: 2
 import_zm_zones: no
 only_triggered_zm_zones: no
 show_filtered_detections: no
+show_conf_filtered: no
 
 hass_enabled: no
 hass_server: ''
@@ -212,11 +214,11 @@ stream_sequence :
   frame_set: '{{frame_set}}'
   contig_frames_before_error: 2
   max_attempts: 3
-  sleep_between_attempts: 2
+  sleep_between_attempts: 2.23
   sleep_between_frames: 0
-  sleep_between_snapshots: 2
+  sleep_between_snapshots: 1.5
   smart_fs_thresh: '5'
-  resize: 800
+  resize: '{{resize}}'
   model_height:  
   model_width: 
   tpu_model_height: 
@@ -262,6 +264,7 @@ ml_sequence:
 
       sequence: []
 ''')
+
 mlapi_default: dict = safe_load("""
 host: 0.0.0.0
 processes: 1
@@ -279,6 +282,7 @@ log_path: './logs'
 base_data_path: '.'
 match_past_detections: no
 past_det_max_diff_area: '5%'
+
 
 zmes_keys: {}
 frame_set: snapshot,alarm,snapshot

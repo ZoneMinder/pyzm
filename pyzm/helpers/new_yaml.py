@@ -2,20 +2,45 @@
 Offers superior nested python data structure retention compared to the old ConfigParser logic.
 """
 import sys
+import time
 from ast import literal_eval
 from copy import deepcopy
 from pathlib import Path
 from re import compile
 from shutil import which
-from threading import Thread
 from typing import Optional, Union
+from dataclasses import dataclass, field
 
 from yaml import SafeLoader, load
 from pyzm.helpers.pyzm_utils import my_stderr, my_stdout, str2bool
+from pyzm.api import ZMApi
+from pyzm.ZMLog import ZMLog
 
-g: Optional[object] = None
 ZM_INSTALLED: Optional[str] = which('zmdc.pl')
 lp: str = "config:"
+
+
+@dataclass()
+class GlobalConfig:
+    """dataclass that holds some global objects"""
+
+    eid: Optional[Union[str, int]] = None  # global Event ID or the name of the input file/video
+
+    DEFAULT_CONFIG: dict = field(default_factory=dict)
+    animation_seconds: Optional[time.perf_counter] = None
+    logger: Optional[ZMLog] = None  # global logger, starts with a buffer that is displayed once ZMLog is initialized
+    api: Optional[ZMApi] = None  # global ZMApi
+    config: dict = field(default_factory=dict)  # object that will hold config values from objectconfig.yml
+    mid: Optional[int] = None  # global Monitor ID
+
+    api_event_response: Optional[dict] = None  # return from requesting event data
+    event_tot_frames: Optional[int] = None  # Total frame buffer length for current event / video /image
+    Frame: Optional[list] = None  # Hold the events 'Frame' data structure (length = length of frame buffer)
+    Monitor: Optional[dict] = None  # Hold the events 'Monitor' data structure
+    Event: Optional[dict] = None  # Hold the events 'Event' data structure
+
+
+g: Optional[GlobalConfig] = None
 
 
 class ConfigParse:
@@ -607,7 +632,6 @@ class ConfigParse:
 
 
 def start_logs(config: dict, args: dict, _type, no_signal=False):
-    from pyzm.ZMLog import ZMLog as zm_log
     # Setup logger and API, baredebug means DEBUG level logging but do not output to console
     # this is handy if you are monitoring the log files with tail -F (or the provided es.log.<detect/base> or mlapi.log)
     # otherwise you get double output. mlapi and ZMES override their std.out and std.err in order to catch all errors
@@ -684,9 +708,9 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
 
         if g is None:
             raise ValueError(f" The global 'g' object is None ?!?!?")
-        if not isinstance(g.logger, zm_log):
+        if not isinstance(g.logger, ZMLog):
             # The log_buffer is iterable
-            g.logger = zm_log(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
+            g.logger = ZMLog(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
 
         if not args.get("debug"):
             sys.stdout = my_stdout()
@@ -711,13 +735,13 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
             log_name = "zmesdetect_file_input"
         elif args.get('from_face_train'):
             log_name = "zmes_face_train"
-        log = zm_log(
+        log = ZMLog(
             name=log_name,
             override=config["pyzm_overrides"],
             globs=g,
             no_signal=no_signal
         )
-        #Thread needs to set the global logger here
+        # Thread needs to set the global logger here
         g.logger = log
         if not args.get("debug"):
             sys.stdout = my_stdout()
@@ -726,17 +750,15 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
         # return log
 
 
-def process_config(args, conf_globals, type_):
+def process_config(
+        args: dict,
+        conf_globals: GlobalConfig,
+        type_: str
+):
     global g
     g = conf_globals
     # build default config, pass filename
-    if type_ == 'mlapi':
-        defaults = g.mlapi_default
-    elif type_ == 'zmes':
-        defaults = g.zmes_default
-    else:
-        defaults = None
-        raise NotImplementedError(f"{type_} is not a valid type")
+    defaults = conf_globals.DEFAULT_CONFIG
     config_obj = ConfigParse(args['config'], defaults)
     config_obj.process_config()
     # config_obj.COCO = pop_coco_names(config_obj.config['yolo4_object_labels']
@@ -773,7 +795,6 @@ def create_api(args: dict):
         "sanitize_portal": str2bool(g.config.get("sanitize_logs")),
     }
     try:
-        from pyzm.api import ZMApi
         g.api = ZMApi(options=api_options, api_globals=g)
     except Exception as e:
         g.logger.error(f"{lp} {e}")

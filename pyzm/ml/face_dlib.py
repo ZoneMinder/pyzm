@@ -8,14 +8,11 @@ import cv2
 import dlib
 import portalocker
 
+from pyzm.helpers.new_yaml import GlobalConfig
 from pyzm.helpers.pyzm_utils import Timer, id_generator, str2bool, resize_image
 from pyzm.ml.face import Face
 
-# This is for the remove globals branch
-# from pyzm.helpers.new_yaml import GlobalConfig
-# g: Optional[GlobalConfig] = None
-
-g = None
+g: Optional[GlobalConfig] = None
 g_start = Timer()
 import face_recognition
 
