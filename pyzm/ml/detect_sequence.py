@@ -169,7 +169,8 @@ class DetectSequence:
         if force_reload:
             if self.models:
                 if globs:
-                    g.logger.debug(f"{lp} resetting the loaded models!")
+                    g.logger.debug(f"{lp} There are models currently in the pipeline, resetting to be "
+                                   f"rebuilt on next detection.")
                 self.models = {}
             if not options:
                 return
@@ -1390,10 +1391,10 @@ class DetectSequence:
                     _model_names_in_frame.extend(_m_best_in_same_model)
                     # polygons_in_frame.extend(_polygons_in_same_model)
                     # error_polygons_in_frame.extend(_error_polygons_in_same_model)
-                    if frame_strategy == "first":
+                    if same_model_sequence_strategy == "first":
                         g.logger.debug(
                             2,
-                            f"{lp} breaking out of MODEL loop as 'frame_strategy' is 'first'",
+                            f"{lp} breaking out of MODEL loop as 'same_model_sequence_strategy' is 'first'",
                         )
                         break
                 else:
