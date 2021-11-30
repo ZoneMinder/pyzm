@@ -1488,7 +1488,7 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
     else:
         if not args.get('file'):
             mqtt_obj.create_ml_image(args.get("eventpath"), pred)
-            mqtt_obj.publish(topic=f"{mqtt_topic}/picture/{g.mid}", retain=True)
+            mqtt_obj.publish(topic=f"{mqtt_topic}/picture/{g.mid}", retain=g.config.get("mqtt_retain"))
             detection_info = json.dumps(
                 {
                     "eid": args.get("eventid"),
@@ -1505,14 +1505,26 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
             mqtt_obj.publish(
                 topic=f"{mqtt_topic}/data/{g.mid}",
                 message=detection_info,
-                retain=True
+                retain=g.config.get("mqtt_retain"),
             )
+            det_data = json.dumps(
+                {
+                    "labels": matched_data.get('labels'),
+                    "conf": matched_data.get('confidences'),
+                    "bbox": matched_data.get('boxes'),
+                    "models": matched_data.get('model_names'),
+                }
+            )
+            mqtt_obj.publish(
+                topic=f"{mqtt_topic}/rdata/{g.mid}", message=det_data, retain=g.config.get("mqtt_retain")
+            )
+
         else:
             # convert image to a byte array
             # cv2.imencode('.jpg', frame)[1].tobytes()
             # push_image = cv2.cvtColor(push_image, cv2.COLOR_BGR2RGB)
             push_image = cv2.imencode('.jpg', push_image)[1].tobytes()
-            mqtt_obj.publish(topic=f"{mqtt_topic}/picture/file", message=push_image)
+            mqtt_obj.publish(topic=f"{mqtt_topic}/picture/file", message=push_image, retain=g.config.get("mqtt_retain"),)
             # build this with info for the FILE
             detection_info = json.dumps(
                 {
@@ -1525,7 +1537,7 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
                 }
             )
             mqtt_obj.publish(
-                topic=f"{mqtt_topic}/data/file", message=detection_info
+                topic=f"{mqtt_topic}/data/file", message=detection_info, retain=g.config.get("mqtt_retain"),
             )
         mqtt_obj.close()
 
