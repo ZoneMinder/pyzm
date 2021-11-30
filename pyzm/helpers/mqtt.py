@@ -26,9 +26,10 @@ from pathlib import Path
 import paho.mqtt.client as mqtt_client
 
 from pyzm.helpers.pyzm_utils import str2bool, get_image, read_config, id_generator
+from pyzm.interface import GlobalConfig
 from typing import Optional
 
-g: Optional[object] = None
+g: Optional[GlobalConfig] = None
 
 wasConnected = False
 Connected = False  # global variable for the state of the connection

@@ -5,17 +5,18 @@ from pathlib import Path
 from typing import Optional
 
 import cv2
+# Pycharm hack for intellisense
+# from cv2 import cv2
 import dlib
 import portalocker
 
-from pyzm.helpers.new_yaml import GlobalConfig
 from pyzm.helpers.pyzm_utils import Timer, id_generator, str2bool, resize_image
-from pyzm.ml.face import Face
-
-g: Optional[GlobalConfig] = None
+from pyzm.interface import GlobalConfig
 g_start = Timer()
+from pyzm.ml.face import Face
 import face_recognition
 
+g: Optional[GlobalConfig] = None
 g_diff_time = g_start.stop_and_get_ms()
 face_rec_libs = face_recognition
 lp = 'dlib:face:'
@@ -23,12 +24,13 @@ lp = 'dlib:face:'
 
 # Class to handle face recognition
 class FaceDlib(Face):
-    def __init__(self, options=None, globs=None):
+    def __init__(self, options=None, globs=None, *args, **kwargs):
         global g
         if globs:
             g = globs
         if options is None:
             options = {}
+        self.lp = lp
         self.options = options
         self.sequence_name: str = self.options.get('name')
         g.logger.debug(4, f"{lp} init params: {options}")
@@ -100,6 +102,49 @@ class FaceDlib(Face):
     def get_options(self):
         return self.options
 
+    # def acquire_lock(self):
+    #     if str2bool(self.disable_locks):
+    #         return
+    #     if self.is_locked:
+    #         g.logger.debug(2, f"{lp}portalock: already acquired -> '{self.lock_name}'")
+    #         return
+    #     try:
+    #         g.logger.debug(2, f"{lp}portalock: Waiting for '{self.lock_name}'")
+    #         self.lock.acquire()
+    #         g.logger.debug(2, f"{lp}portalock: acquired -> '{self.lock_name}'")
+    #         self.is_locked = True
+    #
+    #     except portalocker.AlreadyLocked:
+    #         g.logger.error(f"{lp}portalock: Timeout waiting for -> '{self.lock_timeout}' sec: {self.lock_name}")
+    #         raise ValueError(f"portalock: Timeout waiting for {self.lock_timeout} sec: {self.lock_name}")
+
+    # def release_lock(self):
+    #     if str2bool(self.disable_locks):
+    #         return
+    #     if not self.is_locked:
+    #         # g.logger.debug(2, f"portalock: already released: {self.lock_name}")
+    #         return
+    #     self.lock.release()
+    #     self.is_locked = False
+    #     g.logger.debug(2, f"{lp}portalock: released -> '{self.lock_name}'")
+
+    def get_classes(self):
+        if self.knn:
+            return self.knn.classes_
+        else:
+            return []
+
+    @staticmethod
+    def _rescale_rects(a):
+        rects = []
+        for (left, top, right, bottom) in a:
+            top *= 4
+            right *= 4
+            bottom *= 4
+            left *= 4
+            rects.append([left, top, right, bottom])
+        return rects
+
     def acquire_lock(self):
         if str2bool(self.disable_locks):
             return
@@ -125,23 +170,6 @@ class FaceDlib(Face):
         self.lock.release()
         self.is_locked = False
         g.logger.debug(2, f"{lp}portalock: released -> '{self.lock_name}'")
-
-    def get_classes(self):
-        if self.knn:
-            return self.knn.classes_
-        else:
-            return []
-
-    @staticmethod
-    def _rescale_rects(a):
-        rects = []
-        for (left, top, right, bottom) in a:
-            top *= 4
-            right *= 4
-            bottom *= 4
-            left *= 4
-            rects.append([left, top, right, bottom])
-        return rects
 
     @property
     def get_model_name(self) -> str:

@@ -1,26 +1,32 @@
 from os import getuid
 from pathlib import Path
+from typing import Optional
+
 from PIL import Image
 
 import cv2
+# Pycharm hack for intellisense
+# from cv2 import cv2
 import portalocker
 from pycoral.adapters import common
 from pycoral.adapters import detect
 from pycoral.utils.edgetpu import make_interpreter
 
 from pyzm.helpers.pyzm_utils import Timer, str2bool
+from pyzm.interface import GlobalConfig
 from pyzm.ml.face import Face
 
+g: Optional[GlobalConfig] = None
 name = 'TPU_Face'
-g = None
+
 
 # Class to handle face recognition
 class FaceTpu(Face):
-    def __init__(self, options=None, globs=None):
+    def __init__(self, options=None, globs=None, *args, **kwargs):
         global g
         if globs:
             g = globs
-        # g.logger.Debug (4, 'Face init params: {}'.format(options))
+        g.logger.debug(4, f'TPU Face init params: {options}')
         self.knn = None
         if options is None:
             options = {}
@@ -28,9 +34,9 @@ class FaceTpu(Face):
         self.sequence_name: str = ''
         # g.logger.Debug('Initializing face detection')
         self.processor = 'tpu'
-        self.lock_maximum = int(options.get(self.processor + '_max_processes', 1))
+        self.lock_maximum = int(options.get(f'{self.processor}_max_processes', 1))
         self.lock_name = f"pyzm_uid{getuid()}_{self.processor.upper()}_lock"
-        self.lock_timeout = int(options.get(self.processor + '_max_lock_wait', 120))
+        self.lock_timeout = int(options.get(f'{self.processor}_max_lock_wait', 120))
         self.disable_locks = options.get('disable_locks', 'no')
         if not str2bool(self.disable_locks):
             g.logger.debug(2, f"portalock: max:{self.lock_maximum}, name:{self.lock_name}, timeout:{self.lock_timeout}")

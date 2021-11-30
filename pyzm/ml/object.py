@@ -1,16 +1,21 @@
-from portalocker import AlreadyLocked, BoundedSemaphore
-from pyzm.helpers.pyzm_utils import str2bool
+from typing import Optional
 
-g = None
+from portalocker import AlreadyLocked, BoundedSemaphore
+
+from pyzm.helpers.pyzm_utils import str2bool
+from pyzm.interface import GlobalConfig
 
 
 class Object:
     """'Object' is a BASE class to wrap other model Classes for detections using OpenCV 4.2+/CUDA/cuDNN"""
     def __init__(self, *args, **kwargs):
-        global g
+        g: Optional[GlobalConfig] = None
         g = kwargs.get('globs')
+        self.globs = g
+        self.lock = None
 
     def create_lock(self):
+        g = self.globs
         if not str2bool(self.disable_locks):
             g.logger.debug(2,
                            f"{self.lp}portalock: [name: {self.lock_name}] [max: {self.lock_maximum}] - "
@@ -25,6 +30,7 @@ class Object:
             self.lock = None
 
     def acquire_lock(self):
+        g = self.globs
         if str2bool(self.disable_locks):
             return
         if self.is_locked:
@@ -46,6 +52,7 @@ class Object:
                 f'Timeout waiting for {self.lock_name} portalock for {self.lock_timeout} seconds')
 
     def release_lock(self):
+        g = self.globs
         if str2bool(self.disable_locks):
             return
         if not self.is_locked:

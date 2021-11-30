@@ -1,4 +1,7 @@
+from typing import Optional
 import cv2
+# Pycharm hack for intellisense
+# from cv2 import cv2
 import pickle
 from sklearn import neighbors
 import imutils
@@ -7,9 +10,10 @@ import os
 from pathlib import Path
 
 from pyzm.helpers.pyzm_utils import Timer
+from pyzm.interface import GlobalConfig
 import face_recognition as face_rec_libs
 
-g = None
+g: Optional[GlobalConfig] = None
 
 
 class FaceTrain:
@@ -22,7 +26,6 @@ class FaceTrain:
         self.options = g.config
 
     def train(self, size=None):
-        lp = 'mlapi:face-train:'
         t = Timer()
         known_images_path = self.options.get('known_images_path')
         train_model = self.options.get('face_train_model')
@@ -36,10 +39,10 @@ class FaceTrain:
             if Path(f'{known_images_path}/faces.pickle').is_file():
                 # old version, we no longer want it. begone
                 g.logger.debug(
-                    2, f"{lp} removing old faces.pickle, we have moved to clustering")
-                os.remove(f"{known_images_path}/faces.pickle")
+                    2, 'mlapi:face-train: removing old faces.pickle, we have moved to clustering')
+                os.remove(f'{known_images_path}/faces.pickle')
         except Exception as e:
-            g.logger.error(f"{lp} Error deleting old pickle file: {e}")
+            g.logger.error(f"mlapi:face-train: Error deleting old pickle file: {e}")
 
         directory = known_images_path
         ext = ('.jpg', '.jpeg', '.png', '.gif')
@@ -69,9 +72,7 @@ class FaceTrain:
                                     size = 800
                                 else:
                                     size = int(self.options.get('resize', 800))
-                            if not size or size == 0 or size == '0':
-                                size = 800
-                            g.logger.debug(f'{lp} resizing to {size}')
+                            g.logger.debug(f'mlapi:face-train: resizing to {size}')
                             known_face = imutils.resize(known_face, width=size)
 
                             # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)

@@ -23,7 +23,6 @@ Important:
 """
 
 import datetime
-from threading import Thread
 
 from requests import Session
 from requests.packages.urllib3 import disable_warnings
@@ -40,6 +39,7 @@ from pyzm.helpers.States import States
 from pyzm.helpers.Zones import Zones
 
 g = None
+
 GRACE = 60 * 5  # 5 mins
 lp = 'api:'
 
@@ -57,7 +57,8 @@ class ZMApi:
             - basic_auth_user - basic auth username
             - basic_auth_password - basic auth password
             - logger - logger to use
-            - kickstart - (dict) containing existing JWT token data
+            - api_globals - pre-instantiated GlobalConfig object
+            - kickstart - (dict) containing existing JWT token data, instead of logging in and grabbing for ourself.
             Note: you can connect your own customer logging class to the API in which case all modules will use your
             custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.
             Base.SimpleLog` for method details.

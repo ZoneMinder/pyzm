@@ -8,7 +8,7 @@ the full object
 """
 from typing import Optional
 
-g: Optional[object] = None
+g = None
 
 
 class State:

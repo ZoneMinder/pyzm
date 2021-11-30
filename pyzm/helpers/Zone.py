@@ -1,7 +1,8 @@
 # from pyzm import api as zm_api
 from traceback import format_exc
 from typing import Optional
-g: Optional = None
+
+g = None
 
 
 class Zone:

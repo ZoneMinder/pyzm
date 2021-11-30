@@ -4,7 +4,6 @@ ZMLog
 A python implementation of ZoneMinder's logging system
 You can use this to connect it to the APIs if you want
 """
-import copy
 import glob
 import grp
 import os
@@ -26,12 +25,12 @@ from pathlib import Path
 from shutil import which
 from sqlalchemy import create_engine, MetaData, select, or_  # ,Table,inspect
 from sqlalchemy.exc import SQLAlchemyError
-
-g: Optional[object] = None
+g = None
 lp = 'ZM Log:'
-zm_inst = which('zmdc.pl')
+ZM_INSTALLED = which('zmdc.pl')
 
 
+# g needs to be global for the signal handlers
 def sig_log_rot(sig, frame):
     lp = 'signal handler:'
     name = g.logger.logger_name
@@ -87,7 +86,8 @@ class ZMLog:
         self.no_signal = no_signal
         global g
         g = globs
-        self.buffer = g.logger
+        from pyzm.helpers.pyzm_utils import LogBuffer
+        self.buffer: LogBuffer = g.logger
         self.is__active = None
         self.config = None
         self.engine = None
@@ -163,7 +163,7 @@ class ZMLog:
         # Round 1 of overrides, before we read params from DB
         # Override with locals if present
         self.config.update(override)
-        if zm_inst:  # ZoneMinder is installed so use DB and read ZM' conf files
+        if ZM_INSTALLED:  # ZoneMinder is installed so use DB and read ZM' conf files
             if self.config.get('conf_path'):
                 # read all config files in order
                 files = []
@@ -307,7 +307,7 @@ class ZMLog:
 
         self.is__active = True
         show_log_name = f"'{self.log_filename}'"
-        if zm_inst:
+        if ZM_INSTALLED:
             if self.buffer:
                 self.buffer.info(
                     f"Connected to ZoneMinder Logging system with user '{getuser()}'"
@@ -331,9 +331,13 @@ class ZMLog:
                     f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
                     f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
                 )
-        if self.buffer:
-            for line in self.buffer:
-                self.debug(line)
+        if self.buffer.buffer and len(self.buffer.buffer):
+            self.buffer.buffer = sorted(self.buffer.buffer, key=lambda x: x['timestamp'], reverse=True)
+            for _ in range(len(self.buffer)):
+                # pop it just in case it somehow gets iterated again
+                line = self.buffer.pop()
+                if line:
+                    self.debug(line)
 
     def is_active(self):
         if self.is__active:
@@ -353,7 +357,7 @@ class ZMLog:
             self.conn.close()
         except Exception:
             pass
-        if zm_inst:
+        if ZM_INSTALLED:
             try:
                 self.engine = create_engine(self.cstr, pool_recycle=3600)
                 self.conn = self.engine.connect()
@@ -478,7 +482,7 @@ class ZMLog:
         line = caller.lineno
         # write to db only if ZM installed
         send_to_db = True
-        if levels[level] <= self.config['log_level_db'] and zm_inst:
+        if levels[level] <= self.config['log_level_db'] and ZM_INSTALLED:
             if not self.sql_connected:
                 self.syslog.syslog(syslog.LOG_INFO, self._format_string("Connecting to ZoneMinder SQL DB"))
                 if not self._db_reconnect():

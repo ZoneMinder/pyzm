@@ -4,7 +4,7 @@ Configs
 Hold all ZM Config data. No need for a separate config class
 """
 from typing import Optional
-g: Optional[object] = None
+g = None
 
 
 class Configs:

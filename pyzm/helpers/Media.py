@@ -3,18 +3,19 @@ from os import remove
 from pathlib import Path
 from time import sleep
 from traceback import format_exc
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, Union, AnyStr, List
 
 import cv2
+# Pycharm hack for intellisense
+# from cv2 import cv2
 import numpy as np
 import requests
 from imutils.video import FileVideoStream as FVStream
 
 from pyzm.api import ZMApi
 from pyzm.helpers.pyzm_utils import grab_frameid, str2bool, resize_image
+from pyzm.interface import GlobalConfig
 
-# from pyzm.helpers.pydantic_models import StreamSequence
-g = None
 # log prefix to add onto
 lp: str = 'media:'
 
@@ -23,47 +24,48 @@ class MediaStream:
     frames_processed: int
 
     def __init__(self, stream=None, type_="video", options=None, m_globals=None):
+        if m_globals is None:
+            raise ValueError("media: m_globals is required")
+        if not options:
+            raise ValueError(f"{lp} no stream options provided!")
+        self.globs: GlobalConfig = m_globals
+        g: GlobalConfig = self.globs
         self.fids_global: list[str] = []
         self.fids_skipped: list[str] = []
         # <frame id>: int : cv2.im(de?)encoded image
-        self.encoded_images = {}
-        global g
-        if m_globals:
-            g = m_globals
         self.skip_all_count: int = 0
-        if not options:
-            raise ValueError(f"{lp} no stream options provided!")
-
         self.stream: str = stream
-        self.type = type_
-        self.fvs = None
-        self.next_frame_id_to_read = 1
-        self.last_frame_id_read = 0
+        self.type: str = type_
+        self.fvs: Optional[FVStream] = None
+        self.next_frame_id_to_read: int = 1
+        self.last_frame_id_read: int = 0
         self.options: Optional[dict] = options
-        self.more_images_to_read = True
-        self.frames_processed = 0
-        self.frames_skipped = 0
+        self.more_images_to_read: bool = True
+        self.frames_processed: int = 0
+        self.frames_skipped: int = 0
         # For 'video' type
-        self.frames_read = 0
+        self.frames_read: int = 0
         self.api: ZMApi = g.api
-        self.frame_set = []
-        self.frame_set_index = 0
-        self.frame_set_len = 0
-        self.orig_h_w = None
-        self.resized_h_w = None
-        self.default_resize = 800
-        self.is_deletable = False
-        self.eid = None
+        self.frame_set: List[AnyStr] = []
+        self.frame_set_index: int = 0
+        self.frame_set_len: int = 0
+        self.orig_h_w: Optional[Tuple[str, str]] = None
+        self.resized_h_w: Optional[Tuple[str, str]] = None
+        self.default_resize: int = 800
+        self.is_deletable: bool = False
         self.allowed_attempts = None
-        wait = None
-        self.fids_processed: list = []
-        self.last_frame_id_read = None
+        wait: Optional[Union[str, int]] = None
+        self.fids_processed: List[AnyStr] = []
+        self.last_frame_id_read: Optional[Union[int, str]] = None
 
         if options.get("delay"):
             try:
                 delay = float(options['delay'])
-            except Exception:
+            except ValueError:
                 g.logger.error(f"media: the configured delay is malformed! can only be a number (x or x.xx)")
+            except TypeError as t_exc:
+                g.logger.error(f"media: the configured delay is malformed! can only be a number (x or x.xx)")
+                g.logger.debug(t_exc)
             else:
                 if delay:
                     g.logger.debug(
@@ -74,7 +76,7 @@ class MediaStream:
 
         ext = Path(self.stream).suffix
         if ext.lower() in (".jpg", ".png", ".jpeg"):
-            g.logger.debug(f"{lp} The supplied stream '{self.stream}' is a file image")
+            g.logger.debug(f"{lp} The supplied stream '{self.stream}' is an image file")
             self.type = "file"
             return
 
@@ -85,37 +87,36 @@ class MediaStream:
             options.get("contig_frames_before_error", 5)
         )
         self.frames_before_error = 0
-        # g.logger.Debug(f"{options=}")
         if self.stream.isnumeric():
             # assume it is an event id, in which case we
             # need to access it via ZM API
 
             if self.options.get("pre_download"):
-                # If download and grabbing from API, download the images locally and then run detections
+                # If pre_download and grabbing from API, download the images locally and then run detections
                 g.logger.debug(
-                    f"{lp} Download event images locally before running detections for stream: {self.stream} "
+                    f"{lp} Download event images locally before running detections for stream: {g.eid} "
                 )
-                api_events = self.api.events({"event_id": int(self.stream)})
+                api_events = self.api.events({"event_id": int(g.eid)})
 
                 if not api_events:
                     g.logger.error(
-                        f"{lp} no such event {self.stream} found with API"
+                        f"{lp} no such event {g.eid} found with API"
                     )
                     return
                 # should only be 1 event as we sent a filter for that event in the call
                 for event in api_events:
-                    self.stream = event.download_video(
+                    self.stream = event.Event.download_video(
                         download_dir=self.options.get("pre_download_dir", "/tmp/")
                     )
                     self.is_deletable = True
                     self.type = "video"
+
             # use API
             else:
-                self.eid = self.stream
                 self.next_frame_id_to_read = int(self.start_frame)
-                self.stream = f"{self.api.get_portalbase()}/index.php?view=image&eid={self.eid}"
+                self.stream = f"{self.api.get_portalbase()}/index.php?view=image&eid={self.stream}"
                 g.logger.debug(
-                    2, f"{lp} setting 'image' as type for event -> '{self.eid}'"
+                    2, f"{lp} setting 'image' as type for event -> '{g.eid}'"
                 )
                 self.type = "image"
 
@@ -131,21 +132,21 @@ class MediaStream:
                 )
                 self.frame_set = ["snapshot", "alarm", 'snapshot']
             self.max_frames = self.frame_set_len = len(self.frame_set)
-            if "alarm" in self.frame_set or "snapshot" in self.frame_set:
-                if self.type == "video":
-                    # remove snapshot and alarm then see if any left before error
-                    self.frame_set = [
-                        str(i)
-                        for i in self.options.get("frame_set")
-                        if i != "snapshot" or i != "alarm"
-                    ]
-                    if not self.frame_set:
-                        g.logger.error(
-                            f"{lp} you are using 'snapshot' or 'alarm' frame ids inside of frame_set with a VIDEO FILE"
-                            f", 'snapshot' or 'alarm' are a sepcial feature of grabbing frames from the ZM API. You"
-                            f"must specify actual frame ID' when detecting on a VIDEO FILE"
-                        )
-                        raise ValueError("WRONG FRAME_SET TYPE")
+            if self.type == 'video' and ("alarm" in self.frame_set or "snapshot" in self.frame_set):
+                print(f"inside the video thing to remove snapshot and alrm")
+                # remove snapshot and alarm then see if any left before error
+                self.frame_set = [
+                    str(i)
+                    for i in self.options.get("frame_set")
+                    if i != "snapshot" or i != "alarm"
+                ]
+                if not self.frame_set:
+                    g.logger.error(
+                        f"{lp} you are using 'snapshot' or 'alarm' frame ids inside of frame_set with a VIDEO FILE"
+                        f", 'snapshot' or 'alarm' are a sepcial feature of grabbing frames from the ZM API. You"
+                        f"must specify actual frame ID' when detecting on a VIDEO FILE"
+                    )
+                    raise ValueError("WRONG FRAME_SET TYPE")
 
             g.logger.debug(
                 2,
@@ -190,13 +191,13 @@ class MediaStream:
         return self.last_frame_id_read
 
     def more(self):
+        g: GlobalConfig = self.globs
         if self.type == "file":
             return self.more_images_to_read
 
         if self.frame_set:
             # returns true if index is less than allowable max processed frames?
             return self.frame_set_index < self.max_frames
-        g.logger.debug(f"{self.frame_set=}")
         if self.frames_processed >= self.max_frames:
             g.logger.debug(
                 f"media: bailing as we have read {self.frames_processed} frames out of an "
@@ -210,13 +211,15 @@ class MediaStream:
                 return self.more_images_to_read
 
     def stop(self):
+        g: GlobalConfig = self.globs
         if self.type == "video":
             self.fvs.stop()
         if self.is_deletable:
             try:
                 remove(self.stream)
             except Exception as e:
-                g.logger.error(f"media:stop: could not delete downloaded images: {e}")
+                g.logger.error(f"media:stop: could not delete downloaded images: {self.stream}")
+                g.logger.debug(e)
             else:
                 g.logger.debug(2, f"media:stop: deleted '{self.stream}'")
 
@@ -228,18 +231,21 @@ class MediaStream:
             last_frame = ""
         return str(last_frame)
 
-    @staticmethod
-    def val_type(cls, k, v) -> Tuple[bool, Any]:
-        """return a tuple containing (success/fail, return value) of *v* converted to class type *cls* object"""
+    def val_type(self, cls, k, v, msg=None) -> Any:
+        """return *v* converted to class type *cls* object, msg is the ValueError message to display
+        if v cannot be converted to cls"""
+        g: GlobalConfig = self.globs
+
         if v is None or not v:
-            return True, v
+            return v
         try:
             ret_val = cls(v)
         except Exception as exc:
             g.logger.error(f"media: error trying to convert '{k}' to a {repr(cls)} -> {exc}")
-            return False, v
+            if msg:
+                raise ValueError(msg)
         else:
-            return True, ret_val
+            return ret_val
 
     def _increment_read_frame(self, image=None, append_fid=None, l_frame_id=None):
         """Increment frame set index and frames processed. Both frame set and not frame set compatible"""
@@ -285,16 +291,14 @@ class MediaStream:
                 return None
 
     def read(self):
-        def val_err(val, msg):
-            if not val:
-                raise ValueError(msg)
-
+        g: GlobalConfig = self.globs
         response: Optional[requests.Response] = None
-        past_event = g.config.get("PAST_EVENT")
+        past_event: Optional[str] = g.config.get("PAST_EVENT")
+        frame: Optional[np.ndarray] = None
         # image from file
         # 'delay_between_frames' - probably not
         if self.type == "file":
-            lp = 'media:read:file:'
+            lp: str = 'media:read:file:'
             frame = cv2.imread(self.stream)
             self.last_frame_id_read = 1
             self.orig_h_w = frame.shape[:2]
@@ -311,7 +315,7 @@ class MediaStream:
                     self.options["resize"] = "no"
                 else:
                     # Get the desired width then pass it to the resize function
-                    vid_w = self.options.get("resize")
+                    vid_w: Optional[Union[str, int]] = self.options.get("resize")
                     frame = resize_image(frame, vid_w)
             self.resized_h_w = frame.shape[:2]
             return frame
@@ -325,9 +329,8 @@ class MediaStream:
                 self.frames_read += 1
 
                 if frame is None:
-                    self.frames_before_error += (
-                        1  # this is contiguous errors (outer try) for type == 'image'
-                    )
+                    # this is contiguous errors (outer try) for type == 'image'
+                    self.frames_before_error += 1
                     if self.frames_before_error >= self.contig_frames_before_error:
                         g.logger.error(
                             f"{lp} Error reading frame #-{self.frames_read}"
@@ -396,13 +399,16 @@ class MediaStream:
         # grab images frame by frame from ZM API (can pre download frames and then process)
         elif self.type == "image":
             lp = 'media:read:image:'
-            delayed = False
-            comp_fid = None
-            skip_all = False
-            f_difference = 0
-            delay_succ, delay_frames = self.val_type(float, "delay_between_frames",
-                                                     self.options.get("delay_between_frames"))
-            val_err(delay_succ, f"{lp} error converting 'delay_between_frames' to float")
+            delayed: bool = False
+            comp_fid: Optional[str] = None
+            skip_all: bool = False
+            f_difference: int = 0
+            delay_frames = self.val_type(
+                float,
+                "delay_between_frames",
+                self.options.get("delay_between_frames"),
+                f"{lp} error converting 'delay_between_frames' to float"
+            )
             if self.frame_set_index >= self.frame_set_len:
                 # todo: add the ability to add more frames to the buffer if no detections have been found
                 #  with the configured frame_set.
@@ -434,12 +440,12 @@ class MediaStream:
                     f"reading concurrent snapshot frame ('delay_between_snapshots'), last frame was a snapshot and so "
                     f"is this frame request"
                 )
-                snap_succ, snapshot_sleep = self.val_type(
+                snapshot_sleep = self.val_type(
                     float,
                     "delay_between_snapshots",
-                    self.options.get("delay_between_snapshots")
+                    self.options.get("delay_between_snapshots"),
+                    f"{lp} error converting 'delay_between_snapshots' to a float"
                 )
-                val_err(snap_succ, f"{lp} error converting 'delay_between_snapshots' to a float")
                 delayed = True
                 sleep(snapshot_sleep)
 
@@ -453,7 +459,7 @@ class MediaStream:
             else:
                 g.logger.debug(f"{lp} about to process first frame!")
 
-            fb_length_before_api_call = len(g.Frame) if g.Frame else 0
+            fb_length_before_api_call: int = len(g.Frame) if g.Frame else 0
             if (
                     not g.api_event_response
                     or not past_event
@@ -470,7 +476,7 @@ class MediaStream:
 
             if not g.Frame:
                 g.logger.error(
-                    f"{lp} There seeems to be an error with the 'Frames' DataBase in ZM! Check"
+                    f"{lp} There seems to be an error with the 'Frames' DataBase in ZM! Check"
                     f"that monitor {g.mid}-> {g.config.get('mon_name')} is 'Capturing' in the ZM WEB GUI"
                 )
                 raise ValueError(f"There is no 'Frame' data passed from ZM API (ZM DB Errors? Monitor not 'Capturing'?")
@@ -482,13 +488,13 @@ class MediaStream:
                 current_frame = self.frame_set[self.frame_set_index] = f"a-{g.Event.get('AlarmFrameId')}"
                 g.logger.debug(
                     2,
-                    f"{lp} Event: {self.eid} - converting 'alarm' to a frame ID -> {current_frame}",
+                    f"{lp} Event: {g.eid} - converting 'alarm' to a frame ID -> {current_frame}",
                 )
             elif current_frame.startswith("sn"):
                 current_frame = f"s-{g.Event.get('MaxScoreFrameId')}"
                 g.logger.debug(
                     2,
-                    f"{lp} Event: {self.eid} - converting 'snapshot' to a frame ID -> {current_frame}",
+                    f"{lp} Event: {g.eid} - converting 'snapshot' to a frame ID -> {current_frame}",
                 )
             if not past_event:
                 g.logger.debug(
@@ -501,16 +507,24 @@ class MediaStream:
                 # the event frame buffer has not grown since last api call
                 if self.skip_all_count > 1:
                     g.logger.debug(
-                        f"{lp} the frame buffer ({g.event_tot_frames}) for event '{self.eid}' is no longer"
+                        f"{lp} the frame buffer ({g.event_tot_frames}) for event '{g.eid}' is no longer"
                         f" growing. All out of bound frame ID's will be skipped"
                         f" instead of being reduced to the last available frame buffer ID"
                     )
                     skip_all = True
 
-            tot_succ, total_time = self.val_type(float, 'total event time', g.Frame[-1]["Delta"])
-            val_err(tot_succ, f"{lp} error converting 'total event time' to a float")
-            fps_succ, f_fps = self.val_type(float, 'frame rate', g.event_tot_frames)
-            val_err(fps_succ, f"{lp} error converting 'frame rate' to a float")
+            total_time = self.val_type(
+                float,
+                'total event time',
+                g.Frame[-1]["Delta"],
+                f"{lp} error converting 'total event time' to a float"
+            )
+            f_fps = self.val_type(
+                float,
+                'frame rate',
+                g.event_tot_frames,
+                f"{lp} error converting 'frame rate' to a float"
+            )
             f_fps = f_fps / total_time
             # Check if we have already processed this frame ID before
             comp_fid = grab_frameid(current_frame)
@@ -528,9 +542,10 @@ class MediaStream:
                 # todo rework to make frame_set realize if there are a good amount of frames left on disk and so far
                 #  there is no detection, grab more frames at a calculated increment. Will need a way to ask
                 #   detect_stream about its current detections
-                oob_succ, oob_frame_id = self.val_type(int, 'out of bounds frame ID', grab_frameid(current_frame))
-                val_err(
-                    oob_succ,
+                oob_frame_id = self.val_type(
+                    int,
+                    'out of bounds frame ID',
+                    grab_frameid(current_frame),
                     f"{lp} 'out of bounds frame ID' there seems to be a formatting error "
                     f"while converting {grab_frameid(current_frame)} to an int "
                 )
@@ -538,11 +553,19 @@ class MediaStream:
                     # if frame buffer is growing and the difference between the out of bound fid and current end
                     # fid is within a reasonable distance, let the attempts happen.
                     f_difference = oob_frame_id - g.event_tot_frames
-                    f_diff_succ, f_difference = self.val_type(float, 'frames over by', f_difference)
-                    val_err(f_diff_succ, f"{lp} error while converting the frames over by into a float")
+                    f_difference = self.val_type(
+                        float,
+                        'frames over by',
+                        f_difference,
+                        f"{lp} error while converting the frames over by into a float"
+                    )
                     fps_thresh = self.options.get("smart_fps_thresh", 5)
-                    fps_t_succ, fps_thresh = self.val_type(float, 'smart_fps_thresh', fps_thresh)
-                    val_err(fps_t_succ, f"{lp} error while converting 'smart_fps_thresh' to a float")
+                    fps_thresh = self.val_type(
+                        float,
+                        'smart_fps_thresh',
+                        fps_thresh,
+                        f"{lp} error while converting 'smart_fps_thresh' to a float"
+                    )
                     thresh_frames = f_fps * fps_thresh
                     thresh_sec = round(thresh_frames / f_fps, 2)
 
@@ -555,7 +578,7 @@ class MediaStream:
                         self.allowed_attempts = 3  # make configurable?
                         smart_val = fps_thresh / self.allowed_attempts
                         smart_val = smart_val + (0.11 * self.allowed_attempts)
-                        sm_su, smart_sleep = self.val_type(float, 'smart sleep', smart_val)
+                        smart_sleep = self.val_type(float, 'smart sleep', smart_val)
 
                         g.logger.debug(
                             f"{lp} Based on a 'smart_fps_thresh' of {fps_thresh} seconds and {f_fps} fps. "
@@ -592,11 +615,19 @@ class MediaStream:
             try:
                 fid_grab_attempts = 0
                 # make sure correct types
-                succ1, max_attempts = self.val_type(int, "max_attempts", self.options.get("max_attempts", 3))
-                val_err(succ1, f"{lp} error while converting 'max_attempts' to an int")
-                succ2, sleep_time = self.val_type(float, "delay_between_attempts",
-                                                  self.options.get("delay_between_attempts", 3.0))
-                val_err(succ2, f"{lp} error while converting 'delay_between_attempts' to a float")
+                max_attempts = self.val_type(
+                    int,
+                    "max_attempts",
+                    self.options.get("max_attempts", 3),
+                    f"{lp} error while converting 'max_attempts' to an int"
+                )
+                sleep_time = self.val_type(
+                    float,
+                    "delay_between_attempts",
+                    self.options.get("delay_between_attempts", 3.0),
+                    f"{lp} error while converting 'delay_between_attempts' to a float"
+                )
+
                 for x in range(max_attempts):
                     fid_grab_attempts += 1
                     if fid_grab_attempts > 1 and int(comp_fid) >= g.event_tot_frames:
@@ -673,6 +704,8 @@ class MediaStream:
                                                f"check the path for spelling mistakes")
 
                         if self.options.get("resize", "no") != "no":
+                            print(f"{self.options.get('resize') = }")
+                            # fixme: why is there a default resize?
                             vid_w = int(self.options.get("resize", self.default_resize))
                             img = resize_image(img, vid_w)
                             self.resized_h_w = img.shape[:2]

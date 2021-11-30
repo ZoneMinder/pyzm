@@ -7,7 +7,8 @@ If you don't see a specific getter, just use the generic get function to get
 the full object
 """
 from typing import Optional
-g: Optional[object] = None
+
+g = None
 
 
 class Monitor:

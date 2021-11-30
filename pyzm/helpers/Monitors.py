@@ -9,7 +9,7 @@ which can be overriden
 from pyzm.helpers.Monitor import Monitor
 from typing import Optional
 
-g: Optional[object] = None
+g = None
 
 
 class Monitors:

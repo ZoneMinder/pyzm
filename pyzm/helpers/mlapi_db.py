@@ -2,8 +2,9 @@ from pathlib import Path
 from typing import Optional
 from tinydb import TinyDB, Query, where
 from passlib.hash import bcrypt
+from pyzm.interface import GlobalConfig
 
-g: Optional[object] = None
+g: Optional[GlobalConfig] = None
 lp: str = 'mlapi db:'
 
 

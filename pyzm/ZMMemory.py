@@ -8,7 +8,10 @@ import mmap
 import struct
 from collections import namedtuple
 import os
-import pyzm.helpers.globals as g
+from typing import Optional
+
+from pyzm.interface import GlobalConfig
+
 
 """
 shared_data => { type=>'SharedData', seq=>$mem_seq++, contents=> {
@@ -52,7 +55,9 @@ shared_data => { type=>'SharedData', seq=>$mem_seq++, contents=> {
 
 class ZMMemory:
 
-    def __init__(self, api=None, path='/dev/shm', mid=None):
+    def __init__(self, api=None, path='/dev/shm', mid=None, globs=None):
+        if globs:
+            self.globs = globs
         self.api = api
 
         self.alarm_state_stages = {
@@ -105,11 +110,12 @@ class ZMMemory:
         Returns:
             bool: True if memory handle is valid
         """
+        g: GlobalConfig = self.globs
         try:
             d = self._read()
             return not d['shared_data']['size'] == 0
         except Exception as e:
-            g.logger.error('Memory: {}'.format(e))
+            g.logger.error(f"Memory: {e}")
             return False
 
     def is_alarmed(self):

@@ -12,7 +12,7 @@ from typing import Optional
 from pyzm.helpers.Event import Event
 import dateparser
 
-g: Optional = None
+g = None
 
 
 class Events:

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import requests
 import os
 from glob import glob
@@ -6,11 +8,14 @@ import subprocess
 from pathlib import Path
 
 import cv2
+# Pycharm hack for intellisense
+# from cv2 import cv2
 
 from pyzm.helpers.pyzm_utils import id_generator, str2bool
+from pyzm.interface import GlobalConfig
 from pyzm.helpers.pyzm_utils import resize_image
 
-g = None
+g: Optional[GlobalConfig] = None
 lp: str = '{lp}'
 
 

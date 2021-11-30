@@ -4,12 +4,16 @@ from pathlib import Path
 from typing import Optional
 
 import cv2
+import cv2
+# Pycharm hack for intellisense
+# from cv2 import cv2
 import numpy as np
 
 from pyzm.helpers.pyzm_utils import Timer, str2bool
+from pyzm.interface import GlobalConfig
 from pyzm.ml.object import Object
 
-g: Optional[object] = None
+g: Optional[GlobalConfig] = None
 lp: Optional[str] = None
 
 

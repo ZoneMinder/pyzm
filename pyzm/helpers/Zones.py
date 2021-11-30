@@ -8,7 +8,7 @@ import requests
 from pyzm.helpers.Zone import Zone
 from typing import Optional, Union
 
-g: Optional = None
+g = None
 
 allowed_raw = (
     'Zone[Name]',

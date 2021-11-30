@@ -10,7 +10,7 @@ which can be overriden
 from pyzm.helpers.State import State
 from typing import Optional
 
-g: Optional[object] = None
+g = None
 
 
 class States:

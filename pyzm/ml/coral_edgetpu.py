@@ -3,6 +3,8 @@ from typing import Optional
 from PIL import Image
 
 import cv2
+# Pycharm hack for intellisense
+# from cv2 import cv2
 import numpy as np
 
 from pycoral.adapters import common
@@ -12,9 +14,11 @@ from pathlib import Path
 
 from pyzm.ml.object import Object
 from pyzm.helpers.pyzm_utils import Timer
+from pyzm.interface import GlobalConfig
 
+g: Optional[GlobalConfig] = None
 lp: Optional[str] = None
-g: Optional[object] = None
+
 
 
 class TPUException(Exception):

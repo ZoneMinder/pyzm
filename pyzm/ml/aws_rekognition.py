@@ -5,9 +5,10 @@ import boto3
 import cv2
 from typing import Optional
 from pyzm.helpers.pyzm_utils import Timer
+from pyzm.interface import GlobalConfig
 from pyzm.ml.object import Object
 
-g: Optional[object] = None
+g: Optional[GlobalConfig] = None
 lp: Optional[str] = None
 
 
