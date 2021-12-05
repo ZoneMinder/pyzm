@@ -270,7 +270,7 @@ class ZMLog:
         uid = pwd.getpwnam(self.config['webuser']).pw_uid
         gid = grp.getgrnam(self.config['webgroup']).gr_gid
         if self.config['log_level_file'] > levels['OFF']:
-            self.log_filename = f"{self.config['logpath']}/{self.process_name}.log"
+            self.log_filename = f"{self.config['logpath']}/{self.process_name}"
             try:
                 log_file = Path(self.log_filename)
                 log_file.touch(exist_ok=True)
