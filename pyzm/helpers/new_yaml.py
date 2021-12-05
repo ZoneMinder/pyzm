@@ -605,13 +605,14 @@ class ConfigParse:
                             f"that are now in the 'base' config -> {new_}"
                         )
 
-def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False):
+def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False, **kwargs):
     # Setup logger and API, baredebug means DEBUG level logging but do not output to console
     # this is handy if you are monitoring the log files with tail -F (or the provided es.log.<detect/base> or mlapi.log)
     # otherwise you get double output. mlapi and ZMES override their std.out and std.err in order to catch all errors
     # and log them
     config['pyzm_overrides']['dump_console'] = False
-
+    if kwargs.get('_type'):
+        type_ = kwargs.get('_type')
     if args.get('debug') and args.get('baredebug'):
         g.logger.warning(f"{lp} both debug flags enabled! --debug takes precedence over --baredebug")
         args.pop('baredebug')
