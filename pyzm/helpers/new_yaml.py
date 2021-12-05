@@ -643,7 +643,10 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
             if config.get('log_path'):
                 log_path = config['log_path']
             # create the log dir in base_data_path, if it exists do not throw an exception
-            Path(log_path).mkdir(exist_ok=True)
+            try:
+                Path(log_path).mkdir(exist_ok=True)
+            except Exception:
+                pass
 
         elif ZM_INSTALLED:
             g.logger.debug(f"{lp}init:log: Zoneminder is installed, configuring mlapi logger")
@@ -659,7 +662,10 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
                       f"using the configured (possibly default) log path '{config['base_data_path']}/logs'")
                 log_path = f"{config['base_data_path']}/logs"
                 # create the log dir in base_data_path, if it exists do not throw an exception
-                Path(log_path).mkdir(exist_ok=True)
+                try:
+                    Path(log_path).mkdir(exist_ok=True)
+                except Exception:
+                    pass
 
         else:
             print(f"It seems there is no user to log with, there will only be console output, if anything"
@@ -672,7 +678,11 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         if args.get('log_path'):
             if args.get('log_path_force'):
                 g.logger.debug(f"{lp}init: 'force_log_path' is enabled!")
-                Path(args.get('log_path')).mkdir(exist_ok=True)
+                try:
+                    Path(args.get('log_path')).mkdir(exist_ok=True)
+                except Exception:
+                    pass
+
             else:
                 log_p = Path(args.get('log_path'))
                 if log_p.is_dir():
