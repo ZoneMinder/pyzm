@@ -738,6 +738,8 @@ def process_config(args, conf_globals, type_):
     # config_obj.COCO = pop_coco_names(config_obj.config['yolo4_object_labels']
     g.config = config_obj.config
     if type_ == 'mlapi':
+        if args.get('from_docker'):
+            g.config['DOCKER'] = True
         # Need to build defined per monitors config
         for mon, _ in config_obj.monitors.items():
             if _ is not None:

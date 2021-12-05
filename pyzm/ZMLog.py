@@ -267,28 +267,28 @@ class ZMLog:
         self.log_filename = None
         self.log_file_handler = None
         # print('**********************A-R2 {}'. format(self.config))
-        uid = pwd.getpwnam(self.config['webuser']).pw_uid
-        gid = grp.getgrnam(self.config['webgroup']).gr_gid
-        if self.config['log_level_file'] > levels['OFF']:
-            self.log_filename = f"{self.config['logpath']}/{self.process_name}"
-            try:
-                log_file = Path(self.log_filename)
-                log_file.touch(exist_ok=True)
-                # Don't forget to close the file handler
-                self.log_file_handler = log_file.open('a')
-                # If in a docker container, do not chown the log file
-                if not os.getenv('MLAPI_CONTAINER'):
+        if not g.config.get('DOCKER'):
+            uid = pwd.getpwnam(self.config['webuser']).pw_uid
+            gid = grp.getgrnam(self.config['webgroup']).gr_gid
+            if self.config['log_level_file'] > levels['OFF']:
+                self.log_filename = f"{self.config['logpath']}/{self.process_name}"
+                try:
+                    log_file = Path(self.log_filename)
+                    log_file.touch(exist_ok=True)
+                    # Don't forget to close the file handler
+                    self.log_file_handler = log_file.open('a')
+                    # If in a docker container, do not chown the log file
                     os.chown(self.log_filename, uid, gid)  # proper permissions
-            except Exception as e:
-                self.buffer.error(f"{lp} Error for user: '{getuser()}' creating and changing permissions of file: "
-                                  f"'{self.log_filename}'")
-                self.buffer.error(f"{e}")
-                self.syslog.syslog(
-                    syslog.LOG_ERR,
-                    self._format_string(
-                        f"Error for user: {getuser()} while creating and changing permissions of log file -> {e}"
+                except Exception as e:
+                    self.buffer.error(f"{lp} Error for user: '{getuser()}' while creating and changing permissions of "
+                                      f"file: '{self.log_filename}'")
+                    self.buffer.error(f"{e}")
+                    self.syslog.syslog(
+                        syslog.LOG_ERR,
+                        self._format_string(
+                            f"Error for user: {getuser()} while creating and changing permissions of file -> {e}"
+                        )
                     )
-                )
         # Debug(f"File logging handler setup correctly -> {log_fhandle.name}") if log_fhandle else None
         if not self.no_signal:
             try:
