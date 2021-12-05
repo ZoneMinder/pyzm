@@ -627,15 +627,11 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         config['pyzm_overrides']['log_level_debug'] = 5
         config['pyzm_overrides']['log_debug'] = True
 
-    if not ZM_INSTALLED:
-        # todo: make this part of ZMLog
-        # Turn DB logging off if ZM is not installed
-        config['pyzm_overrides']['log_level_db'] = -5
-
     if type_ == 'mlapi':
         log_path: str = ''
         log_name = 'zm_mlapi.log'
         if not ZM_INSTALLED:
+            log_path = f"{config['base_data_path']}/logs"
             g.logger.debug(f"{lp}init:log: Zoneminder is not installed, configuring mlapi logger")
             if config.get('log_user'):
                 log_user = config['log_user']
@@ -644,7 +640,8 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
             elif not config.get('log_group') and config.get('log_user'):
                 # use log user as log group as well
                 log_group = config['log_user']
-            log_path = f"{config['base_data_path']}/logs"
+            if config.get('log_path'):
+                log_path = config['log_path']
             # create the log dir in base_data_path, if it exists do not throw an exception
             Path(log_path).mkdir(exist_ok=True)
 
