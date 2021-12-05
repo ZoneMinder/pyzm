@@ -7,7 +7,7 @@ import numpy as np
 
 from pycoral.adapters import common
 from pycoral.adapters import detect
-from pycoral.utils.edgetpu import make_interpreter
+from pycoral.utils.edgetpu import make_interpreter, list_edge_tpus
 from pathlib import Path
 
 from pyzm.ml.object import Object
@@ -101,6 +101,8 @@ class Tpu(Object):
         return self.classes
 
     def load_model(self):
+        if g.config.get('DOCKER'):
+            g.logger.debug(f"{lp} DOCKER environment detected - TPU-> {list_edge_tpus()}")
         # print(f"{self.options = }")
         self.sequence_name = self.options.get('name') or self.get_model_name()
         g.logger.debug(f"{lp} loading model data from sequence '{self.sequence_name}' ")

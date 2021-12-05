@@ -171,7 +171,7 @@ class DetectSequence:
                 if globs:
                     g.logger.debug(f"{lp} There are models currently in the pipeline, resetting to be "
                                    f"rebuilt on next detection.")
-                self.models = {}
+            self.models = {}
             if not options:
                 return
         model_sequence = options.get("general", {}).get('model_sequence', None)
