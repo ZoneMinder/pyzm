@@ -276,7 +276,9 @@ class ZMLog:
                 log_file.touch(exist_ok=True)
                 # Don't forget to close the file handler
                 self.log_file_handler = log_file.open('a')
-                os.chown(self.log_filename, uid, gid)  # proper permissions
+                # If in a docker container, do not chown the log file
+                if not os.getenv('MLAPI_CONTAINER'):
+                    os.chown(self.log_filename, uid, gid)  # proper permissions
             except Exception as e:
                 self.buffer.error(f"{lp} Error for user: '{getuser()}' creating and changing permissions of file: "
                                   f"'{self.log_filename}'")
