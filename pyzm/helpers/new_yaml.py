@@ -621,7 +621,6 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         config['pyzm_overrides']['dump_console'] = True
 
     if args.get('debug') or args.get('baredebug'):
-
         config['pyzm_overrides']['log_level_syslog'] = 5
         config['pyzm_overrides']['log_level_file'] = 5
         config['pyzm_overrides']['log_level_debug'] = 5
@@ -738,7 +737,7 @@ def process_config(args, conf_globals, type_):
     # config_obj.COCO = pop_coco_names(config_obj.config['yolo4_object_labels']
     g.config = config_obj.config
     if type_ == 'mlapi':
-        if args.get('from_docker'):
+        if args.get('from_docker') or args.get('docker'):
             g.config['DOCKER'] = True
         # Need to build defined per monitors config
         for mon, _ in config_obj.monitors.items():
