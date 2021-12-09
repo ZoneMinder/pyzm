@@ -724,6 +724,8 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
 def process_config(args, conf_globals, type_):
     global g
     g = conf_globals
+    if args.get('from_docker') or args.get('docker'):
+        g.config['DOCKER'] = True
     # build default config, pass filename
     if type_ == 'mlapi':
         defaults = g.mlapi_default
@@ -737,8 +739,6 @@ def process_config(args, conf_globals, type_):
     # config_obj.COCO = pop_coco_names(config_obj.config['yolo4_object_labels']
     g.config = config_obj.config
     if type_ == 'mlapi':
-        if args.get('from_docker') or args.get('docker'):
-            g.config['DOCKER'] = True
         # Need to build defined per monitors config
         for mon, _ in config_obj.monitors.items():
             if _ is not None:
