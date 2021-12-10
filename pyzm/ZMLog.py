@@ -25,7 +25,6 @@ from pathlib import Path
 from shutil import which
 from sqlalchemy import create_engine, MetaData, select, or_  # ,Table,inspect
 from sqlalchemy.exc import SQLAlchemyError
-g = None
 lp = 'ZM Log:'
 ZM_INSTALLED = which('zmdc.pl')
 
@@ -84,8 +83,7 @@ priorities = {
 class ZMLog:
     def __init__(self, name, override=None, caller=None, globs=None, no_signal=False):
         self.no_signal = no_signal
-        global g
-        g = globs
+        self.globs = g = globs
         from pyzm.helpers.pyzm_utils import LogBuffer
         self.buffer: LogBuffer = g.logger
         self.is__active = None
@@ -111,8 +109,8 @@ class ZMLog:
         self.is_active = None
         self.initialize(name=name, override=override, caller=caller)
 
-
     def initialize(self, name, override=None, caller=None):
+        g = self.globs
         if not override:
             override = {}
         self.config = {}
@@ -163,6 +161,7 @@ class ZMLog:
         # Round 1 of overrides, before we read params from DB
         # Override with locals if present
         self.config.update(override)
+
         if ZM_INSTALLED:  # ZoneMinder is installed so use DB and read ZM' conf files
             if self.config.get('conf_path'):
                 # read all config files in order
@@ -251,9 +250,9 @@ class ZMLog:
         else:  # There is no ZM installed on this system determined by zmdc.pl not being accessible in $PATH environment
             self.no_signal = True
             if self.buffer:
-                self.buffer.info(f"(buffer)->ZoneMinder installation not detected, configuring mlapi accordingly...")
+                self.buffer.info(f"(buffer)->ZoneMinder installation not detected, configuring logs accordingly...")
             else:
-                self.info(f"ZoneMinder installation not detected, configuring mlapi accordingly...")
+                self.info(f"ZoneMinder installation not detected, configuring logs accordingly...")
         # Round 2 of overrides, after DB data is read
         # Override with locals if present
         for key in defaults:
@@ -276,7 +275,9 @@ class ZMLog:
                 log_file.touch(exist_ok=True)
                 # Don't forget to close the file handler
                 self.log_file_handler = log_file.open('a')
-                os.chown(self.log_filename, uid, gid)  # proper permissions
+                # If in a docker container, do not chown the log file
+                if not g.config.get('DOCKER'):
+                    os.chown(self.log_filename, uid, gid)  # proper permissions
             except Exception as e:
                 self.buffer.error(f"{lp} Error for user: '{getuser()}' creating and changing permissions of file: "
                                   f"'{self.log_filename}'")
@@ -352,7 +353,9 @@ class ZMLog:
     def get_config(self, ):
         pass
 
-    def _db_reconnect(self, ):
+    def _db_reconnect(self):
+        g = self.globs
+
         try:
             self.conn.close()
         except Exception:
@@ -379,6 +382,8 @@ class ZMLog:
                 return True
 
     def log_close(self, *args, **kwargs):
+        g = self.globs
+
         idx = min(len(stack()), 1)  # in case someone calls this directly
         caller = getframeinfo(stack()[idx][0])
 
@@ -410,10 +415,12 @@ class ZMLog:
                 sys.stderr = sys.__stderr__
 
     def _format_string(self, message='', level='ERR'):
+        g = self.globs
         log_string = '{level} [{pname}] [{message}]'.format(level=level, pname=self.process_name, message=message)
         return (log_string)
 
     def time_format(self, dt_form):
+        g = self.globs
         if len(str(float(f"{dt_form.microsecond / 1e6}")).split(".")) > 1:
             micro_sec = str(float(f"{dt_form.microsecond / 1e6}")).split(".")[1]
         else:
@@ -424,6 +431,7 @@ class ZMLog:
         )
 
     def _log(self, **kwargs):
+        g = self.globs
         blank, caller, nl, level, tight, debug_level, message = None, None, None, 'DBG', False, 1, None
         dt = None
         display_level = None
@@ -456,41 +464,40 @@ class ZMLog:
         # second stack element will be the actual calling function or maybe class wrapper?
         # third will be actual func?
         # print (len(stack()))
-        if not caller or caller and fnfl:  # if caller was not passed we create it here, meaning in logs this modules name and line no will show up
+        if not caller or (caller and fnfl):  # if caller was not passed we create it here, meaning in logs this modules name and line no will show up
             idx = min(len(stack()), 2)  # in the case of someone calls this directly
             caller = getframeinfo(stack()[idx][0])
         # print ('CALLER INFO --> FILE: {} LINE: {}'.format(caller.filename, caller.lineno))
-        # If we are debug logging, show level too
         if not display_level:
             display_level = level
         file_log_string = '{level} [{pname}] [{msg}]'.format(level=display_level, pname=self.process_name, msg=message)
 
+        # If DBG show which DBG level
         if level == 'DBG':
             display_level = f'DBG{debug_level}'
 
         # write to syslog
         if levels[level] <= self.config['log_level_syslog']:
-            file_log_string = '{level} [{pname}] [{msg}]'.format(level=display_level, pname=self.process_name,
-                                                                 msg=message)
             self.syslog.syslog(priorities[level], file_log_string)
 
         component = self.process_name
-        serverid = self.config.get('server_id')
+        server_id = self.config.get('server_id')
         pid = self.pid
         level_ = levels[level]
         code = level
         line = caller.lineno
         # write to db only if ZM installed
-        send_to_db = True
         if levels[level] <= self.config['log_level_db'] and ZM_INSTALLED:
+            send_to_db = True
             if not self.sql_connected:
-                self.syslog.syslog(syslog.LOG_INFO, self._format_string("Connecting to ZoneMinder SQL DB"))
+                self.syslog.syslog(syslog.LOG_INFO, self._format_string(f"{lp} Connecting to ZoneMinder SQL DB"))
                 if not self._db_reconnect():
-                    self.syslog.syslog(syslog.LOG_ERR, self._format_string("Reconnecting failed, not writing to ZM DB"))
+                    self.syslog.syslog(syslog.LOG_ERR, self._format_string(
+                        f"{lp} Reconnecting failed, not writing to ZM DB"))
                     send_to_db = False
             if send_to_db:
                 try:
-                    cmd = self.log_table.insert().values(TimeKey=time.time(), Component=component, ServerId=serverid,
+                    cmd = self.log_table.insert().values(TimeKey=time.time(), Component=component, ServerId=server_id,
                                                          Pid=pid, Level=level_, Code=code, Message=message,
                                                          File=os.path.split(caller.filename)[1], Line=line)
                     self.conn.execute(cmd)
@@ -498,10 +505,10 @@ class ZMLog:
                     self.sql_connected = False
                     self.syslog.syslog(syslog.LOG_ERR, self._format_string("Error writing to DB:" + str(e)))
 
-        print_log_string = None
+        print_log_string: str = ''
         if levels[level] <= self.config['log_level_file']:
             if not fnfl:
-                fnfl = f"{os.path.split(caller.filename)[1].split('.')[0]}:{caller.lineno}"
+                fnfl = f"{Path(caller.filename).name.split('.')[0]}:{caller.lineno}"
             print_log_string = '{timestamp} {pname}[{pid}] {level} {fnfl}->[{msg}]'.format(timestamp=dt,
                                                                                            level=display_level,
                                                                                            pname=self.process_name,
@@ -524,13 +531,13 @@ class ZMLog:
                     uid = pwd.getpwnam(self.config['webuser']).pw_uid
                     gid = grp.getgrnam(self.config['webgroup']).gr_gid
                     if self.config['log_level_file'] > levels['OFF']:
-                        n = os.path.split
-                        self.log_filename = f"{self.config['logpath']}/{n(self.process_name)[1].split('.')[0]}.log"
+                        self.log_filename = f"{self.config['logpath']}/{self.process_name}.log"
                         # print ('WRITING TO {}'.format(self.log_fname))
                         try:
                             log_file = Path(self.log_filename)
                             log_file.touch(exist_ok=True)
                             self.log_file_handler = log_file.open('a')
+
                             os.chown(self.log_filename, uid, gid)  # proper permissions
                         except Exception as e:
                             self.syslog.syslog(
@@ -555,6 +562,7 @@ class ZMLog:
                 print(f"\n{print_log_string}")
 
     def info(self, message, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
         for k, v in kwargs.items():
@@ -567,6 +575,7 @@ class ZMLog:
         self._log(level='INF', message=message, caller=caller, tight=tight, nl=nl)
 
     def debug(self, *args, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level, message = None, None, None, None
         level = 1
@@ -621,6 +630,7 @@ class ZMLog:
             )
 
     def warning(self, message, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
         for k, v in kwargs.items():
@@ -634,6 +644,7 @@ class ZMLog:
         self._log(level='WAR', message=message, caller=caller, tight=tight, nl=nl)
 
     def error(self, message, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
         for k, v in kwargs.items():
@@ -647,6 +658,7 @@ class ZMLog:
         self._log(level='ERR', message=message, caller=caller, tight=tight, nl=nl)
 
     def fatal(self, message, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
         for k, v in kwargs.items():
@@ -662,6 +674,7 @@ class ZMLog:
         exit(-1)
 
     def panic(self, message, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
         for k, v in kwargs.items():

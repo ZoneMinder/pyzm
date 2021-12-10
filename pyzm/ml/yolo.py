@@ -1,4 +1,5 @@
 from copy import deepcopy
+from enum import Enum
 from os import getuid
 from pathlib import Path
 from typing import Optional
@@ -13,7 +14,7 @@ from pyzm.helpers.pyzm_utils import Timer, str2bool
 from pyzm.interface import GlobalConfig
 from pyzm.ml.object import Object
 
-g: Optional[GlobalConfig] = None
+
 lp: Optional[str] = None
 
 
@@ -25,6 +26,7 @@ class YoloException(Exception):
         super().__init__(message, *args, **kwargs)
 
 
+
 class Yolo(Object):
     # The actual CNN object detection code
     # opencv DNN code credit: https://github.com/arunponnusamy/cvlib
@@ -33,10 +35,10 @@ class Yolo(Object):
             *args,
             **kwargs
     ):
-        global g, lp
         self.lp = lp = 'yolo:'
         globs = kwargs['globs']
-        g = globs
+        g: GlobalConfig = globs
+        self.globs = globs
         self.options: dict = kwargs.get('options', {})
         if self.options is None:
             raise YoloException(f"YOLO no options passed!")
@@ -84,6 +86,7 @@ class Yolo(Object):
         return self.classes
 
     def populate_class_labels(self):
+        g: GlobalConfig = self.globs
         if self.options.get('object_labels'):
             labels_file = Path(self.options.get('object_labels'))
             if labels_file.is_file():
@@ -98,6 +101,7 @@ class Yolo(Object):
                                     f"({self.options.get('object_labels')})")
 
     def load_model(self):
+        g: GlobalConfig = self.globs
         self.sequence_name = self.options.get('name')
         g.logger.debug(f"{lp} loading model data from sequence '{self.sequence_name}'")
         t = Timer()
@@ -150,6 +154,7 @@ class Yolo(Object):
             input_image: Optional[np.ndarray] = None,
             retry: bool = False
     ):
+        g: GlobalConfig = self.globs
         if input_image is None:
             g.logger.error(f"{lp} no image passed!?!")
             raise YoloException("NO_IMAGE")

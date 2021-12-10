@@ -17,6 +17,10 @@ class Monitor:
         g = globs
         self.monitor = monitor
         self.api = g.api
+
+    def __str__(self):
+        if self.monitor:
+            return f"<Monitor #{self.monitor['Monitor']['Id']} name: {self.monitor['Monitor']['Name']}>"
     
     def get(self):
         """Returns monitor object

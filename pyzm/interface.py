@@ -23,4 +23,4 @@ class GlobalConfig:
     Monitor: Optional[dict] = None  # Hold the events 'Monitor' data structure
     Event: Optional[dict] = None  # Hold the events 'Event' data structure
 
-    extras: dict = field(default_factory=dict)  # Anything you want to pass around globally
+    extras: dict = field(default_factory=dict)  # Extras

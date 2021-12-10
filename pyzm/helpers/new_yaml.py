@@ -1,13 +1,20 @@
 """The new experimental config file parser for Neo-ZMEventNotification using YAML syntax.
 Offers superior nested python data structure retention compared to the old ConfigParser logic.
 """
+import glob
+import os
 import sys
+import time
 from ast import literal_eval
+from configparser import ConfigParser
 from copy import deepcopy
 from pathlib import Path
 from re import compile
 from shutil import which
+from threading import Thread
+from traceback import format_exc
 from typing import Optional
+
 
 from yaml import SafeLoader, load
 from pyzm.helpers.pyzm_utils import my_stderr, my_stdout, str2bool
@@ -19,7 +26,8 @@ ZM_INSTALLED: Optional[str] = which('zmdc.pl')
 lp: str = "config:"
 
 g: Optional[GlobalConfig] = None
-
+SECRETS_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({\[\s*(\w.*)\s*\]})\"?|\'?"
+SUBVAR_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({{\s*(\w.*)\s*}})\"?|\'?"
 
 class ConfigParse:
     """A class to parse and store ZMES and MLAPI config and secret files.
@@ -369,7 +377,7 @@ class ConfigParse:
             if var in config:
                 # The replacement variable has a key: value in the base config
                 vars_replaced.append(var)
-                # Compile and sub 1 liner to replace all occurances of {{variable}} with the keys value
+                # Compile and sub 1 liner to replace all occurrences of {{variable}} with the keys value
                 new_config = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(config[var]), new_config)
             else:
                 # There is a {{variable}} but there is no configured key: value for it
@@ -609,21 +617,36 @@ class ConfigParse:
                         )
 
 
-def start_logs(config: dict, args: dict, _type, no_signal=False):
+def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False):
     # Setup logger and API, baredebug means DEBUG level logging but do not output to console
     # this is handy if you are monitoring the log files with tail -F (or the provided es.log.<detect/base> or mlapi.log)
     # otherwise you get double output. mlapi and ZMES override their std.out and std.err in order to catch all errors
     # and log them
+    config['pyzm_overrides']['dump_console'] = False
 
-    config['pyzm_overrides']['dump_console'] = True if args.get('debug') else False
-    config['pyzm_overrides']['log_level_syslog'] = 5
-    config['pyzm_overrides']['log_level_file'] = 5
-    config['pyzm_overrides']['log_level_debug'] = 5
+    if args.get('debug') and args.get('baredebug'):
+        g.logger.warning(f"{lp} both debug flags enabled! --debug takes precedence over --baredebug")
+        args.pop('baredebug')
 
-    if _type == 'mlapi':
+    if args.get('debug'):
+        config['pyzm_overrides']['dump_console'] = True
+
+    if args.get('debug') or args.get('baredebug'):
+
+        config['pyzm_overrides']['log_level_syslog'] = 5
+        config['pyzm_overrides']['log_level_file'] = 5
+        config['pyzm_overrides']['log_level_debug'] = 5
+        config['pyzm_overrides']['log_debug'] = True
+
+    if not ZM_INSTALLED:
+        # Turn DB logging off if ZM is not installed
+        config['pyzm_overrides']['log_level_db'] = -5
+
+    if type_ == 'mlapi':
         log_path: str = ''
+        log_name = 'zm_mlapi.log'
         if not ZM_INSTALLED:
-            g.logger.debug(f"{lp}init:log: Zoneminder is not installed")
+            g.logger.debug(f"{lp}init:log: Zoneminder is not installed, configuring mlapi logger")
             if config.get('log_user'):
                 log_user = config['log_user']
             if config.get('log_group'):
@@ -636,7 +659,7 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
             Path(log_path).mkdir(exist_ok=True)
 
         elif ZM_INSTALLED:
-            g.logger.debug(f"{lp}init:log: Zoneminder is installed")
+            g.logger.debug(f"{lp}init:log: Zoneminder is installed, configuring mlapi logger")
             # get the system's apache user (www-data, apache, etc.....)
             from pyzm.helpers.pyzm_utils import get_www_user
             log_user, log_group = get_www_user()
@@ -657,76 +680,49 @@ def start_logs(config: dict, args: dict, _type, no_signal=False):
             log_user = None
             log_group = None
 
-        # strip the .log just in case
-        log_name = config.get('log_name', 'zmes_default_logfile').rstrip('.log')
+        log_name = config.get('log_name', log_name)
         # Validate log path if supplied in args
         if args.get('log_path'):
-            log_p = Path(args.get('log_path'))
-            if log_p.is_dir():
-                log_path = args.get('log_path')
-            elif log_p.exists() and not log_p.is_dir():
-                print(
-                    f"{lp}init: the specified 'log_path' ({log_p.name}) exists BUT it is not a directory! using "
-                    f"'{log_path}'.")
-            elif not log_p.exists():
-                print(
-                    f"{lp}init: the specified 'log_path' ({log_p.name}) does not exist! using '{log_path}'.")
+            if args.get('log_path_force'):
+                g.logger.debug(f"{lp}init: 'force_log_path' is enabled!")
+                Path(args.get('log_path')).mkdir(exist_ok=True)
+            else:
+                log_p = Path(args.get('log_path'))
+                if log_p.is_dir():
+                    log_path = args.get('log_path')
+                elif log_p.exists() and not log_p.is_dir():
+                    print(
+                        f"{lp}init: the specified 'log_path' ({log_p.name}) exists BUT it is not a directory! using "
+                        f"'{log_path}'.")
+                elif not log_p.exists():
+                    print(
+                        f"{lp}init: the specified 'log_path' ({log_p.name}) does not exist! using '{log_path}'.")
 
         config['pyzm_overrides']['logpath'] = log_path
         config['pyzm_overrides']['webuser'] = log_user
         config['pyzm_overrides']['webgroup'] = log_group
-        # turn db logging off if zm is not installed
-        config['pyzm_overrides']['log_level_db'] = -5 if not ZM_INSTALLED else 1
-        # log levels -> 1 dbg/g.logger.Debug/blank 0 info, -1 warn, -2 err, -3 fatal, -4 panic, -5 off
-        config['pyzm_overrides']['log_debug_file'] = 1 if log_user else -5
-        # Turn debug logging on at all (master switch)
-        config['pyzm_overrides']['log_debug'] = True if log_user else False
-        # Output file? uncertain
-        config['pyzm_overrides']['log_debug_target'] = r'zmesdetect|zm_mlapi'
 
-        if g is None:
-            raise ValueError(f" The global 'g' object is None ?!?!?")
-        if not isinstance(g.logger, ZMLog):
-            # The log_buffer is iterable
-            g.logger = ZMLog(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
-
-        if not args.get("debug"):
-            sys.stdout = my_stdout()
-        # redirect std err to log file
-        sys.stderr = my_stderr()
-
-    elif _type == 'zmes':
-        # build the logs to display from the temp log buffer
-        # turn db logging off if zm is not installed
-        config['pyzm_overrides']['log_level_db'] = -5
-        # log levels -> 1 dbg/g.logger.Debug/blank 0 info, -1 warn, -2 err, -3 fatal, -4 panic, -5 off
-        config['pyzm_overrides']['log_debug_file'] = 1
-        # Turn debug logging on at all (master switch)
-        config['pyzm_overrides']['log_debug'] = True
-        # Output file? uncertain
-        config['pyzm_overrides']['log_debug_target'] = r"_zmesdetect|_zmes_face"
-        log_name = 'zmes_catchall'
-
+    elif type_ == 'zmes':
+        log_name = 'zmesdetect.log'
         if args.get('monitor_id'):
             log_name = f"zmesdetect_m{args.get('monitor_id')}"
         elif args.get('file'):
-            log_name = "zmesdetect_file_input"
+            log_name = "zmesdetect_file"
+        elif g.mid:
+            log_name = f"zmesdetect_m{g.mid}"
         elif args.get('from_face_train'):
-            log_name = "zmes_face_train"
-        log = ZMLog(
-            name=log_name,
-            override=config["pyzm_overrides"],
-            globs=g,
-            no_signal=no_signal
-        )
-        # Thread needs to set the global logger here
-        g.logger = log
-        if not args.get("debug"):
-            sys.stdout = my_stdout()
-        sys.stderr = my_stderr()
-        # multiprocessing needs a return value
-        # return log
+            log_name = "zmes_train_face"
+    else:
+        log_name = 'zmes_external'
+        if args.get('logname'):
+            log_name = args.get('logname')
 
+    if not isinstance(g.logger, ZMLog):
+        g.logger = ZMLog(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
+    # std out and std err redirected to logging instance
+    if not args.get("debug"):
+        sys.stdout = my_stdout()
+    sys.stderr = my_stderr()
 
 def process_config(
         args: dict,
@@ -735,6 +731,9 @@ def process_config(
 ):
     global g
     g = conf_globals
+    if args.get('from_docker') or args.get('docker'):
+        g.config['DOCKER'] = True
+    g.config['sanitize_str'] = '<sanitized>'
     # build default config, pass filename
     defaults = conf_globals.DEFAULT_CONFIG
     config_obj = ConfigParse(args['config'], defaults)
@@ -751,9 +750,6 @@ def process_config(
         if config_obj.config.get('resize') is not None:
             config_obj.config.pop('resize')
 
-    elif not type_ == 'zmes':
-        print(f"{lp}init: not mlapi or zmes? (WIP)")
-        return
     return config_obj, g
 
 
@@ -780,13 +776,16 @@ def create_api(args: dict):
     else:
         # get and set the monitor id, name, eventpath
         if args.get("eventid"):
-            # set event id globally forst before calling api event data
+            # set event id globally first before calling api event data
             g.config['eid'] = g.eid = args['eventid']
             # api call for event data
             g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
             g.config["mon_name"] = g.Monitor.get("Name")
             g.config["api_cause"] = g.Event.get("Cause")
+            if not args.get('reason'):
+                args['reason'] = g.Event.get("Notes")
             g.config['mid'] = g.mid = args["monitor_id"] = int(g.Monitor.get("Id"))
+            g.logger.debug(f"{lp} API SET GLOBAL MONITOR ID!")
             if args.get("eventpath", "") == "":
                 g.config["eventpath"] = args["eventpath"] = g.Event.get("FileSystemPath")
             else:

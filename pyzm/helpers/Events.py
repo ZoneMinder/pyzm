@@ -18,11 +18,26 @@ g = None
 class Events:
     def __init__(self, options=None, globs=None):
         global g
-        g = globs
+        self.globs = g = globs
         self.api = g.api
         self.events = []
         self.pagination = {}
         self._load(options)
+
+    def __len__(self):
+        if self.events:
+            return len(self.events)
+        else:
+            return 0
+
+    def __str__(self) -> Optional[str]:
+        if self.events:
+            ret_val = []
+            for event in self.events:
+                ret_val.append(str(event))
+            return str(ret_val)
+        else:
+            return None
 
     def __iter__(self):
         if self.events:
@@ -88,14 +103,14 @@ class Events:
         if options.get('max_alarmed_frames'):
             url_filter += '/AlarmFrames <=:' + str(options.get('max_alarmed_frames'))
         if options.get('object_only'):
-            url_filter += '/Notes REGEXP:detected:'  # 'detected' is the key for grabbing notes from DB and the zm_event_start/end wrappers
+            # 'detected' is the key for grabbing notes from DB and the zm_event_start/end wrappers
+            url_filter += '/Notes REGEXP:detected:'
 
         # catch all
         if options.get('raw_filter'):
             url_filter += options.get('raw_filter')
         # print ('URL filter: ',url_filter)
         # todo - no need for url_prefix in options
-
         url_prefix = options.get('url_prefix', f'{self.api.api_url}/events/index')
 
         url = f'{url_prefix}{url_filter}.json'
@@ -139,11 +154,13 @@ class Events:
             self.events.append(Event(event=event, globs=g))
 
     def get(self, options=None):
-        """Returns the full list of events. Typically useful if you need access to data for which you don't have an easy getter
+        """Returns the full list of events. Typically useful if you need access to data for which you don't have an
+        easy getter
         
         Keyword Arguments:
         
-        - options: dict with same parameters as the one you pass in :meth:`pyzm.api.ZMApi.events`. This is really a convenience instead of re-creating the instance.
+        - options: dict with same parameters as the one you pass in :meth:`pyzm.api.ZMApi.events`. This is really
+        a convenience instead of re-creating the instance.
         Returns:
             list -- of :class:`pyzm.helpers.Events`
         """

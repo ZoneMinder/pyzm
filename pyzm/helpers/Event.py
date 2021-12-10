@@ -164,6 +164,10 @@ class Event:
         """      
         return self.event['Event']['Name'] or None
 
+    def __str__(self):
+        if self.event:
+            return f"<Event #{self.id} from Monitor #{self.monitor_id}>"
+
     @property
     def video_file(self):
         """returns name of video file in which the event was stored.

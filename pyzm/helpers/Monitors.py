@@ -20,6 +20,21 @@ class Monitors:
         self.monitors = []
         self._load()
 
+    def __len__(self):
+        if self.monitors:
+            return len(self.monitors)
+        else:
+            return 0
+
+    def __str__(self) -> Optional[str]:
+        if self.monitors:
+            ret_val = []
+            for mon in self.monitors:
+                ret_val.append(str(mon))
+            return str(ret_val)
+        else:
+            return None
+
     def _load(self, options=None):
         if options is None:
             options = {}
