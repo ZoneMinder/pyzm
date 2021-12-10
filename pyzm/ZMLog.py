@@ -8,7 +8,7 @@ import glob
 import grp
 import os
 from traceback import format_exc
-from typing import Optional
+from typing import Optional, Union
 
 import psutil
 import pwd
@@ -24,7 +24,6 @@ from inspect import getframeinfo, stack
 from pathlib import Path
 from shutil import which
 
-from pyzm.helpers.pyzm_utils import str2bool
 from sqlalchemy import create_engine, MetaData, select, or_  # ,Table,inspect
 from sqlalchemy.exc import SQLAlchemyError
 lp = 'ZM Log:'
@@ -80,6 +79,24 @@ priorities = {
     'FAT': syslog.LOG_ERR,
     'PNC': syslog.LOG_ERR
 }
+
+
+def str2bool(v: Optional[Union[str, bool]]) -> Optional[Union[str, bool]]:
+    if v is None:
+        return False
+    if isinstance(v, bool):
+        return v
+    v = str(v)
+    true_ret = ("yes", "true", "t", "y", "1", "on", "ok", "okay")
+    false_ret = ("no", "false", "f", "n", "0", "off")
+    if v.lower() in true_ret:
+        return True
+    elif v.lower() in false_ret:
+        return False
+    else:
+        return g.logger.error(
+            f"str2bool: '{v}' is not able to be parsed into a boolean operator"
+        )
 
 
 class ZMLog:
