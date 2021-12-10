@@ -632,9 +632,6 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         config['pyzm_overrides']['dump_console'] = True
 
     if args.get('debug') or args.get('baredebug'):
-
-        config['pyzm_overrides']['log_level_syslog'] = 5
-        config['pyzm_overrides']['log_level_file'] = 5
         config['pyzm_overrides']['log_level_debug'] = 5
         config['pyzm_overrides']['log_debug'] = True
 
@@ -720,9 +717,9 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
     if not isinstance(g.logger, ZMLog):
         g.logger = ZMLog(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
     # std out and std err redirected to logging instance
-    if not args.get("debug"):
-        sys.stdout = my_stdout()
-    sys.stderr = my_stderr()
+    # if not args.get("debug"):
+    #     sys.stdout = my_stdout()
+    # sys.stderr = my_stderr()
 
 def process_config(
         args: dict,

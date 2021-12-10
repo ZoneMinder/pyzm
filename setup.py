@@ -94,6 +94,7 @@ setup(name=NAME,
           'pyzm.ZMLog',
           'pyzm.ZMEventNotification',
           'pyzm.ZMMemory',
+          'pyzm.interface',
 
           # ML
           'pyzm.ml.alpr',
