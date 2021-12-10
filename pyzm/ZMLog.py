@@ -23,6 +23,8 @@ from getpass import getuser
 from inspect import getframeinfo, stack
 from pathlib import Path
 from shutil import which
+
+from pyzm.helpers.pyzm_utils import str2bool
 from sqlalchemy import create_engine, MetaData, select, or_  # ,Table,inspect
 from sqlalchemy.exc import SQLAlchemyError
 lp = 'ZM Log:'
@@ -322,13 +324,17 @@ class ZMLog:
         else:
             if self.buffer:
                 self.buffer.info(
-                    f"Logging to {'syslog ' if self.syslog else ''}{'and ' if self.syslog and self.log_file_handler else ''}"
+                    f"Logging to {'console ' if str2bool(self.config['dump_console']) else ''}"
+                    f"{'syslog ' if self.syslog and self.config['log_level_syslog'] > -5 else ''}"
+                    f"{'and ' if self.syslog and self.log_file_handler else ''}"
                     f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
                     f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
                 )
             else:
                 self.info(
-                    f"Logging to {'syslog ' if self.syslog else ''}{'and ' if self.syslog and self.log_file_handler else ''}"
+                    f"Logging to {'console ' if str2bool(self.config['dump_console']) else ''}"
+                    f"{'syslog ' if self.syslog and self.config['log_level_syslog'] > -5 else ''}"
+                    f"{'and ' if self.syslog and self.log_file_handler else ''}"
                     f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
                     f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
                 )
@@ -338,7 +344,21 @@ class ZMLog:
                 # pop it just in case it somehow gets iterated again
                 line = self.buffer.pop()
                 if line:
-                    self.debug(line)
+                    if line['level'] == 'INF':
+                        self.info(line)
+                    elif line['level'] == 'ERR':
+                        self.error(line)
+                    elif line['level'] == 'WAR':
+                        self.warning(line)
+                    elif line['level'] == 'DBG':
+                        self.debug(line)
+                    elif line['level'] == 'PNC':
+                        self.panic(line)
+                    elif line['level'] == 'FAT':
+                        self.fatal(line)
+                    else:
+                        self.error(f"BUFFER Unknown log level '{line['level']}'")
+                self.buffer = None
 
     def is_active(self):
         if self.is__active:
