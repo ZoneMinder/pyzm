@@ -361,17 +361,17 @@ class ZMLog:
                 # pop it just in case it somehow gets iterated again
                 line = self.buffer.pop()
                 if line:
-                    if line['level'] == 'INF':
+                    if line['display_level'] == 'INF':
                         self.info(line)
-                    elif line['level'] == 'ERR':
+                    elif line['display_level'] == 'ERR':
                         self.error(line)
-                    elif line['level'] == 'WAR':
+                    elif line['display_level'] == 'WAR':
                         self.warning(line)
-                    elif line['level'] == 'DBG':
+                    elif line['display_level'].startswith('DBG'):
                         self.debug(line)
-                    elif line['level'] == 'PNC':
+                    elif line['display_level'] == 'PNC':
                         self.panic(line)
-                    elif line['level'] == 'FAT':
+                    elif line['display_level'] == 'FAT':
                         self.fatal(line)
                     else:
                         self.error(f"BUFFER Unknown log level '{line['level']}'")
