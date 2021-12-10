@@ -375,7 +375,7 @@ class ZMLog:
                         self.fatal(line)
                     else:
                         self.error(f"BUFFER Unknown log level '{line['level']}'")
-                self.buffer = None
+            self.buffer = None
 
     def is_active(self):
         if self.is__active:
