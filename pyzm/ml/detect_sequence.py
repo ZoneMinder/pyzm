@@ -31,10 +31,10 @@ from pyzm.ml.aws_rekognition import AwsRekognition
 from pyzm.ml.coral_edgetpu import Tpu
 
 lp: str = 'detect:'
-
+g: GlobalConfig
 
 class DetectSequence:
-    def __init__(self, globs: GlobalConfig, options: Optional[dict] = None):
+    def __init__(self, options: Optional[dict] = None):
         """Initializes ML entry point with various parameters
 
         Args:
@@ -134,9 +134,8 @@ class DetectSequence:
 
 
         """
-
-        g: GlobalConfig = globs
-        self.globs = globs
+        global g
+        g = GlobalConfig()
         if options is None:
             options = {}
         self.has_rescaled: bool = False  # only once in init
@@ -159,9 +158,6 @@ class DetectSequence:
         """Use this to change ml options later. Note that models will not be reloaded
         unless you add force_reload=True
         """
-        g: Optional[GlobalConfig] = None
-        if self.globs:
-            g = self.globs
 
         if force_reload:
             if self.models:
@@ -183,17 +179,17 @@ class DetectSequence:
         self.ml_overrides: dict = {}
 
     def _load_models(self, models=None):
-        g: GlobalConfig = self.globs
+
 
         def get_correct_model(frame_work):
             if frame_work == 'opencv':
-                return Yolo(options=model_sequence, globs=g)
+                return Yolo(options=model_sequence)
             elif frame_work == 'coral_edgetpu':
 
-                return Tpu(options=model_sequence, globs=g)
+                return Tpu(options=model_sequence)
                 # AWS Rekognition
             elif frame_work == 'aws_rekognition':
-                return AwsRekognition(options=model_sequence, globs=g)
+                return AwsRekognition(options=model_sequence)
             else:
                 raise ValueError(
                     f"Invalid object_framework: {frame_work}. Only opencv, coral_edgetpu "
@@ -255,7 +251,6 @@ class DetectSequence:
                 g.logger.error(f"{lp} the configured model '{model}' is not a valid type! skipping...")
 
     def rescale_polygons(self, polygons, x_factor, y_factor, method='down'):
-        g: GlobalConfig = self.globs
         new_ps = []
         for p in polygons:
             # from pyzm.helpers.pyzm_utils import str2tuple
@@ -299,7 +294,6 @@ class DetectSequence:
             self, seq, box, label, conf, polygons, h, w, model_names, seq_opt=None, model_type=None, pkl_data=None
     ):
 
-        g: GlobalConfig = self.globs
         saved_ls: Optional[List[str]] = None
         saved_bs: Optional[List[str]] = None
         saved_cs: Optional[List[str]] = None
@@ -399,6 +393,8 @@ class DetectSequence:
             # do confidence filtering first then max object area
             mc_exc = False
             try:
+                min_conf = g.config.get('object_min_confidence')
+                min_conf_found = "malformed:GLOBAL>>object_min_confidence"
                 min_conf = float(min_conf)
             except ValueError:
                 mc_exc = True
@@ -870,7 +866,6 @@ class DetectSequence:
             ml_overrides=None,
             in_file=False
     ):
-        g: GlobalConfig = self.globs
 
         def _pre_existing(pe_labels, labels_, origin):
             ret_val = False
@@ -940,7 +935,7 @@ class DetectSequence:
         frame_strategy: Optional[str] = self.stream_options.get("frame_strategy", "most_models")
         # g.logger.debug(1,f"{lp} provided stream_sequence = {self.stream_options}")
         t: Timer = Timer()
-        self.media = MediaStream(stream, "video", self.stream_options, g)
+        self.media = MediaStream(stream, "video", self.stream_options)
         polygons: Optional[list] = self.stream_options.get("polygons", [])
         if polygons:
             # make a new instance so we dont modify the original

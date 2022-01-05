@@ -25,12 +25,7 @@ import cv2
 # from cv2 import cv2
 from pyzm.interface import GlobalConfig
 
-g: Optional[GlobalConfig] = None
-
-
-def set_g(globs):
-    global g
-    g = globs
+g: GlobalConfig = GlobalConfig()
 
 
 class Timer:
@@ -1220,7 +1215,10 @@ class Pushover:
 
                     'sound': 'tugboat',
 
-                    'priority': 0,
+                    'priority': 0, # -2 = Lowest, -1 = Low, 0 = Normal, 1 = High, 2 = Emergency
+                    'callback': None,  # EMERGENCY PRIORITY ONLY
+                    'retry': 120,  # EMERGENCY PRIORITY ONLY
+                    'expire': 3600,  # EMERGENCY PRIORITY ONLY
 
                     'device': 'a specific device',
 
@@ -1356,12 +1354,20 @@ class LogBuffer:
 
     def store(self, **kwargs):
         caller, level, debug_level, message = None, 'DBG', 1, None
+        # print(f"BUFFER>STORE>> kwargs before --> {kwargs}")
         kwargs = self.kwarg_parse(**kwargs)
+        # print(f"BUFFER>STORE>> kwargs AFTER --> {kwargs}")
+
         dt = time_format(datetime.datetime.now())
         # print (len(stack()))
-        idx = min(len(stack()), 2)  # in the case of someone calls this directly
-        caller = getframeinfo(stack()[idx][0])
+        if kwargs['caller']:
+            caller = kwargs['caller']
+        else:
+            idx = min(len(stack()), 2)  # in the case of someone calls this directly
+            caller = getframeinfo(stack()[idx][0])
         message = kwargs['message']
+        level = kwargs['level']
+        debug_level = kwargs['debug_level']
         # print ('CALLER INFO --> FILE: {} LINE: {}'.format(caller.filename, caller.lineno))
         disp_level = level
         if level == 'DBG':
@@ -1388,10 +1394,10 @@ class LogBuffer:
         debug_level = 1
         message = None
         if len(args) == 1:
-            level = 1
+            debug_level = 1
             message = args[0]
         elif len(args) == 2:
-            level = args[0]
+            debug_level = args[0]
             message = args[1]
         if message is not None:
             # self.buffer.append(message)
@@ -1488,7 +1494,7 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
             "tls_cert": g.config.get("mqtt_tls_cert"),
             "tls_key": g.config.get("mqtt_tls_key"),
         }
-        mqtt_obj = Mqtt(config=mqtt_conf, globs=globs)
+        mqtt_obj = Mqtt(config=mqtt_conf)
         mqtt_obj.connect()
     except Exception as e:
         g.logger.error(f"{log_prefix} constructing err_msg-> {e}")
@@ -1550,7 +1556,7 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
         mqtt_obj.close()
 
 
-
+# g.api.zones() example
 def mlapi_import_zones(conf_globals=None, config_obj=None):
     g = conf_globals
     lp = "mlapi:import zm zones:"

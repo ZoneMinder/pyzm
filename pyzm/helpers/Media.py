@@ -18,18 +18,16 @@ from pyzm.interface import GlobalConfig
 
 # log prefix to add onto
 lp: str = 'media:'
-
+g: GlobalConfig
 
 class MediaStream:
     frames_processed: int
 
-    def __init__(self, stream=None, type_="video", options=None, m_globals=None):
-        if m_globals is None:
-            raise ValueError("media: m_globals is required")
+    def __init__(self, stream=None, type_="video", options=None):
         if not options:
             raise ValueError(f"{lp} no stream options provided!")
-        self.globs: GlobalConfig = m_globals
-        g: GlobalConfig = self.globs
+        global g
+        g = GlobalConfig()
         self.fids_global: list[str] = []
         self.fids_skipped: list[str] = []
         # <frame id>: int : cv2.im(de?)encoded image
@@ -191,7 +189,7 @@ class MediaStream:
         return self.last_frame_id_read
 
     def more(self):
-        g: GlobalConfig = self.globs
+        
         if self.type == "file":
             return self.more_images_to_read
 
@@ -211,7 +209,7 @@ class MediaStream:
                 return self.more_images_to_read
 
     def stop(self):
-        g: GlobalConfig = self.globs
+        
         if self.type == "video":
             self.fvs.stop()
         if self.is_deletable:
@@ -234,7 +232,7 @@ class MediaStream:
     def val_type(self, cls, k, v, msg=None) -> Any:
         """return *v* converted to class type *cls* object, msg is the ValueError message to display
         if v cannot be converted to cls"""
-        g: GlobalConfig = self.globs
+        
 
         if v is None or not v:
             return v
@@ -291,7 +289,7 @@ class MediaStream:
                 return None
 
     def read(self):
-        g: GlobalConfig = self.globs
+        
         response: Optional[requests.Response] = None
         past_event: Optional[str] = g.config.get("PAST_EVENT")
         frame: Optional[np.ndarray] = None

@@ -3,14 +3,16 @@
 from portalocker import AlreadyLocked, BoundedSemaphore
 
 from pyzm.helpers.pyzm_utils import str2bool
+from pyzm.interface import GlobalConfig
 
+g: GlobalConfig
 
 class Face:
     def __init__(self, options=None, *args, **kwargs):
-
+        global g
+        g = GlobalConfig()
         if options is None:
             options = {}
-        self.globs = kwargs.get('globs')
         self.model = None
         self.options = options
         name = self.options.get('name') or 'Face wrapper'

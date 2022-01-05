@@ -3,8 +3,17 @@ import time
 from typing import Optional, Union
 
 
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
 @dataclass()
-class GlobalConfig:
+class GlobalConfig(metaclass=Singleton):
     """dataclass that holds some global objects"""
     from pyzm.ZMLog import ZMLog
     from pyzm.api import ZMApi

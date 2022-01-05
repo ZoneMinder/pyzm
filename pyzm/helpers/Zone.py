@@ -4,7 +4,6 @@ from typing import Optional
 
 g = None
 
-
 class Zone:
     def __init__(self, api=None, zone=None, globs=None):
         global g

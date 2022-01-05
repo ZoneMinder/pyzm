@@ -11,14 +11,12 @@ from typing import Optional
 
 from pyzm.helpers.Event import Event
 import dateparser
-
 g = None
-
 
 class Events:
     def __init__(self, options=None, globs=None):
         global g
-        self.globs = g = globs
+        g = globs
         self.api = g.api
         self.events = []
         self.pagination = {}
@@ -63,7 +61,7 @@ class Events:
     def _load(self, options=None):
         if options is None:
             options = {}
-        g.logger.info( 'Retrieving events via API')
+        g.logger.info('Retrieving events via API')
         url_filter = ''
         tz = {}
 
@@ -103,8 +101,7 @@ class Events:
         if options.get('max_alarmed_frames'):
             url_filter += '/AlarmFrames <=:' + str(options.get('max_alarmed_frames'))
         if options.get('object_only'):
-            # 'detected' is the key for grabbing notes from DB and the zm_event_start/end wrappers
-            url_filter += '/Notes REGEXP:detected:'
+            url_filter += '/Notes REGEXP:detected:'  # 'detected' is the key for grabbing notes from DB and the zm_event_start/end wrappers
 
         # catch all
         if options.get('raw_filter'):
@@ -154,13 +151,11 @@ class Events:
             self.events.append(Event(event=event, globs=g))
 
     def get(self, options=None):
-        """Returns the full list of events. Typically useful if you need access to data for which you don't have an
-        easy getter
+        """Returns the full list of events. Typically, useful if you need access to data for which you don't have an easy getter
         
         Keyword Arguments:
         
-        - options: dict with same parameters as the one you pass in :meth:`pyzm.api.ZMApi.events`. This is really
-        a convenience instead of re-creating the instance.
+        - options: dict with same parameters as the one you pass in :meth:`pyzm.api.ZMApi.events`. This is really a convenience instead of re-creating the instance.
         Returns:
             list -- of :class:`pyzm.helpers.Events`
         """

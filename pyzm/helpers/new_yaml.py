@@ -24,8 +24,8 @@ from pyzm.ZMLog import ZMLog
 
 ZM_INSTALLED: Optional[str] = which('zmdc.pl')
 lp: str = "config:"
+g: GlobalConfig
 
-g: Optional[GlobalConfig] = None
 SECRETS_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({\[\s*(\w.*)\s*\]})\"?|\'?"
 SUBVAR_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({{\s*(\w.*)\s*}})\"?|\'?"
 
@@ -68,7 +68,6 @@ class ConfigParse:
         """hash the config or secrets file based on **filetype**.
         :param filetype: (str) one of config or secret
         """
-
         def _compute(name):
             if name and Path(name).exists() and Path(name).is_file():
                 try:
@@ -89,7 +88,6 @@ class ConfigParse:
 
     def hash_compare(self, filetype: str) -> bool:
         """Compares a cached hash to a new hash of the supplied *filetype*"""
-
         def _compare(filename, cached_hash):
             if filename and Path(filename).exists() and Path(filename).is_file():
                 current_file_hash = self.compute_file_checksum(filename)
@@ -116,7 +114,7 @@ class ConfigParse:
             )
         return False
 
-    def process_config(self):
+    def process_config(self, *args_, **kwargs):
         def _base_key_prep():
             # Replace the {{vars}} in the base keys
             # Example: tpu_object_weights_mobiledet =
@@ -161,6 +159,7 @@ class ConfigParse:
         #           MAIN
         # -----------------------------
         # This is the config without secrets and substitution variables replaced
+
         dc: dict = self.default_config
         self.config = deepcopy(self.default_config)
         # iterate the keys in the built-in default values: if the default config file does not have a key that is in
@@ -622,8 +621,6 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
     # this is handy if you are monitoring the log files with tail -F (or the provided es.log.<detect/base> or mlapi.log)
     # otherwise you get double output. mlapi and ZMES override their std.out and std.err in order to catch all errors
     # and log them
-    config['pyzm_overrides']['dump_console'] = False
-
     if args.get('debug') and args.get('baredebug'):
         g.logger.warning(f"{lp} both debug flags enabled! --debug takes precedence over --baredebug")
         args.pop('baredebug')
@@ -632,8 +629,16 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         config['pyzm_overrides']['dump_console'] = True
 
     if args.get('debug') or args.get('baredebug'):
-        config['pyzm_overrides']['log_level_debug'] = 5
         config['pyzm_overrides']['log_debug'] = True
+        if not config['pyzm_overrides'].get('log_level_syslog'):
+            config['pyzm_overrides']['log_level_syslog'] = 5
+        if not config['pyzm_overrides'].get('log_level_file'):
+            config['pyzm_overrides']['log_level_file'] = 5
+        if not config['pyzm_overrides'].get('log_level_debug'):
+            config['pyzm_overrides']['log_level_debug'] = 5
+        if not config['pyzm_overrides'].get('log_debug_file'):
+            # log levels -> 1 dbg/print/blank 0 info, -1 warn, -2 err, -3 fatal, -4 panic, -5 off
+            config['pyzm_overrides']['log_debug_file'] = 1
 
     if not ZM_INSTALLED:
         # Turn DB logging off if ZM is not installed
@@ -713,26 +718,24 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         log_name = 'zmes_external'
         if args.get('logname'):
             log_name = args.get('logname')
-
+    # print(f"DBG>> before intializing ZMLog -> pyzm_overrides = {config['pyzm_overrides']}")
     if not isinstance(g.logger, ZMLog):
         g.logger = ZMLog(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
-    # std out and std err redirected to logging instance
-    # if not args.get("debug"):
-    #     sys.stdout = my_stdout()
-    # sys.stderr = my_stderr()
+    # print(f"DBG>> AFTER {g.logger.get_config()}")
+
 
 def process_config(
         args: dict,
-        conf_globals: GlobalConfig,
         type_: str
 ):
+    # Singleton dataclass should already be instantiated.
     global g
-    g = conf_globals
+    g = GlobalConfig()
     if args.get('from_docker') or args.get('docker'):
         g.config['DOCKER'] = True
     g.config['sanitize_str'] = '<sanitized>'
     # build default config, pass filename
-    defaults = conf_globals.DEFAULT_CONFIG
+    defaults = g.DEFAULT_CONFIG
     config_obj = ConfigParse(args['config'], defaults)
     config_obj.process_config()
     # config_obj.COCO = pop_coco_names(config_obj.config['yolo4_object_labels']
@@ -779,10 +782,13 @@ def create_api(args: dict):
             g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
             g.config["mon_name"] = g.Monitor.get("Name")
             g.config["api_cause"] = g.Event.get("Cause")
+            g.logger.debug(f"")
+            g.logger.debug(f'{g.config["mon_name"] = } ---- {g.Monitor.get("Name") = }')
+            g.logger.debug(f'{g.config["api_cause"] = } ----- {g.Event.get("Cause") = }')
+            g.logger.debug(f"")
             if not args.get('reason'):
                 args['reason'] = g.Event.get("Notes")
             g.config['mid'] = g.mid = args["monitor_id"] = int(g.Monitor.get("Id"))
-            g.logger.debug(f"{lp} API SET GLOBAL MONITOR ID!")
             if args.get("eventpath", "") == "":
                 g.config["eventpath"] = args["eventpath"] = g.Event.get("FileSystemPath")
             else:

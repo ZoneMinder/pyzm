@@ -13,16 +13,14 @@ from pyzm.helpers.pyzm_utils import Timer
 from pyzm.interface import GlobalConfig
 import face_recognition as face_rec_libs
 
-g: Optional[GlobalConfig] = None
+g: GlobalConfig
 
 
 class FaceTrain:
 
-    def __init__(self, globs=None):
+    def __init__(self):
         global g
-        if globs:
-            g = globs
-
+        g = GlobalConfig()
         self.options = g.config
 
     def train(self, size=None):

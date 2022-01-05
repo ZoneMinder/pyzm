@@ -9,11 +9,10 @@ the full object
 from typing import Optional, AnyStr
 import requests
 from pathlib import Path
-
 from progressbar import ProgressBar as pb
 
+# Circular import hack
 g = None
-
 
 class Event:
     def __init__(self, event=None, globs=None):

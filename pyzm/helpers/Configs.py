@@ -85,7 +85,7 @@ class Configs:
         if not name:
             return
         url = self.api.api_url + '/configs/edit/{}.json'.format(name)
-        data = {'Config[Value]':val}
+        data = {'Config[Value]': val}
         return self.api.make_request(url=url, payload=data, type_action='put')
         
         

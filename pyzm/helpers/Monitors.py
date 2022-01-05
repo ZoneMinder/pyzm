@@ -3,7 +3,7 @@ Monitors
 =========
 Holds a list of Monitors for a ZM configuration
 Given monitors are fairly static, maintains a cache of monitors
-which can be overriden 
+which can be overridden
 """
 
 from pyzm.helpers.Monitor import Monitor

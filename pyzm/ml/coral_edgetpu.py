@@ -16,9 +16,8 @@ from pyzm.ml.object import Object
 from pyzm.helpers.pyzm_utils import Timer
 from pyzm.interface import GlobalConfig
 
-g: Optional[GlobalConfig] = None
-lp: Optional[str] = None
-
+g: GlobalConfig
+lp: str
 
 
 class TPUException(Exception):
@@ -38,16 +37,17 @@ class Tpu(Object):
     def __init__(self, *args, **kwargs):
         global g, lp
         self.lp = lp = 'coral:'
-        globs = kwargs['globs']
-        g = globs
+        g = GlobalConfig()
         options = kwargs['options']
+        kwargs['globs'] = g
+
         super().__init__(*args, **kwargs)
 
         if options is None:
             g.logger.error(
                 f"{lp} cannot initialize TPU object detection model -> no 'sequence' sent with weights, conf, "
                 f"labels, etc.")
-            raise TPUException(f"coral -> NO OPTIONS")
+            raise TPUException(f"{lp} -> NO OPTIONS")
         g.logger.debug(f"{lp} initializing edge TPU with params: {options}")
         self.sequence_name: str = ''
 

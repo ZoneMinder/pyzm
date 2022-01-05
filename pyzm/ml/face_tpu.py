@@ -16,16 +16,15 @@ from pyzm.helpers.pyzm_utils import Timer, str2bool
 from pyzm.interface import GlobalConfig
 from pyzm.ml.face import Face
 
-g: Optional[GlobalConfig] = None
+g: GlobalConfig
 name = 'TPU_Face'
 
 
 # Class to handle face recognition
 class FaceTpu(Face):
-    def __init__(self, options=None, globs=None, *args, **kwargs):
+    def __init__(self, options=None, *args, **kwargs):
         global g
-        if globs:
-            g = globs
+        g = GlobalConfig()
         g.logger.debug(4, f'TPU Face init params: {options}')
         self.knn = None
         if options is None:

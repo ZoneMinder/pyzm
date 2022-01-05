@@ -12,7 +12,7 @@ g = None
 
 
 class Monitor:
-    def __init__(self, globs=None, monitor=None):
+    def __init__(self, monitor=None, globs=None):
         global g
         g = globs
         self.monitor = monitor

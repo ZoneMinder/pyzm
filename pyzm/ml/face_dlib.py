@@ -16,7 +16,7 @@ g_start = Timer()
 from pyzm.ml.face import Face
 import face_recognition
 
-g: Optional[GlobalConfig] = None
+g: GlobalConfig
 g_diff_time = g_start.stop_and_get_ms()
 face_rec_libs = face_recognition
 lp = 'dlib:face:'
@@ -24,10 +24,9 @@ lp = 'dlib:face:'
 
 # Class to handle face recognition
 class FaceDlib(Face):
-    def __init__(self, options=None, globs=None, *args, **kwargs):
+    def __init__(self, options=None, *args, **kwargs):
         global g
-        if globs:
-            g = globs
+        g = GlobalConfig()
         if options is None:
             options = {}
         self.lp = lp

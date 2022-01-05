@@ -29,7 +29,7 @@ from pyzm.helpers.pyzm_utils import str2bool, get_image, read_config, id_generat
 from pyzm.interface import GlobalConfig
 from typing import Optional
 
-g: Optional[GlobalConfig] = None
+g: GlobalConfig
 
 wasConnected = False
 Connected = False  # global variable for the state of the connection
@@ -63,15 +63,13 @@ class Mqtt:
 
     # todo **kwargs instead of all of this
     def __init__(self, config=None, broker_address: str = None, port=None, user=None, password=None, config_file=None,
-                 secrets_filename=None, secrets=None, globs=None):
+                 secrets_filename=None, secrets=None):
         global g
         self.image, self.path, self.conn_wait, self.client, self.tls_ca, self.connected, self.config, self.secrets, self.conn_time \
             = None, None, None, None, None, None, None, None, None
         self.ssl_cert = ssl.CERT_REQUIRED  # start with strict cert checking/verification of CN
         self.tls_self_signed = False
-        if globs:
-            g = globs
-
+        g = GlobalConfig()
         # config and secrets
         if config:
             self.config = config

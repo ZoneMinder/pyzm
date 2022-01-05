@@ -1,22 +1,19 @@
 from copy import deepcopy
-from enum import Enum
 from os import getuid
 from pathlib import Path
 from typing import Optional
 
 import cv2
-import cv2
+import numpy as np
 # Pycharm hack for intellisense
 # from cv2 import cv2
-import numpy as np
 
 from pyzm.helpers.pyzm_utils import Timer, str2bool
 from pyzm.interface import GlobalConfig
 from pyzm.ml.object import Object
 
-
-lp: Optional[str] = None
-
+lp: Optional[str] = 'yolo:'
+g: GlobalConfig
 
 class YoloException(Exception):
     def __init__(self, message='My default message', *args, **kwargs):
@@ -36,12 +33,12 @@ class Yolo(Object):
             **kwargs
     ):
         self.lp = lp = 'yolo:'
-        globs = kwargs['globs']
-        g: GlobalConfig = globs
-        self.globs = globs
+        global g
+        g = GlobalConfig()
         self.options: dict = kwargs.get('options', {})
         if self.options is None:
             raise YoloException(f"YOLO no options passed!")
+        kwargs['globs'] = g
         super().__init__(*args, **kwargs)
 
         self.original_image: Optional[cv2] = None
@@ -86,7 +83,6 @@ class Yolo(Object):
         return self.classes
 
     def populate_class_labels(self):
-        g: GlobalConfig = self.globs
         if self.options.get('object_labels'):
             labels_file = Path(self.options.get('object_labels'))
             if labels_file.is_file():
@@ -101,7 +97,6 @@ class Yolo(Object):
                                     f"({self.options.get('object_labels')})")
 
     def load_model(self):
-        g: GlobalConfig = self.globs
         self.sequence_name = self.options.get('name')
         g.logger.debug(f"{lp} loading model data from sequence '{self.sequence_name}'")
         t = Timer()
@@ -124,7 +119,8 @@ class Yolo(Object):
             # see https://github.com/ZoneMinder/mlapi/issues/44)
             # @baudneo linked issue -> https://github.com/baudneo/pyzm/issues/3
             if patch_ver >= 454:
-                g.logger.info(f"{lp} OpenCV (4.5.4+) fix for getUnconnectedOutLayers() API (Non nested structure)")
+                g.logger.info(f"{lp} OpenCV (4.5.4+) fix for getUnconnectedOutLayers() API (Non nested structure - "
+                              f"Thanks @pliablepixels !)")
                 self.new_cv_scalar_fix = True
 
             if min_ver < 42:
@@ -154,7 +150,6 @@ class Yolo(Object):
             input_image: Optional[np.ndarray] = None,
             retry: bool = False
     ):
-        g: GlobalConfig = self.globs
         if input_image is None:
             g.logger.error(f"{lp} no image passed!?!")
             raise YoloException("NO_IMAGE")
@@ -305,9 +300,9 @@ class Yolo(Object):
                         f"re running detection!"
                     )
                     self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
-                    self.detect(self.original_image, retried=True)
+                    self.detect(self.original_image, retry=True)
                 else:
-                    g.logger.error(f"{lp} 'NaNM' (Not a Number) error but the CUDA TARGET is FP32?!?! FATAL!")
+                    g.logger.error(f"{lp} 'NaN' (Not a Number) error but the CUDA TARGET is FP32?!?! FATAL!")
                     raise v_exc
         except Exception as e:
             g.logger.error(f"{lp} EXCEPTION while parsing layer output -->\n{e}")
