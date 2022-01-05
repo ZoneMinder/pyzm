@@ -37,13 +37,15 @@ from pyzm.helpers.Events import Events
 from pyzm.helpers.Monitors import Monitors
 from pyzm.helpers.States import States
 from pyzm.helpers.Zones import Zones
+from pyzm.interface import GlobalConfig
 
+g: GlobalConfig
 GRACE = 60 * 5  # 5 mins
 lp = 'api:'
 
 
 class ZMApi:
-    def __init__(self, options=None, api_globals=None, kickstart=None):
+    def __init__(self, options=None, kickstart=None):
         """
         Options is a dict with the following keys:
 
@@ -61,7 +63,8 @@ class ZMApi:
             custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.
             Base.SimpleLog` for method details.
         """
-        self.globs = g = api_globals
+        global g
+        g = GlobalConfig()
         idx = min(len(stack()), 1)  # in case someone calls this directly
         caller = getframeinfo(stack()[idx][0])
         if options is None:
@@ -147,7 +150,6 @@ class ZMApi:
             self._login()
 
     def cred_dump(self):
-        g = self.globs
         ret_val = {
             "user": self.options.get('user'),
             "password": self.options.get('password'),
@@ -166,7 +168,6 @@ class ZMApi:
         return tuple(map(int, (v.split("."))))
 
     def get_session(self):
-        g = self.globs
         return self.session
 
     def version(self):
@@ -181,7 +182,6 @@ class ZMApi:
                 zm_version: string # if status is 'ok'
             }
         """
-        g = self.globs
         if not self.authenticated:
             return {"status": "error", "reason": "not authenticated"}
         return {
@@ -196,7 +196,7 @@ class ZMApi:
         Returns:
            string: timezone of ZoneMinder server (or None if API not supported)
         """
-        g = self.globs
+        
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         if not self.zm_tz:
@@ -220,12 +220,12 @@ class ZMApi:
         Returns:
             boolean -- True if Login API worked
         """
-        g = self.globs
+        
         return self.authenticated
 
     # called in _make_request to avoid 401s if possible
     def _refresh_tokens_if_needed(self):
-        g = self.globs
+        
         # global GRACE
         if not (self.access_token_expires and self.refresh_token_expires):
             return
@@ -238,7 +238,7 @@ class ZMApi:
 
     def _re_login(self):
         """Used for 401. I could use _login too but decided to do a simpler fn"""
-        g = self.globs
+        
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         # global GRACE
@@ -266,7 +266,7 @@ class ZMApi:
         Raises:
             err: reason for failure
         """
-        g = self.globs
+        
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         try:
@@ -407,7 +407,7 @@ If you do not supply it an event_id it will use the global event id.
 
     :param update_frame_buffer_length: (bool) If True, will update the frame_buffer_length (Default: True).
     :param event_id: (str/int) Optional, the event ID to query."""
-        g = self.globs
+        
         if not event_id:
             event_id = g.eid
         Event: Optional[Dict]
@@ -447,7 +447,7 @@ If you do not supply it an event_id it will use the global event id.
         :rtype: dict
         :rtype: object
         """
-        g = self.globs
+        
         idx = min(len(stack()), 1)
         caller = getframeinfo(stack()[idx][0])
         if payload is None:
@@ -582,7 +582,7 @@ If you do not supply it an event_id it will use the global event id.
         Returns:
             list of :class:`pyzm.helpers.Zone`: list of zones
         """
-        g = self.globs
+        
         if options is None:
             options = {}
         if options.get("force_reload") or not self.Zones:
@@ -603,7 +603,7 @@ If you do not supply it an event_id it will use the global event id.
         Returns:
             list of :class:`pyzm.helpers.Monitor`: list of monitors
         """
-        g = self.globs
+        
         if options is None:
             options = {}
         if options.get("force_reload") or not self.Monitors:
@@ -633,7 +633,7 @@ If you do not supply it an event_id it will use the global event id.
         Returns:
             list of :class:`pyzm.helpers.Event`: list of events that match criteria
         """
-        g = self.globs
+        
         if options is None:
             options = {}
         self.Events = Events(options=options, globs=g)
@@ -648,7 +648,7 @@ If you do not supply it an event_id it will use the global event id.
         Returns:
             list of  :class:`pyzm.helpers.State`: list of states
         """
-        g = self.globs
+        
         if options is None:
             options = {}
         self.States = States(globs=g)
@@ -687,7 +687,7 @@ If you do not supply it an event_id it will use the global event id.
         Returns:
             json: value of state change command
         """
-        g = self.globs
+        
         if not state:
             return
         url = f"{self.api_url}/states/change/{state}.json"
@@ -707,7 +707,7 @@ If you do not supply it an event_id it will use the global event id.
         Returns:
             :class:`pyzm.helpers.Configs`: ZM configs
         """
-        g = self.globs
+        
         if options is None:
             options = {}
         if options.get("force_reload") or not self.Configs:

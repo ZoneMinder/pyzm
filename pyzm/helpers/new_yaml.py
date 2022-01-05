@@ -769,7 +769,7 @@ def create_api(args: dict):
         "sanitize_portal": str2bool(g.config.get("sanitize_logs")),
     }
     try:
-        g.api = ZMApi(options=api_options, api_globals=g)
+        g.api = ZMApi(options=api_options)
     except Exception as e:
         g.logger.error(f"{lp} {e}")
         raise e
@@ -782,10 +782,6 @@ def create_api(args: dict):
             g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
             g.config["mon_name"] = g.Monitor.get("Name")
             g.config["api_cause"] = g.Event.get("Cause")
-            g.logger.debug(f"")
-            g.logger.debug(f'{g.config["mon_name"] = } ---- {g.Monitor.get("Name") = }')
-            g.logger.debug(f'{g.config["api_cause"] = } ----- {g.Event.get("Cause") = }')
-            g.logger.debug(f"")
             if not args.get('reason'):
                 args['reason'] = g.Event.get("Notes")
             g.config['mid'] = g.mid = args["monitor_id"] = int(g.Monitor.get("Id"))
