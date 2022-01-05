@@ -1,14 +1,19 @@
-from portalocker import AlreadyLocked, BoundedSemaphore
-from pyzm.helpers.pyzm_utils import str2bool
+from typing import Optional
 
-g = None
+from portalocker import AlreadyLocked, BoundedSemaphore
+
+from pyzm.helpers.pyzm_utils import str2bool
+from pyzm.interface import GlobalConfig
+
+g: GlobalConfig
 
 
 class Object:
     """'Object' is a BASE class to wrap other model Classes for detections using OpenCV 4.2+/CUDA/cuDNN"""
     def __init__(self, *args, **kwargs):
         global g
-        g = kwargs.get('globs')
+        g = GlobalConfig()
+        self.lock: Optional[BoundedSemaphore] = None
 
     def create_lock(self):
         if not str2bool(self.disable_locks):

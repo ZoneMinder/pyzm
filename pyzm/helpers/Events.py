@@ -11,9 +11,7 @@ from typing import Optional
 
 from pyzm.helpers.Event import Event
 import dateparser
-
-g: Optional = None
-
+g = None
 
 class Events:
     def __init__(self, options=None, globs=None):
@@ -23,6 +21,21 @@ class Events:
         self.events = []
         self.pagination = {}
         self._load(options)
+
+    def __len__(self):
+        if self.events:
+            return len(self.events)
+        else:
+            return 0
+
+    def __str__(self) -> Optional[str]:
+        if self.events:
+            ret_val = []
+            for event in self.events:
+                ret_val.append(str(event))
+            return str(ret_val)
+        else:
+            return None
 
     def __iter__(self):
         if self.events:
@@ -48,7 +61,7 @@ class Events:
     def _load(self, options=None):
         if options is None:
             options = {}
-        g.logger.info( 'Retrieving events via API')
+        g.logger.info('Retrieving events via API')
         url_filter = ''
         tz = {}
 
@@ -95,7 +108,6 @@ class Events:
             url_filter += options.get('raw_filter')
         # print ('URL filter: ',url_filter)
         # todo - no need for url_prefix in options
-
         url_prefix = options.get('url_prefix', f'{self.api.api_url}/events/index')
 
         url = f'{url_prefix}{url_filter}.json'
@@ -139,7 +151,7 @@ class Events:
             self.events.append(Event(event=event, globs=g))
 
     def get(self, options=None):
-        """Returns the full list of events. Typically useful if you need access to data for which you don't have an easy getter
+        """Returns the full list of events. Typically, useful if you need access to data for which you don't have an easy getter
         
         Keyword Arguments:
         

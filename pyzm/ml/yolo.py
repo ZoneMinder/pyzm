@@ -5,13 +5,15 @@ from typing import Optional
 
 import cv2
 import numpy as np
+# Pycharm hack for intellisense
+# from cv2 import cv2
 
 from pyzm.helpers.pyzm_utils import Timer, str2bool
+from pyzm.interface import GlobalConfig
 from pyzm.ml.object import Object
 
-g: Optional[object] = None
-lp: Optional[str] = None
-
+lp: Optional[str] = 'yolo:'
+g: GlobalConfig
 
 class YoloException(Exception):
     def __init__(self, message='My default message', *args, **kwargs):
@@ -19,6 +21,7 @@ class YoloException(Exception):
         print(f"kwargs={kwargs}")
         # g.logger.error(message)
         super().__init__(message, *args, **kwargs)
+
 
 
 class Yolo(Object):
@@ -29,13 +32,13 @@ class Yolo(Object):
             *args,
             **kwargs
     ):
-        global g, lp
         self.lp = lp = 'yolo:'
-        globs = kwargs['globs']
-        g = globs
+        global g
+        g = GlobalConfig()
         self.options: dict = kwargs.get('options', {})
         if self.options is None:
             raise YoloException(f"YOLO no options passed!")
+        kwargs['globs'] = g
         super().__init__(*args, **kwargs)
 
         self.original_image: Optional[cv2] = None
@@ -116,7 +119,8 @@ class Yolo(Object):
             # see https://github.com/ZoneMinder/mlapi/issues/44)
             # @baudneo linked issue -> https://github.com/baudneo/pyzm/issues/3
             if patch_ver >= 454:
-                g.logger.info(f"{lp} OpenCV (4.5.4+) fix for getUnconnectedOutLayers() API (Non nested structure)")
+                g.logger.info(f"{lp} OpenCV (4.5.4+) fix for getUnconnectedOutLayers() API (Non nested structure - "
+                              f"Thanks @pliablepixels !)")
                 self.new_cv_scalar_fix = True
 
             if min_ver < 42:
@@ -296,9 +300,9 @@ class Yolo(Object):
                         f"re running detection!"
                     )
                     self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
-                    self.detect(self.original_image, retried=True)
+                    self.detect(self.original_image, retry=True)
                 else:
-                    g.logger.error(f"{lp} 'NaNM' (Not a Number) error but the CUDA TARGET is FP32?!?! FATAL!")
+                    g.logger.error(f"{lp} 'NaN' (Not a Number) error but the CUDA TARGET is FP32?!?! FATAL!")
                     raise v_exc
         except Exception as e:
             g.logger.error(f"{lp} EXCEPTION while parsing layer output -->\n{e}")

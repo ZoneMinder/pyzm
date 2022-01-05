@@ -3,12 +3,9 @@ Zones
 =======
 Holds a list of Zone objects for a ZM configuration
 """
-import requests
-
 from pyzm.helpers.Zone import Zone
 from typing import Optional, Union
 
-g: Optional = None
 
 allowed_raw = (
     'Zone[Name]',
@@ -38,9 +35,9 @@ allowed_raw = (
 
 
 class Zones:
-    def __init__(self, mid=None, globs=None):
+    def __init__(self, mid=None):
         global g
-        g = globs
+        g = GlobalConfig()
 
         self.zones = []
         self.api = g.api
@@ -59,7 +56,7 @@ class Zones:
         zones = r.get('zones')
         self.zones = []
         for zone in zones:
-            self.zones.append(Zone(zone=zone, api=self.api))
+            self.zones.append(Zone(zone=zone, api=self.api, globs=g))
 
     def list(self) -> dict:
         """Returns: a dict of dicts of zone information.

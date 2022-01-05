@@ -4,7 +4,7 @@ Configs
 Hold all ZM Config data. No need for a separate config class
 """
 from typing import Optional
-g: Optional[object] = None
+g = None
 
 
 class Configs:
@@ -85,7 +85,7 @@ class Configs:
         if not name:
             return
         url = self.api.api_url + '/configs/edit/{}.json'.format(name)
-        data = {'Config[Value]':val}
+        data = {'Config[Value]': val}
         return self.api.make_request(url=url, payload=data, type_action='put')
         
         

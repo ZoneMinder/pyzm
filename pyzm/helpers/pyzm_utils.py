@@ -16,19 +16,16 @@ from pickle import load as pickle_load, dump as pickle_dump
 from random import choice
 from string import ascii_letters, digits
 from traceback import format_exc
-from typing import Optional, Union, Any
+from typing import Optional, Union
 from pathlib import Path
 
 import numpy as np
 import cv2
-from pydantic import BaseModel
+# Pycharm hack for intellisense
+# from cv2 import cv2
+from pyzm.interface import GlobalConfig
 
-g: Optional[object] = None
-
-
-def set_g(globs):
-    global g
-    g = globs
+g: GlobalConfig = GlobalConfig()
 
 
 class Timer:
@@ -66,6 +63,7 @@ class Timer:
 def createAnimation(
         image=None,
         options: dict = None,
+        perf=None
 ):
     import imageio
 
@@ -361,8 +359,7 @@ def createAnimation(
                         f"{log_prefix}{'fast ' if fast_gif is not None else ''}gif: range is weird start: s1='{s1}' "
                         f"end offset: s2='-{s2}'"
                     )
-    start = g.animation_seconds
-    g.animation_seconds = (datetime.datetime.now() - start).total_seconds()
+    g.animation_seconds = time.perf_counter()-perf
 
 
 def resize_image(img: cv2, resize_w, quiet=None):
@@ -1168,23 +1165,6 @@ def get_www_user():
     return "".join(webuser), "".join(webgrp)
 
 
-class Gotify:
-    class Model(BaseModel):
-        host: str = 'localhost'
-        port: int = 8008
-        app_token: str
-        message: str
-        priority: int = 2
-        title: str = "NEO-ZMES Notification"
-
-
-    # resp = requests.post('http://localhost:8008/message?token=<apptoken>', json={
-    #     "message": "Well hello there.",
-    #     "priority": 2,
-    #     "title": "This is my title"
-    # })
-    pass
-
 
 class Pushover:
     def __init__(self):
@@ -1235,7 +1215,10 @@ class Pushover:
 
                     'sound': 'tugboat',
 
-                    'priority': 0,
+                    'priority': 0, # -2 = Lowest, -1 = Low, 0 = Normal, 1 = High, 2 = Emergency
+                    'callback': None,  # EMERGENCY PRIORITY ONLY
+                    'retry': 120,  # EMERGENCY PRIORITY ONLY
+                    'expire': 3600,  # EMERGENCY PRIORITY ONLY
 
                     'device': 'a specific device',
 
@@ -1335,7 +1318,7 @@ def pretty_print(matched_data, remote_sanitized):
                 # print(f"dval is NOT list OR dict ... {first_tight_line=}")
                 g.logger.debug(f"'{dkey}'->  {dval}  ", tight=True, nl=xb)
 
-from multiprocessing.pool import ThreadPool
+
 class LogBuffer:
     @staticmethod
     def kwarg_parse(**kwargs):
@@ -1360,14 +1343,31 @@ class LogBuffer:
             for _line in self.buffer:
                 yield _line
 
+    def pop(self):
+        if self.buffer:
+            return self.buffer.pop()
+
+    # return length of buffer
+    def __len__(self):
+        if self.buffer:
+            return len(self.buffer)
+
     def store(self, **kwargs):
         caller, level, debug_level, message = None, 'DBG', 1, None
+        # print(f"BUFFER>STORE>> kwargs before --> {kwargs}")
         kwargs = self.kwarg_parse(**kwargs)
+        # print(f"BUFFER>STORE>> kwargs AFTER --> {kwargs}")
+
         dt = time_format(datetime.datetime.now())
         # print (len(stack()))
-        idx = min(len(stack()), 2)  # in the case of someone calls this directly
-        caller = getframeinfo(stack()[idx][0])
+        if kwargs['caller']:
+            caller = kwargs['caller']
+        else:
+            idx = min(len(stack()), 2)  # in the case of someone calls this directly
+            caller = getframeinfo(stack()[idx][0])
         message = kwargs['message']
+        level = kwargs['level']
+        debug_level = kwargs['debug_level']
         # print ('CALLER INFO --> FILE: {} LINE: {}'.format(caller.filename, caller.lineno))
         disp_level = level
         if level == 'DBG':
@@ -1382,19 +1382,22 @@ class LogBuffer:
         self.buffer.append(data_structure)
 
     def info(self, message, *args, **kwargs):
+        level = 'INF'
         if message is not None:
-            self.store
-            self.buffer.append(message)
+            self.store(
+                level=level,
+                message=message,
+            )
 
     def debug(self, *args, **kwargs):
         level = 'DBG'
         debug_level = 1
         message = None
         if len(args) == 1:
-            level = 1
+            debug_level = 1
             message = args[0]
         elif len(args) == 2:
-            level = args[0]
+            debug_level = args[0]
             message = args[1]
         if message is not None:
             # self.buffer.append(message)
@@ -1443,8 +1446,16 @@ class LogBuffer:
         self.log_close(exit=-1)
 
     def log_close(self, *args, **kwargs):
-        # fixme
-        # print buffer and then return
+        if self.buffer and len(self.buffer):
+            # sort it by timestamp
+            self.buffer = sorted(self.buffer, key=lambda x: x['timestamp'], reverse=True)
+            for _ in range(len(self.buffer)):
+                line = self.buffer.pop()
+                if line:
+                    fnfl = f"{line['filename']}:{line['lineno']}"
+                    print_log_string = (f"{line['timestamp']} LOG_BUFFER[{os.getpid()}] {line['display_level']} " 
+                                       f"{fnfl}->[{line['message']}]")
+                    print(print_log_string)
         if kwargs.get('exit') is not None:
             exit(kwargs['exit'])
         return
@@ -1455,6 +1466,9 @@ def time_format(dt_form):
         micro_sec = str(float(f"{dt_form.microsecond / 1e6}")).split(".")[1]
     else:
         micro_sec = str(float(f"{dt_form.microsecond / 1e6}")).split(".")[0]
+    # pad the microseconds with zeros
+    while len(micro_sec) < 6:
+        micro_sec = f"0{micro_sec}"
     return f"{dt_form.strftime('%m/%d/%y %H:%M:%S')}.{micro_sec}"
 
 
@@ -1480,7 +1494,7 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
             "tls_cert": g.config.get("mqtt_tls_cert"),
             "tls_key": g.config.get("mqtt_tls_key"),
         }
-        mqtt_obj = Mqtt(config=mqtt_conf, globs=globs)
+        mqtt_obj = Mqtt(config=mqtt_conf)
         mqtt_obj.connect()
     except Exception as e:
         g.logger.error(f"{log_prefix} constructing err_msg-> {e}")
@@ -1542,6 +1556,7 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
         mqtt_obj.close()
 
 
+# g.api.zones() example
 def mlapi_import_zones(conf_globals=None, config_obj=None):
     g = conf_globals
     lp = "mlapi:import zm zones:"
@@ -1581,6 +1596,5 @@ def mlapi_import_zones(conf_globals=None, config_obj=None):
                     f"{c.detection_patterns[poly['name']]}"
                 )
     return c
-
 
 

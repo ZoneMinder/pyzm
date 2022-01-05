@@ -8,11 +8,11 @@ the full object
 """
 from typing import Optional
 
-g: Optional[object] = None
+g = None
 
 
 class State:
-    def __init__(self, globs=None, state=None):
+    def __init__(self, state=None, globs=None):
         global g
         g = globs
         self.state = state

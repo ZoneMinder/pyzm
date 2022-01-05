@@ -4,20 +4,24 @@ ZMEventNotification
 Implements a python implementation of the ZM ES server. 
 
 """
+from typing import Optional
 
 import websocket
 import json
 import time
 import threading
 import ssl
-import pyzm.helpers.globals as g
+from pyzm.interface import GlobalConfig
+
+g: Optional[GlobalConfig] = None
 
 
 class ZMEventNotification:
-    def __init__(self, options):
+    def __init__(self, options, globs):
         """Instantiates a thread that connects to the ZM Notification Server
 
         Args:
+            globs (GlobalConfig): a pre instantiated Global configuration object that has a logger.
             options (dict): As below::
         
                 {
@@ -124,7 +128,7 @@ class ZMEventNotification:
                 if not val:
                     break  # keyboard
             except Exception as e:
-                g.logger.error(f'ZMESClient: Event Server Exception:{str(e)}')
+                g.logger.error(f'ZMESClient: Event Server Exception:{e}')
                 # traceback.print_exc(file=sys.stdout)
 
             # The connection is aborted (intentional or not)

@@ -1,5 +1,9 @@
 import cv2
-import pyzm.helpers.globals as g
+# Pycharm hack for intellisense
+# from cv2 import cv2
+from pyzm.interface import GlobalConfig
+
+g = GlobalConfig()
 
 
 # Class to handle HOG based detection
@@ -7,7 +11,7 @@ import pyzm.helpers.globals as g
 
 class Hog:
     def __init__(self, options={}):
-        self.options=options
+        self.options = options
         self.hog = cv2.HOGDescriptor()
         self.hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
         self.winStride = self.options.get('stride')
@@ -38,8 +42,8 @@ class Hog:
             classes.append('person')
             conf.append(1.0)
             i = i.tolist()
-            (x1,y1,x2,y2) = (round(i[0]),round(i[1]),round(i[0]+i[2]), round(i[1]+i[3]))
-            rects.append((x1,y1,x2,y2))
+            (x1, y1, x2, y2) = (round(i[0]), round(i[1]), round(i[0] + i[2]), round(i[1] + i[3]))
+            rects.append((x1, y1, x2, y2))
 
-        #g.logger.Debug(f'HOG:Returning: {rects}, {labels}, {conf}')
+        # g.logger.Debug(f'HOG:Returning: {rects}, {labels}, {conf}')
         return rects, labels, conf

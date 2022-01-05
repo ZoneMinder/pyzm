@@ -2,15 +2,16 @@ from pathlib import Path
 from typing import Optional
 from tinydb import TinyDB, Query, where
 from passlib.hash import bcrypt
+from pyzm.interface import GlobalConfig
 
-g: Optional[object] = None
+g: GlobalConfig
 lp: str = 'mlapi db:'
 
 
 class Database:
-    def __init__(self, db_globals, prompt_to_create=True):
+    def __init__(self, prompt_to_create=True):
         global g
-        g = db_globals
+        g = GlobalConfig()
         self.db_path: Path = Path(g.config['db_path'])
         self.db: Optional[TinyDB] = None
         self.query: Query = Query()

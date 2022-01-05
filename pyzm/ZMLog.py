@@ -4,12 +4,13 @@ ZMLog
 A python implementation of ZoneMinder's logging system
 You can use this to connect it to the APIs if you want
 """
-import copy
 import glob
 import grp
 import os
+from enum import Enum
+from functools import partial
 from traceback import format_exc
-from typing import Optional
+from typing import Optional, Union
 
 import psutil
 import pwd
@@ -24,15 +25,15 @@ from getpass import getuser
 from inspect import getframeinfo, stack
 from pathlib import Path
 from shutil import which
+
 from sqlalchemy import create_engine, MetaData, select, or_  # ,Table,inspect
 from sqlalchemy.exc import SQLAlchemyError
-
-g: Optional[object] = None
 lp = 'ZM Log:'
-zm_inst = which('zmdc.pl')
+ZM_INSTALLED = which('zmdc.pl')
 
 
-def sig_log_rot(sig, frame):
+# g needs to be global for the signal handlers
+def sig_log_rot(g, sig, frame):
     lp = 'signal handler:'
     name = g.logger.logger_name
     overrides = g.logger.logger_overrides
@@ -43,7 +44,7 @@ def sig_log_rot(sig, frame):
     g.logger.info(f"{lp} ready after log re-initialization due to receiving HUP signal: {sig=}")
 
 
-def sig_intr(sig, frame):
+def sig_intr(g, sig, frame):
     lp = 'signal handler:'
     if sig == 2:
         g.logger.error(f"{lp} KeyBoard Interrupt -> 2:SIGINT received!")
@@ -60,9 +61,33 @@ def sig_intr(sig, frame):
     exit(0)
 
 
+def str2bool(v: Optional[Union[str, bool]]) -> Optional[Union[str, bool]]:
+    if v is None:
+        return False
+    if isinstance(v, bool):
+        return v
+    v = str(v)
+    true_ret = ("yes", "true", "t", "y", "1", "on", "ok", "okay")
+    false_ret = ("no", "false", "f", "n", "0", "off")
+    if v.lower() in true_ret:
+        return True
+    elif v.lower() in false_ret:
+        return False
+    else:
+        return None
+
+
+class zm_log_levels(Enum):
+    DBG = DEBUG = 1
+    INF = INFO = 0
+    WAR = WARNING = -1
+    ERR = ERROR = -2
+    FAT = FATAL = -3
+    PNC = PANIC = -4
+    OFF = -5
+
+test = zm_log_levels.DBG
 levels = {
-    'PRT': 1,
-    'BLK': 1,
     'DBG': 1,
     'INF': 0,
     'WAR': -1,
@@ -85,9 +110,9 @@ priorities = {
 class ZMLog:
     def __init__(self, name, override=None, caller=None, globs=None, no_signal=False):
         self.no_signal = no_signal
-        global g
-        g = globs
-        self.buffer = g.logger
+        self.globs = g = globs
+        from pyzm.helpers.pyzm_utils import LogBuffer
+        self.buffer: LogBuffer = g.logger
         self.is__active = None
         self.config = None
         self.engine = None
@@ -111,8 +136,8 @@ class ZMLog:
         self.is_active = None
         self.initialize(name=name, override=override, caller=caller)
 
-
     def initialize(self, name, override=None, caller=None):
+        g = self.globs
         if not override:
             override = {}
         self.config = {}
@@ -163,7 +188,8 @@ class ZMLog:
         # Round 1 of overrides, before we read params from DB
         # Override with locals if present
         self.config.update(override)
-        if zm_inst:  # ZoneMinder is installed so use DB and read ZM' conf files
+
+        if ZM_INSTALLED:  # ZoneMinder is installed so use DB and read ZM' conf files
             if self.config.get('conf_path'):
                 # read all config files in order
                 files = []
@@ -251,9 +277,9 @@ class ZMLog:
         else:  # There is no ZM installed on this system determined by zmdc.pl not being accessible in $PATH environment
             self.no_signal = True
             if self.buffer:
-                self.buffer.info(f"(buffer)->ZoneMinder installation not detected, configuring mlapi accordingly...")
+                self.buffer.info(f"(buffer)->ZoneMinder installation not detected, configuring logs accordingly...")
             else:
-                self.info(f"ZoneMinder installation not detected, configuring mlapi accordingly...")
+                self.info(f"ZoneMinder installation not detected, configuring logs accordingly...")
         # Round 2 of overrides, after DB data is read
         # Override with locals if present
         for key in defaults:
@@ -267,28 +293,28 @@ class ZMLog:
         self.log_filename = None
         self.log_file_handler = None
         # print('**********************A-R2 {}'. format(self.config))
-        if not g.config.get('DOCKER'):
-            uid = pwd.getpwnam(self.config['webuser']).pw_uid
-            gid = grp.getgrnam(self.config['webgroup']).gr_gid
-            if self.config['log_level_file'] > levels['OFF']:
-                self.log_filename = f"{self.config['logpath']}/{self.process_name}"
-                try:
-                    log_file = Path(self.log_filename)
-                    log_file.touch(exist_ok=True)
-                    # Don't forget to close the file handler
-                    self.log_file_handler = log_file.open('a')
-                    # If in a docker container, do not chown the log file
+        uid = pwd.getpwnam(self.config['webuser']).pw_uid
+        gid = grp.getgrnam(self.config['webgroup']).gr_gid
+        if self.config['log_level_file'] > levels['OFF']:
+            self.log_filename = f"{self.config['logpath']}/{self.process_name}.log"
+            try:
+                log_file = Path(self.log_filename)
+                log_file.touch(exist_ok=True)
+                # Don't forget to close the file handler
+                self.log_file_handler = log_file.open('a')
+                # If in a docker container, do not chown the log file
+                if not g.config.get('DOCKER'):
                     os.chown(self.log_filename, uid, gid)  # proper permissions
-                except Exception as e:
-                    self.buffer.error(f"{lp} Error for user: '{getuser()}' while creating and changing permissions of "
-                                      f"file: '{self.log_filename}'")
-                    self.buffer.error(f"{e}")
-                    self.syslog.syslog(
-                        syslog.LOG_ERR,
-                        self._format_string(
-                            f"Error for user: {getuser()} while creating and changing permissions of file -> {e}"
-                        )
+            except Exception as e:
+                self.buffer.error(f"{lp} Error for user: '{getuser()}' creating and changing permissions of file: "
+                                  f"'{self.log_filename}'")
+                self.buffer.error(f"{e}")
+                self.syslog.syslog(
+                    syslog.LOG_ERR,
+                    self._format_string(
+                        f"Error for user: {getuser()} while creating and changing permissions of log file -> {e}"
                     )
+                )
         # Debug(f"File logging handler setup correctly -> {log_fhandle.name}") if log_fhandle else None
         if not self.no_signal:
             try:
@@ -296,8 +322,8 @@ class ZMLog:
                     self.buffer.info(f"{lp}(buffer)->'Setting up signal handlers for log rotation and log interrupt'")
                 else:
                     self.info(f"{lp}'Setting up signal handlers for log rotation and log interrupt'")
-                signal.signal(signal.SIGHUP, sig_log_rot)
-                signal.signal(signal.SIGINT, sig_intr)
+                signal.signal(signal.SIGHUP, partial(sig_log_rot, g))
+                signal.signal(signal.SIGINT, partial(sig_intr, g))
             except Exception as e:
                 if self.buffer:
                     self.buffer.error(f'{lp}(buffer)->Error setting up log rotate and interrupt signal handlers -> \n{e}\n')
@@ -309,7 +335,7 @@ class ZMLog:
 
         self.is__active = True
         show_log_name = f"'{self.log_filename}'"
-        if zm_inst:
+        if ZM_INSTALLED:
             if self.buffer:
                 self.buffer.info(
                     f"Connected to ZoneMinder Logging system with user '{getuser()}'"
@@ -321,21 +347,44 @@ class ZMLog:
                     f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
                 )
         else:
+            syslog_str = False
+
+            if self.config['log_level_syslog'] > -5:
+                syslog_str = True
+            tmp_msg = (
+                    f"Logging to {'console ' if str2bool(self.config['dump_console']) else ''}"
+                    f"{'and ' if self.syslog and self.config['log_level_syslog'] > -5 or self.log_file_handler else ''}"
+                    f"{'syslog ' if self.syslog and self.config['log_level_syslog'] > -5 else ''}"
+                    f"{'and ' if self.syslog and self.log_file_handler else ''}"
+                    f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
+                    f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
+            )
             if self.buffer:
-                self.buffer.info(
-                    f"Logging to {'syslog ' if self.syslog else ''}{'and ' if self.syslog and self.log_file_handler else ''}"
-                    f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
-                    f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
-                )
+                self.buffer.info(tmp_msg)
             else:
-                self.info(
-                    f"Logging to {'syslog ' if self.syslog else ''}{'and ' if self.syslog and self.log_file_handler else ''}"
-                    f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
-                    f"{f' -> {show_log_name}' if self.log_file_handler else ''}"
-                )
-        if self.buffer:
-            for line in self.buffer:
-                self.debug(line)
+                self.info(tmp_msg)
+        if self.buffer.buffer and len(self.buffer.buffer):
+            self.buffer.buffer = sorted(self.buffer.buffer, key=lambda x: x['timestamp'], reverse=True)
+            for _ in range(len(self.buffer)):
+                if self.buffer:
+                    # pop it just in case it somehow gets iterated again
+                    line = self.buffer.pop()
+                    if line:
+                        if line['display_level'] == 'INF':
+                            self.info(line)
+                        elif line['display_level'] == 'ERR':
+                            self.error(line)
+                        elif line['display_level'] == 'WAR':
+                            self.warning(line)
+                        elif line['display_level'].startswith('DBG'):
+                            self.debug(line)
+                        elif line['display_level'] == 'PNC':
+                            self.panic(line)
+                        elif line['display_level'] == 'FAT':
+                            self.fatal(line)
+                        else:
+                            self.error(f"BUFFER DUMP->) Unknown log level '{line['level']}'")
+            self.buffer = None
 
     def is_active(self):
         if self.is__active:
@@ -347,15 +396,17 @@ class ZMLog:
     def get_buff(self):
         return
 
-    def get_config(self, ):
-        pass
+    def get_config(self):
+        return self.config
 
-    def _db_reconnect(self, ):
+    def _db_reconnect(self):
+        g = self.globs
+
         try:
             self.conn.close()
         except Exception:
             pass
-        if zm_inst:
+        if ZM_INSTALLED:
             try:
                 self.engine = create_engine(self.cstr, pool_recycle=3600)
                 self.conn = self.engine.connect()
@@ -377,6 +428,8 @@ class ZMLog:
                 return True
 
     def log_close(self, *args, **kwargs):
+        g = self.globs
+
         idx = min(len(stack()), 1)  # in case someone calls this directly
         caller = getframeinfo(stack()[idx][0])
 
@@ -401,17 +454,14 @@ class ZMLog:
                 self.log_file_handler.close()
                 self.log_file_handler = None
             self.config['dump_console'] = True
-            # Restore stdout and stderr
-            if sys.stdout != sys.__stdout__:
-                sys.stdout = sys.__stdout__
-            if sys.stderr != sys.__stderr__:
-                sys.stderr = sys.__stderr__
 
     def _format_string(self, message='', level='ERR'):
+        g = self.globs
         log_string = '{level} [{pname}] [{message}]'.format(level=level, pname=self.process_name, message=message)
         return (log_string)
 
     def time_format(self, dt_form):
+        g = self.globs
         if len(str(float(f"{dt_form.microsecond / 1e6}")).split(".")) > 1:
             micro_sec = str(float(f"{dt_form.microsecond / 1e6}")).split(".")[1]
         else:
@@ -422,6 +472,7 @@ class ZMLog:
         )
 
     def _log(self, **kwargs):
+        g = self.globs
         blank, caller, nl, level, tight, debug_level, message = None, None, None, 'DBG', False, 1, None
         dt = None
         display_level = None
@@ -454,41 +505,40 @@ class ZMLog:
         # second stack element will be the actual calling function or maybe class wrapper?
         # third will be actual func?
         # print (len(stack()))
-        if not caller or caller and fnfl:  # if caller was not passed we create it here, meaning in logs this modules name and line no will show up
+        if not caller or (caller and fnfl):  # if caller was not passed we create it here, meaning in logs this modules name and line no will show up
             idx = min(len(stack()), 2)  # in the case of someone calls this directly
             caller = getframeinfo(stack()[idx][0])
         # print ('CALLER INFO --> FILE: {} LINE: {}'.format(caller.filename, caller.lineno))
-        # If we are debug logging, show level too
         if not display_level:
             display_level = level
         file_log_string = '{level} [{pname}] [{msg}]'.format(level=display_level, pname=self.process_name, msg=message)
 
+        # If DBG show which DBG level
         if level == 'DBG':
             display_level = f'DBG{debug_level}'
 
         # write to syslog
         if levels[level] <= self.config['log_level_syslog']:
-            file_log_string = '{level} [{pname}] [{msg}]'.format(level=display_level, pname=self.process_name,
-                                                                 msg=message)
             self.syslog.syslog(priorities[level], file_log_string)
 
         component = self.process_name
-        serverid = self.config.get('server_id')
+        server_id = self.config.get('server_id')
         pid = self.pid
         level_ = levels[level]
         code = level
         line = caller.lineno
         # write to db only if ZM installed
-        send_to_db = True
-        if levels[level] <= self.config['log_level_db'] and zm_inst:
+        if levels[level] <= self.config['log_level_db'] and ZM_INSTALLED:
+            send_to_db = True
             if not self.sql_connected:
-                self.syslog.syslog(syslog.LOG_INFO, self._format_string("Connecting to ZoneMinder SQL DB"))
+                self.syslog.syslog(syslog.LOG_INFO, self._format_string(f"{lp} Connecting to ZoneMinder SQL DB"))
                 if not self._db_reconnect():
-                    self.syslog.syslog(syslog.LOG_ERR, self._format_string("Reconnecting failed, not writing to ZM DB"))
+                    self.syslog.syslog(syslog.LOG_ERR, self._format_string(
+                        f"{lp} Reconnecting failed, not writing to ZM DB"))
                     send_to_db = False
             if send_to_db:
                 try:
-                    cmd = self.log_table.insert().values(TimeKey=time.time(), Component=component, ServerId=serverid,
+                    cmd = self.log_table.insert().values(TimeKey=time.time(), Component=component, ServerId=server_id,
                                                          Pid=pid, Level=level_, Code=code, Message=message,
                                                          File=os.path.split(caller.filename)[1], Line=line)
                     self.conn.execute(cmd)
@@ -496,15 +546,16 @@ class ZMLog:
                     self.sql_connected = False
                     self.syslog.syslog(syslog.LOG_ERR, self._format_string("Error writing to DB:" + str(e)))
 
-        print_log_string = None
+        print_log_string: str = '{timestamp} {pname}[{pid}] {level} {fnfl}->[{msg}]'.format(timestamp=dt,
+                                                                                       level=display_level,
+                                                                                       pname=self.process_name,
+                                                                                       pid=pid, msg=message,
+                                                                                       fnfl=fnfl)
+
         if levels[level] <= self.config['log_level_file']:
             if not fnfl:
-                fnfl = f"{os.path.split(caller.filename)[1].split('.')[0]}:{caller.lineno}"
-            print_log_string = '{timestamp} {pname}[{pid}] {level} {fnfl}->[{msg}]'.format(timestamp=dt,
-                                                                                           level=display_level,
-                                                                                           pname=self.process_name,
-                                                                                           pid=pid, msg=message,
-                                                                                           fnfl=fnfl)
+                fnfl = f"{Path(caller.filename).name.split('.')[0]}:{caller.lineno}"
+
             file_log_string = '{timestamp} {pname}[{pid}] {level} {fnfl} [{msg}]\n'.format(timestamp=dt,
                                                                                            level=display_level,
                                                                                            pname=self.process_name,
@@ -516,19 +567,18 @@ class ZMLog:
                     self.log_file_handler.write(file_log_string)  # write to file
                     self.log_file_handler.flush()
                 except Exception as e:
-                    sys.stdout = sys.__stdout__
                     print(f"'{file_log_string}' is not available to be written to, trying to create a new log file")
                     # make log file
                     uid = pwd.getpwnam(self.config['webuser']).pw_uid
                     gid = grp.getgrnam(self.config['webgroup']).gr_gid
                     if self.config['log_level_file'] > levels['OFF']:
-                        n = os.path.split
-                        self.log_filename = f"{self.config['logpath']}/{n(self.process_name)[1].split('.')[0]}.log"
+                        self.log_filename = f"{self.config['logpath']}/{self.process_name}.log"
                         # print ('WRITING TO {}'.format(self.log_fname))
                         try:
                             log_file = Path(self.log_filename)
                             log_file.touch(exist_ok=True)
                             self.log_file_handler = log_file.open('a')
+
                             os.chown(self.log_filename, uid, gid)  # proper permissions
                         except Exception as e:
                             self.syslog.syslog(
@@ -552,9 +602,24 @@ class ZMLog:
             else:
                 print(f"\n{print_log_string}")
 
-    def info(self, message, **kwargs):
+    def info(self, *args, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
+        ts = None
+        message = None
+        lineno = None
+        display_level = None
+        filename = None
+        if isinstance(args[0], dict):
+            a = args[0]
+            ts = a['timestamp']
+            lineno = a['lineno']
+            display_level = a['display_level']
+            filename = a['filename']
+            message = a['message']
+        else:
+            message = args[0]
         for k, v in kwargs.items():
             if k == 'caller':
                 caller = v
@@ -562,9 +627,23 @@ class ZMLog:
                 tight = v
             elif k == 'nl':
                 nl = v
-        self._log(level='INF', message=message, caller=caller, tight=tight, nl=nl)
+        # self._log(level='INF', message=message, caller=caller, tight=tight, nl=nl)
+        self._log(
+            level='INF',
+            message=message,
+            caller=caller,
+            debug_level=level,
+            tight=tight,
+            nl=nl,
+            timestamp=ts,
+            display_level=display_level,
+            filename=filename,
+            lineno=lineno
+        )
+
 
     def debug(self, *args, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level, message = None, None, None, None
         level = 1
@@ -618,9 +697,24 @@ class ZMLog:
                 lineno=lineno
             )
 
-    def warning(self, message, **kwargs):
+    def warning(self, *args, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
+        ts = None
+        message = None
+        lineno = None
+        display_level = None
+        filename = None
+        if isinstance(args[0], dict):
+            a = args[0]
+            ts = a['timestamp']
+            lineno = a['lineno']
+            display_level = a['display_level']
+            filename = a['filename']
+            message = a['message']
+        else:
+            message = args[0]
         for k, v in kwargs.items():
             if k == 'caller':
                 caller = v
@@ -628,12 +722,37 @@ class ZMLog:
                 tight = v
             elif k == 'nl':
                 nl = v
+        self._log(
+            level='WAR',
+            message=message,
+            caller=caller,
+            debug_level=level,
+            tight=tight,
+            nl=nl,
+            timestamp=ts,
+            display_level=display_level,
+            filename=filename,
+            lineno=lineno
+        )
 
-        self._log(level='WAR', message=message, caller=caller, tight=tight, nl=nl)
-
-    def error(self, message, **kwargs):
+    def error(self, *args, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
+        ts = None
+        message = None
+        lineno = None
+        display_level = None
+        filename = None
+        if isinstance(args[0], dict):
+            a = args[0]
+            ts = a['timestamp']
+            lineno = a['lineno']
+            display_level = a['display_level']
+            filename = a['filename']
+            message = a['message']
+        else:
+            message = args[0]
         for k, v in kwargs.items():
             if k == 'caller':
                 caller = v
@@ -641,12 +760,37 @@ class ZMLog:
                 tight = v
             elif k == 'nl':
                 nl = v
+        self._log(
+            level='ERR',
+            message=message,
+            caller=caller,
+            debug_level=level,
+            tight=tight,
+            nl=nl,
+            timestamp=ts,
+            display_level=display_level,
+            filename=filename,
+            lineno=lineno
+        )
 
-        self._log(level='ERR', message=message, caller=caller, tight=tight, nl=nl)
-
-    def fatal(self, message, **kwargs):
+    def fatal(self, *args, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
+        ts = None
+        message = None
+        lineno = None
+        display_level = None
+        filename = None
+        if isinstance(args[0], dict):
+            a = args[0]
+            ts = a['timestamp']
+            lineno = a['lineno']
+            display_level = a['display_level']
+            filename = a['filename']
+            message = a['message']
+        else:
+            message = args[0]
         for k, v in kwargs.items():
             if k == 'caller':
                 caller = v
@@ -654,14 +798,39 @@ class ZMLog:
                 tight = v
             elif k == 'nl':
                 nl = v
-
-        self._log(level='FAT', message=message, caller=caller, tight=tight, nl=nl)
+        self._log(
+            level='FAT',
+            message=message,
+            caller=caller,
+            debug_level=level,
+            tight=tight,
+            nl=nl,
+            timestamp=ts,
+            display_level=display_level,
+            filename=filename,
+            lineno=lineno
+        )
         self.log_close()
         exit(-1)
 
-    def panic(self, message, **kwargs):
+    def panic(self, *args, **kwargs):
+        g = self.globs
         tight = False
         caller, nl, level = None, None, None
+        ts = None
+        message = None
+        lineno = None
+        display_level = None
+        filename = None
+        if isinstance(args[0], dict):
+            a = args[0]
+            ts = a['timestamp']
+            lineno = a['lineno']
+            display_level = a['display_level']
+            filename = a['filename']
+            message = a['message']
+        else:
+            message = args[0]
         for k, v in kwargs.items():
             if k == 'caller':
                 caller = v
@@ -669,6 +838,17 @@ class ZMLog:
                 tight = v
             elif k == 'nl':
                 nl = v
-        self._log(level='PNC', message=message, caller=caller, tight=tight, nl=nl)
+        self._log(
+            level='PNC',
+            message=message,
+            caller=caller,
+            debug_level=level,
+            tight=tight,
+            nl=nl,
+            timestamp=ts,
+            display_level=display_level,
+            filename=filename,
+            lineno=lineno
+        )
         self.log_close()
         exit(-1)

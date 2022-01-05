@@ -1,3 +1,5 @@
+from typing import Optional
+
 import requests
 import os
 from glob import glob
@@ -6,18 +8,21 @@ import subprocess
 from pathlib import Path
 
 import cv2
+# Pycharm hack for intellisense
+# from cv2 import cv2
 
 from pyzm.helpers.pyzm_utils import id_generator, str2bool
+from pyzm.interface import GlobalConfig
 from pyzm.helpers.pyzm_utils import resize_image
 
-g = None
+g: GlobalConfig
 lp: str = '{lp}'
 
 
 class AlprBase:
-    def __init__(self, options=None, tempdir='/tmp', globs=None):
+    def __init__(self, options=None, tempdir='/tmp'):
         global g
-        g = globs
+        g = GlobalConfig()
         if options is None:
             options = {}
         if not options.get('alpr_key') and options.get('alpr_service') != 'open_alpr_cmdline':
@@ -109,8 +114,6 @@ class Alpr(AlprBase):
             options (dict, optional): Config options. Defaults to {}.
             tempdir (str, optional): Path to store image for analysis. Defaults to '/tmp'.
         """
-        global g
-        g = globs
         AlprBase.__init__(self, options=options, tempdir=tempdir)
         if options is None:
             options = {}

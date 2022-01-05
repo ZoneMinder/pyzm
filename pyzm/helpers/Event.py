@@ -9,11 +9,10 @@ the full object
 from typing import Optional, AnyStr
 import requests
 from pathlib import Path
-
 from progressbar import ProgressBar as pb
 
+# Circular import hack
 g = None
-
 
 class Event:
     def __init__(self, event=None, globs=None):
@@ -163,6 +162,10 @@ class Event:
             string: name of event
         """      
         return self.event['Event']['Name'] or None
+
+    def __str__(self):
+        if self.event:
+            return f"<Event #{self.id} from Monitor #{self.monitor_id}>"
 
     @property
     def video_file(self):

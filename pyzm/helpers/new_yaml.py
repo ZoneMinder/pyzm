@@ -1,22 +1,33 @@
 """The new experimental config file parser for Neo-ZMEventNotification using YAML syntax.
 Offers superior nested python data structure retention compared to the old ConfigParser logic.
 """
+import glob
+import os
 import sys
+import time
 from ast import literal_eval
+from configparser import ConfigParser
 from copy import deepcopy
 from pathlib import Path
 from re import compile
 from shutil import which
 from threading import Thread
-from typing import Optional, Union
+from traceback import format_exc
+from typing import Optional
+
 
 from yaml import SafeLoader, load
 from pyzm.helpers.pyzm_utils import my_stderr, my_stdout, str2bool
+from pyzm.interface import GlobalConfig
+from pyzm.api import ZMApi
+from pyzm.ZMLog import ZMLog
 
-g: Optional[object] = None
 ZM_INSTALLED: Optional[str] = which('zmdc.pl')
 lp: str = "config:"
+g: GlobalConfig
 
+SECRETS_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({\[\s*(\w.*)\s*\]})\"?|\'?"
+SUBVAR_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({{\s*(\w.*)\s*}})\"?|\'?"
 
 class ConfigParse:
     """A class to parse and store ZMES and MLAPI config and secret files.
@@ -57,7 +68,6 @@ class ConfigParse:
         """hash the config or secrets file based on **filetype**.
         :param filetype: (str) one of config or secret
         """
-
         def _compute(name):
             if name and Path(name).exists() and Path(name).is_file():
                 try:
@@ -78,7 +88,6 @@ class ConfigParse:
 
     def hash_compare(self, filetype: str) -> bool:
         """Compares a cached hash to a new hash of the supplied *filetype*"""
-
         def _compare(filename, cached_hash):
             if filename and Path(filename).exists() and Path(filename).is_file():
                 current_file_hash = self.compute_file_checksum(filename)
@@ -105,7 +114,7 @@ class ConfigParse:
             )
         return False
 
-    def process_config(self):
+    def process_config(self, *args_, **kwargs):
         def _base_key_prep():
             # Replace the {{vars}} in the base keys
             # Example: tpu_object_weights_mobiledet =
@@ -150,6 +159,7 @@ class ConfigParse:
         #           MAIN
         # -----------------------------
         # This is the config without secrets and substitution variables replaced
+
         dc: dict = self.default_config
         self.config = deepcopy(self.default_config)
         # iterate the keys in the built-in default values: if the default config file does not have a key that is in
@@ -366,7 +376,7 @@ class ConfigParse:
             if var in config:
                 # The replacement variable has a key: value in the base config
                 vars_replaced.append(var)
-                # Compile and sub 1 liner to replace all occurances of {{variable}} with the keys value
+                # Compile and sub 1 liner to replace all occurrences of {{variable}} with the keys value
                 new_config = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(config[var]), new_config)
             else:
                 # There is a {{variable}} but there is no configured key: value for it
@@ -605,14 +615,12 @@ class ConfigParse:
                             f"that are now in the 'base' config -> {new_}"
                         )
 
-def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False, **kwargs):
+
+def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False):
     # Setup logger and API, baredebug means DEBUG level logging but do not output to console
     # this is handy if you are monitoring the log files with tail -F (or the provided es.log.<detect/base> or mlapi.log)
     # otherwise you get double output. mlapi and ZMES override their std.out and std.err in order to catch all errors
     # and log them
-    config['pyzm_overrides']['dump_console'] = False
-    if kwargs.get('_type'):
-        type_ = kwargs.get('_type')
     if args.get('debug') and args.get('baredebug'):
         g.logger.warning(f"{lp} both debug flags enabled! --debug takes precedence over --baredebug")
         args.pop('baredebug')
@@ -621,16 +629,25 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         config['pyzm_overrides']['dump_console'] = True
 
     if args.get('debug') or args.get('baredebug'):
-        config['pyzm_overrides']['log_level_syslog'] = 5
-        config['pyzm_overrides']['log_level_file'] = 5
-        config['pyzm_overrides']['log_level_debug'] = 5
         config['pyzm_overrides']['log_debug'] = True
+        if not config['pyzm_overrides'].get('log_level_syslog'):
+            config['pyzm_overrides']['log_level_syslog'] = 5
+        if not config['pyzm_overrides'].get('log_level_file'):
+            config['pyzm_overrides']['log_level_file'] = 5
+        if not config['pyzm_overrides'].get('log_level_debug'):
+            config['pyzm_overrides']['log_level_debug'] = 5
+        if not config['pyzm_overrides'].get('log_debug_file'):
+            # log levels -> 1 dbg/print/blank 0 info, -1 warn, -2 err, -3 fatal, -4 panic, -5 off
+            config['pyzm_overrides']['log_debug_file'] = 1
+
+    if not ZM_INSTALLED:
+        # Turn DB logging off if ZM is not installed
+        config['pyzm_overrides']['log_level_db'] = -5
 
     if type_ == 'mlapi':
         log_path: str = ''
         log_name = 'zm_mlapi.log'
         if not ZM_INSTALLED:
-            log_path = f"{config['base_data_path']}/logs"
             g.logger.debug(f"{lp}init:log: Zoneminder is not installed, configuring mlapi logger")
             if config.get('log_user'):
                 log_user = config['log_user']
@@ -639,13 +656,9 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
             elif not config.get('log_group') and config.get('log_user'):
                 # use log user as log group as well
                 log_group = config['log_user']
-            if config.get('log_path'):
-                log_path = config['log_path']
+            log_path = f"{config['base_data_path']}/logs"
             # create the log dir in base_data_path, if it exists do not throw an exception
-            try:
-                Path(log_path).mkdir(exist_ok=True)
-            except Exception:
-                pass
+            Path(log_path).mkdir(exist_ok=True)
 
         elif ZM_INSTALLED:
             g.logger.debug(f"{lp}init:log: Zoneminder is installed, configuring mlapi logger")
@@ -661,10 +674,7 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
                       f"using the configured (possibly default) log path '{config['base_data_path']}/logs'")
                 log_path = f"{config['base_data_path']}/logs"
                 # create the log dir in base_data_path, if it exists do not throw an exception
-                try:
-                    Path(log_path).mkdir(exist_ok=True)
-                except Exception:
-                    pass
+                Path(log_path).mkdir(exist_ok=True)
 
         else:
             print(f"It seems there is no user to log with, there will only be console output, if anything"
@@ -677,11 +687,7 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         if args.get('log_path'):
             if args.get('log_path_force'):
                 g.logger.debug(f"{lp}init: 'force_log_path' is enabled!")
-                try:
-                    Path(args.get('log_path')).mkdir(exist_ok=True)
-                except Exception:
-                    pass
-
+                Path(args.get('log_path')).mkdir(exist_ok=True)
             else:
                 log_p = Path(args.get('log_path'))
                 if log_p.is_dir():
@@ -712,28 +718,24 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         log_name = 'zmes_external'
         if args.get('logname'):
             log_name = args.get('logname')
-    from pyzm.ZMLog import ZMLog
+    # print(f"DBG>> before intializing ZMLog -> pyzm_overrides = {config['pyzm_overrides']}")
     if not isinstance(g.logger, ZMLog):
         g.logger = ZMLog(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
-    # std out and std err redirected to logging instance
-    if not args.get("debug"):
-        sys.stdout = my_stdout()
-    sys.stderr = my_stderr()
+    # print(f"DBG>> AFTER {g.logger.get_config()}")
 
 
-def process_config(args, conf_globals, type_):
+def process_config(
+        args: dict,
+        type_: str
+):
+    # Singleton dataclass should already be instantiated.
     global g
-    g = conf_globals
+    g = GlobalConfig()
     if args.get('from_docker') or args.get('docker'):
         g.config['DOCKER'] = True
+    g.config['sanitize_str'] = '<sanitized>'
     # build default config, pass filename
-    if type_ == 'mlapi':
-        defaults = g.mlapi_default
-    elif type_ == 'zmes':
-        defaults = g.zmes_default
-    else:
-        defaults = None
-        raise NotImplementedError(f"{type_} is not a valid type")
+    defaults = g.DEFAULT_CONFIG
     config_obj = ConfigParse(args['config'], defaults)
     config_obj.process_config()
     # config_obj.COCO = pop_coco_names(config_obj.config['yolo4_object_labels']
@@ -748,9 +750,6 @@ def process_config(args, conf_globals, type_):
         if config_obj.config.get('resize') is not None:
             config_obj.config.pop('resize')
 
-    elif not type_ == 'zmes':
-        print(f"{lp}init: not mlapi or zmes? (WIP)")
-        return
     return config_obj, g
 
 
@@ -770,7 +769,6 @@ def create_api(args: dict):
         "sanitize_portal": str2bool(g.config.get("sanitize_logs")),
     }
     try:
-        from pyzm.api import ZMApi
         g.api = ZMApi(options=api_options, api_globals=g)
     except Exception as e:
         g.logger.error(f"{lp} {e}")
@@ -778,12 +776,18 @@ def create_api(args: dict):
     else:
         # get and set the monitor id, name, eventpath
         if args.get("eventid"):
-            # set event id globally forst before calling api event data
+            # set event id globally first before calling api event data
             g.config['eid'] = g.eid = args['eventid']
             # api call for event data
             g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
             g.config["mon_name"] = g.Monitor.get("Name")
             g.config["api_cause"] = g.Event.get("Cause")
+            g.logger.debug(f"")
+            g.logger.debug(f'{g.config["mon_name"] = } ---- {g.Monitor.get("Name") = }')
+            g.logger.debug(f'{g.config["api_cause"] = } ----- {g.Event.get("Cause") = }')
+            g.logger.debug(f"")
+            if not args.get('reason'):
+                args['reason'] = g.Event.get("Notes")
             g.config['mid'] = g.mid = args["monitor_id"] = int(g.Monitor.get("Id"))
             if args.get("eventpath", "") == "":
                 g.config["eventpath"] = args["eventpath"] = g.Event.get("FileSystemPath")

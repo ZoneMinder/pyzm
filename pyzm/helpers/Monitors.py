@@ -3,13 +3,13 @@ Monitors
 =========
 Holds a list of Monitors for a ZM configuration
 Given monitors are fairly static, maintains a cache of monitors
-which can be overriden 
+which can be overridden
 """
 
 from pyzm.helpers.Monitor import Monitor
 from typing import Optional
 
-g: Optional[object] = None
+g = None
 
 
 class Monitors:
@@ -19,6 +19,21 @@ class Monitors:
         self.api = g.api
         self.monitors = []
         self._load()
+
+    def __len__(self):
+        if self.monitors:
+            return len(self.monitors)
+        else:
+            return 0
+
+    def __str__(self) -> Optional[str]:
+        if self.monitors:
+            ret_val = []
+            for mon in self.monitors:
+                ret_val.append(str(mon))
+            return str(ret_val)
+        else:
+            return None
 
     def _load(self, options=None):
         if options is None:

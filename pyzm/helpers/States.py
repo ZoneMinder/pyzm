@@ -5,16 +5,14 @@ Holds a list of States for a ZM configuration
 Given states are fairly static, maintains a cache of states
 which can be overriden 
 """
-
-
 from pyzm.helpers.State import State
 from typing import Optional
 
-g: Optional[object] = None
+g = None
 
 
 class States:
-    def __init__(self, globs=g):
+    def __init__(self, globs):
         global g
         g = globs
         self.api = g.api

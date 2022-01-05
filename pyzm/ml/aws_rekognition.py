@@ -5,21 +5,22 @@ import boto3
 import cv2
 from typing import Optional
 from pyzm.helpers.pyzm_utils import Timer
+from pyzm.interface import GlobalConfig
 from pyzm.ml.object import Object
 
-g: Optional[object] = None
-lp: Optional[str] = None
+g: GlobalConfig
+lp: str
 
 
 class AwsRekognition(Object):
     def __init__(self, *args, **kwargs):
         global g, lp
         self.lp = lp = 'aws rek:'
-        globs = kwargs['globs']
-        g = globs
+        g = GlobalConfig()
         self.options = kwargs['options']
         if self.options is None:
             raise ValueError(f'{lp} options must be provided')
+        kwargs['globs'] = g
         super().__init__(*args, **kwargs)
 
         self.sequence_name: str = ''

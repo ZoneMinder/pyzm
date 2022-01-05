@@ -7,15 +7,20 @@ If you don't see a specific getter, just use the generic get function to get
 the full object
 """
 from typing import Optional
-g: Optional[object] = None
+
+g = None
 
 
 class Monitor:
-    def __init__(self, globs=None, monitor=None):
+    def __init__(self, monitor=None, globs=None):
         global g
         g = globs
         self.monitor = monitor
         self.api = g.api
+
+    def __str__(self):
+        if self.monitor:
+            return f"<Monitor #{self.monitor['Monitor']['Id']} name: {self.monitor['Monitor']['Name']}>"
     
     def get(self):
         """Returns monitor object

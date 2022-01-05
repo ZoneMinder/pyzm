@@ -23,7 +23,6 @@ Important:
 """
 
 import datetime
-from threading import Thread
 
 from requests import Session
 from requests.packages.urllib3 import disable_warnings
@@ -39,7 +38,6 @@ from pyzm.helpers.Monitors import Monitors
 from pyzm.helpers.States import States
 from pyzm.helpers.Zones import Zones
 
-g = None
 GRACE = 60 * 5  # 5 mins
 lp = 'api:'
 
@@ -57,14 +55,13 @@ class ZMApi:
             - basic_auth_user - basic auth username
             - basic_auth_password - basic auth password
             - logger - logger to use
-            - kickstart - (dict) containing existing JWT token data
+            - api_globals - pre-instantiated GlobalConfig object
+            - kickstart - (dict) containing existing JWT token data, instead of logging in and grabbing for ourself.
             Note: you can connect your own customer logging class to the API in which case all modules will use your
             custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.
             Base.SimpleLog` for method details.
         """
-        global g
-        g = api_globals
-
+        self.globs = g = api_globals
         idx = min(len(stack()), 1)  # in case someone calls this directly
         caller = getframeinfo(stack()[idx][0])
         if options is None:
@@ -150,6 +147,7 @@ class ZMApi:
             self._login()
 
     def cred_dump(self):
+        g = self.globs
         ret_val = {
             "user": self.options.get('user'),
             "password": self.options.get('password'),
@@ -162,12 +160,13 @@ class ZMApi:
             "zm_version": self.zm_version,
         }
         return ret_val
-
-    def _versiontuple(self, v):
+    @staticmethod
+    def _versiontuple(v):
         # https://stackoverflow.com/a/11887825/1361529
         return tuple(map(int, (v.split("."))))
 
     def get_session(self):
+        g = self.globs
         return self.session
 
     def version(self):
@@ -182,6 +181,7 @@ class ZMApi:
                 zm_version: string # if status is 'ok'
             }
         """
+        g = self.globs
         if not self.authenticated:
             return {"status": "error", "reason": "not authenticated"}
         return {
@@ -196,6 +196,7 @@ class ZMApi:
         Returns:
            string: timezone of ZoneMinder server (or None if API not supported)
         """
+        g = self.globs
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         if not self.zm_tz:
@@ -203,12 +204,14 @@ class ZMApi:
 
             try:
                 r = self.make_request(url=url)
-                self.zm_tz = r.get("tz")
             except HTTPError as err:
                 g.logger.error(
                     f"{lp} timezone API not found, relative timezones will be local time",
                     caller=caller,
                 )
+            else:
+                self.zm_tz = r.get("tz")
+
         return self.zm_tz
 
     def authenticated(self):
@@ -217,11 +220,13 @@ class ZMApi:
         Returns:
             boolean -- True if Login API worked
         """
+        g = self.globs
         return self.authenticated
 
     # called in _make_request to avoid 401s if possible
     def _refresh_tokens_if_needed(self):
-        global GRACE
+        g = self.globs
+        # global GRACE
         if not (self.access_token_expires and self.refresh_token_expires):
             return
         tr = (self.access_token_datetime - datetime.datetime.now()).total_seconds()
@@ -233,16 +238,17 @@ class ZMApi:
 
     def _re_login(self):
         """Used for 401. I could use _login too but decided to do a simpler fn"""
+        g = self.globs
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
-        global GRACE
+        # global GRACE
         if self._versiontuple(self.api_version) >= self._versiontuple("2.0"):
             # use tokens
             tr = (self.refresh_token_datetime - datetime.datetime.now()).total_seconds()
             if tr >= GRACE:  # 5 mins grace
                 g.logger.debug(
                     2,
-                    f"{lp} going to use refresh token as it still has {tr / 60} minutes remaining",
+                    f"{lp} using refresh token to get a new auth, as refresh still has {tr / 60} minutes remaining",
                     caller=caller,
                 )
                 self.options["token"] = self.refresh_token
@@ -260,6 +266,7 @@ class ZMApi:
         Raises:
             err: reason for failure
         """
+        g = self.globs
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         try:
@@ -374,35 +381,33 @@ class ZMApi:
         return self.portal_url
 
     def get_creds(self):
-        if not self.auth_enabled:
+        if not self.auth_enabled or not self.api_version:
             return ""
-
         if self._versiontuple(self.api_version) >= self._versiontuple("2.0"):
             return self.options.get('user'), self.options.get('password')
         else:
-            # FIXME: need to get it to a tuple of ('basic user', 'basic pass') and what about the append password thing?
+            # FIXME: need to get it to a tuple of ('basic user', 'basic pass') and append password mechanism
             return self.legacy_credentials
 
     def get_auth(self):
-        if not self.auth_enabled:
+        if not self.auth_enabled or not self.api_version:
             return ""
-
         if self._versiontuple(self.api_version) >= self._versiontuple("2.0"):
-            return "token=" + self.access_token
+            return f"token={self.access_token}"
         else:
             return self.legacy_credentials
 
     def get_all_event_data(self, event_id=None, update_frame_buffer_length=True):
         """Returns the data from an 'Event' API call.
-        If you do not supply it an event_id it will use the global event id.
-
-     ZoneMinder returns 3 structures in the JSON.
-    - Monitor data - A Dictionary containing data about the event monitor.
+If you do not supply it an event_id it will use the global event id.
+        ZoneMinder returns 3 structures in the JSON response.
+    - Monitor data - A dict containing data about the event monitor.
     - Event data - A dict containing all info about the current event.
     - Frame data - A list whose length is the current amount of frames in the frame buffer for the event.
 
-        :param update_frame_buffer_length: (bool) If True, will update the frame_buffer_length (Default: True).
+    :param update_frame_buffer_length: (bool) If True, will update the frame_buffer_length (Default: True).
     :param event_id: (str/int) Optional, the event ID to query."""
+        g = self.globs
         if not event_id:
             event_id = g.eid
         Event: Optional[Dict]
@@ -420,7 +425,7 @@ class ZMApi:
             Frame = g.api_event_response.get("event", {}).get("Frame")
             g.config["mon_name"] = Monitor.get("Name")
             g.config["api_cause"] = Event.get("Cause")
-            g.config["eventpath"]  = Event.get("FileSystemPath")
+            g.config["eventpath"] = Event.get("FileSystemPath")
             if update_frame_buffer_length:
                 g.event_tot_frames = len(Frame)
             # g.logger.Debug(f"{Event}")
@@ -442,7 +447,7 @@ class ZMApi:
         :rtype: dict
         :rtype: object
         """
-
+        g = self.globs
         idx = min(len(stack()), 1)
         caller = getframeinfo(stack()[idx][0])
         if payload is None:
@@ -456,7 +461,7 @@ class ZMApi:
                 query["token"] = self.access_token
 
             else:
-                # credentials is already query formatted
+                # credentials are already query formatted
                 lurl = url.lower()
                 if lurl.endswith("json") or lurl.endswith("/"):
                     qchar = "?"
@@ -577,6 +582,7 @@ class ZMApi:
         Returns:
             list of :class:`pyzm.helpers.Zone`: list of zones
         """
+        g = self.globs
         if options is None:
             options = {}
         if options.get("force_reload") or not self.Zones:
@@ -597,6 +603,7 @@ class ZMApi:
         Returns:
             list of :class:`pyzm.helpers.Monitor`: list of monitors
         """
+        g = self.globs
         if options is None:
             options = {}
         if options.get("force_reload") or not self.Monitors:
@@ -626,6 +633,7 @@ class ZMApi:
         Returns:
             list of :class:`pyzm.helpers.Event`: list of events that match criteria
         """
+        g = self.globs
         if options is None:
             options = {}
         self.Events = Events(options=options, globs=g)
@@ -640,6 +648,7 @@ class ZMApi:
         Returns:
             list of  :class:`pyzm.helpers.State`: list of states
         """
+        g = self.globs
         if options is None:
             options = {}
         self.States = States(globs=g)
@@ -678,6 +687,7 @@ class ZMApi:
         Returns:
             json: value of state change command
         """
+        g = self.globs
         if not state:
             return
         url = f"{self.api_url}/states/change/{state}.json"
@@ -697,6 +707,7 @@ class ZMApi:
         Returns:
             :class:`pyzm.helpers.Configs`: ZM configs
         """
+        g = self.globs
         if options is None:
             options = {}
         if options.get("force_reload") or not self.Configs:
