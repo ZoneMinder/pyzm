@@ -28,6 +28,26 @@ g: GlobalConfig
 
 SECRETS_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({\[\s*(\w.*)\s*\]})\"?|\'?"
 SUBVAR_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({{\s*(\w.*)\s*}})\"?|\'?"
+objconf = (
+'general',
+'remote_detection',
+'hass',
+'push_notifications',
+'mqtt',
+'animation',
+'ml_models',
+'monitors',
+'sequences',
+'zmes_dev',
+)
+mlapiconf = (
+'general',
+'ml_models',
+'monitors',
+'sequences',
+'mlapi_dev',
+)
+
 
 class ConfigParse:
     """A class to parse and store ZMES and MLAPI config and secret files.
@@ -155,16 +175,21 @@ class ConfigParse:
                     f"  configured that have no substitution in the base config -> {base_vars_not_replaced}"
                 )
 
-        # -----------------------------
-        #           MAIN
-        # -----------------------------
-        # This is the config without secrets and substitution variables replaced
-
         dc: dict = self.default_config
-        self.config = deepcopy(self.default_config)
+        tmp_dft_cfg = deepcopy(dc)
         # iterate the keys in the built-in default values: if the default config file does not have a key that is in
         # the defaults, copy over the default key: value.
         def_keys_added = []
+        if dc.get('ZMES') == 1 or dc.get('MLAPI') == 1:
+            sections = tmp_dft_cfg.keys()
+            self.config = {}
+            for section in sections:
+                if isinstance(tmp_dft_cfg[section], dict):
+                    for k, v in tmp_dft_cfg[section].items():
+                        if k not in self.config:
+                            self.config[k] = v
+        else:
+            self.config = tmp_dft_cfg
         if not self.config:
             print(
                 f"{lp}{self.type}:proc: There was an error reading from the configuration file "
@@ -172,6 +197,7 @@ class ConfigParse:
             )
             # todo pushover notification of failure
             exit(1)
+
         for default_key, default_value in self.builtin_default_config.items():
             if default_key not in self.config or (self.config.get(default_key) and not self.config[default_key]):
                 def_keys_added.append(default_key)
@@ -267,11 +293,7 @@ class ConfigParse:
             else:
                 dc: dict = self.default_config
                 self.monitors = dc.get('monitors')
-                self.default_ml_sequence = dc.get('ml_sequence')
-                self.default_stream_sequence = dc.get('stream_sequence')
                 self.default_monitor_overrides = dc.get('monitors')
-                self.ml_routes = dc.get('ml_routes')
-                self.zmes_keys = dc.get('zmes_keys')
                 g.logger.debug(
                     f"{lp}:init: default configuration built (no secrets or substitution vars replaced, yet!)"
                 )
