@@ -405,7 +405,8 @@ class DetectSequence:
                 elif (
                         self.ml_options.get(model_name, {}).get('general').get(f"{label[idx]}{_key}")
                         and self.ml_options.get(model_name, {}).get('general').get(f"{label[idx]}{_key}") is not None
-                        and not self.ml_options.get(model_name, {}).get('general').get(f"{label[idx]}{_key}").startswith('{{')
+                        and not self.ml_options.get(model_name, {}).get('general').get(
+                    f"{label[idx]}{_key}").startswith('{{')
                 ):
                     if _key == "_object_min_confidence":
                         min_conf = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{_key}")
@@ -420,77 +421,77 @@ class DetectSequence:
                         ioa_found = f"{label[idx]}{_key}->{model_name}:general:"
                         g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {ioa = } -- {ioa_found = }")
 
-            # if not min_conf and g.config.get(f"{label[idx]}_object_min_confidence"):
-            #     min_conf = g.config.get(f"{label[idx]}_object_min_confidence")
-            #     min_conf_found = f"{label[idx]}_object_min_conf:GLOBAL config->{g.config.get('name')}"
-            #     g.logger.debug(f"DEBUG!>>> GLOBAL CONFIG {min_conf = } -- {min_conf_found = }")
-            # if not moa and g.config.get(f"{label[idx]}_max_detection_size"):
-            #     moa = g.config.get(f"{label[idx]}_max_detection_size")
-            #     moa_found = f"{label[idx]}_max_detection_size:GLOBAL config->{g.config.get('name')}"
-            #     g.logger.debug(f"DEBUG!>>> GLOBAL CONFIG {moa = } -- {moa_found = }")
-            # if not ioa and g.config.get(f"{label[idx]}_contained_area"):
-            #     ioa = g.config.get(f"{label[idx]}_contained_area")
-            #     ioa_found = f"{label[idx]}_contained_area:GLOBAL config->{g.config.get('name')}"
-            #     g.logger.debug(f"DEBUG!>>> GLOBAL CONFIG {ioa = } -- {ioa_found = }")
+            pattern_match = None
+            for p in polygons:
+                if label[idx] in p.get('contains'):
+                    ioa = p.get('contains').get(label[idx])
+                    ioa_found = f"ZONE_CONTAINS"
+                    g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {ioa = } -- {ioa_found = }")
+                if label[idx] in p.get('max_size'):
+                    moa = p.get('max_size').get(label[idx])
+                    moa_found = f"ZONE_MAX_SIZE"
+                    g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {moa = } -- {moa_found = }")
+                if label[idx] in p.get('min_conf'):
+                    min_conf = p.get('min_conf').get(label[idx])
+                    min_conf_found = f"ZONE_MIN_CONF"
+                    g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {min_conf = } -- {min_conf_found = }")
 
-            if not min_conf:
-                # min_conf IS REQUIRED
-                g.logger.warning(f"{lp} {show_label} min_conf not found! Using 50%")
-                min_conf = 0.5
-                min_conf_found = "DEFAULT->50%"
-            if min_conf:
-                try:
-                    min_conf = float(min_conf)
-                except Exception:
-                    g.logger.warning(f"{lp} {show_label} min_conf could not be converted to a FLOAT! Using 50%")
+                if not min_conf:
+                    # min_conf IS REQUIRED
+                    g.logger.warning(f"{lp} {show_label} min_conf not found! Using 50%")
                     min_conf = 0.5
                     min_conf_found = "DEFAULT->50%"
-                g.logger.debug(
-                    f"'{show_label}' minimum confidence found: ({min_conf_found}) -> '{min_conf}'"
-                )
-                if conf[idx] < min_conf:  # confidence filter
+                if min_conf:
+                    try:
+                        min_conf = float(min_conf)
+                    except Exception:
+                        g.logger.warning(f"{lp} {show_label} min_conf could not be converted to a FLOAT! Using 50%")
+                        min_conf = 0.5
+                        min_conf_found = "DEFAULT->50%"
                     g.logger.debug(
-                        2,
-                        f"confidence: {conf[idx] * 100:.2f} is lower than minimum of {min_conf * 100:.2f}, removing..."
+                        f"'{show_label}' minimum confidence found: ({min_conf_found}) -> '{min_conf}'"
                     )
-                    # don't draw red error boxes around filtered out objects by confidence if not specified in config
-                    if str2bool(g.config.get("show_conf_filtered")):
-                        error_bbox_to_poly.append(b)
-                        new_err.append(b)
-                    failed = True
-                    continue
-
-            if moa and moa != "100%":
-                g.logger.debug(
-                    4,
-                    f"'{show_label}' max area of detected object found ({moa_found}) -> '{moa}'",
-                )
-                # Let's make sure its the right size
-
-                _m = re.match(r"(\d*\.?\d*)(px|%)?$", moa, re.IGNORECASE)
-                if _m:
-                    max_object_area = float(_m.group(1))
-                    if _m.group(2) == "%":
-                        max_object_area = float(_m.group(1)) / 100.0 * (h * w)
-
+                    if conf[idx] < min_conf:  # confidence filter
                         g.logger.debug(
                             2,
-                            f"max size: converted {_m.group(1)}% of {w}*{h}->{round(w * h)} to "
-                            f"{max_object_area} pixels",
+                            f"confidence: {conf[idx] * 100:.2f} is lower than minimum of {min_conf * 100:.2f}, removing..."
                         )
-                        if max_object_area and max_object_area > (h * w):
-                            max_object_area = h * w
-                if max_object_area and obj.area > max_object_area:
-                    g.logger.debug(
-                        f"max size: {obj.area:.2f} is larger then the max allowed: {max_object_area:.2f}, removing...",
-                    )
-                    failed = True
-                    error_bbox_to_poly.append(b)
-                    new_err.append(b)
-                    continue
+                        # don't draw red error boxes around filtered out objects by confidence if not specified in config
+                        if str2bool(g.config.get("show_conf_filtered")):
+                            error_bbox_to_poly.append(b)
+                            new_err.append(b)
+                        failed = True
+                        continue
 
-            pattern_match = None
-            for p in polygons:  # are there more than 1 polygon/zone masks to compare to?
+                if moa and moa != "100%":
+                    g.logger.debug(
+                        4,
+                        f"'{show_label}' max area of detected object found ({moa_found}) -> '{moa}'",
+                    )
+                    # Let's make sure its the right size
+
+                    _m = re.match(r"(\d*\.?\d*)(px|%)?$", moa, re.IGNORECASE)
+                    if _m:
+                        max_object_area = float(_m.group(1))
+                        if _m.group(2) == "%":
+                            max_object_area = float(_m.group(1)) / 100.0 * (h * w)
+
+                            g.logger.debug(
+                                2,
+                                f"max size: converted {_m.group(1)}% of {w}*{h}->{round(w * h)} to "
+                                f"{max_object_area} pixels",
+                            )
+                            if max_object_area and max_object_area > (h * w):
+                                max_object_area = h * w
+                    if max_object_area and obj.area > max_object_area:
+                        g.logger.debug(
+                            f"max size: {obj.area:.2f} is larger then the max allowed: {max_object_area:.2f}, removing...",
+                        )
+                        failed = True
+                        error_bbox_to_poly.append(b)
+                        new_err.append(b)
+                        continue
+
                 if p["name"] != "full_image":
                     polygon_zone = Polygon(p['value'])
                     g.logger.debug(
@@ -587,11 +588,12 @@ class DetectSequence:
                     continue
                 elif label[idx] in match:
                     pattern_match = True
-
             # out of polygon/zone loop
             if not pattern_match:
                 failed = True
                 continue
+
+
             # FIXME match past detections
             # MATCH PAST DETECTIONS
             # todo add buffer and time based configurations
@@ -651,211 +653,208 @@ class DetectSequence:
                         )
                     if seq_opt.get(f"{label[idx]}_past_det_max_diff_area"):
                         mda = seq_opt.get(f"{label[idx]}_past_det_max_diff_area")
-                        mda_found = f'overriden:sequence->{seq_opt.get("name")}'
+                        mda_found = f'overridden:sequence->{seq_opt.get("name")}'
 
                     if mpd_ig and label[idx] in mpd_ig:
                         g.logger.debug(
                             4,
-                            "mpd: {} is in ignore list: {}, skipping".format(
-                                label[idx], mpd_ig
-                            ),
+                            f"mpd: {label[idx]} is in ignore list: {mpd_ig}, skipping",
                         )
                         ignore_mpd = True
                     if mda and isinstance(mda, str) and str(mda).startswith("0"):
                         g.logger.debug(
                             4,
-                            "mpd:  is set to {} (Leading 0 means BYPASS), skipping".format(
-                                label[idx], mda
-                            ),
+                            f"mpd:  is set to {label[idx]} (Leading 0 means BYPASS), skipping",
                         )
                         ignore_mpd = True
-                    if ignore_mpd:  # continue means it wont be removed
-                        new_bbox.append(box[idx])
-                        new_label.append(label[idx])
-                        new_conf.append(conf[idx])
-                        new_model_names.append(model_names[idx])
-                        new_bbox_to_poly.append(b)
-                        continue
+                    # if ignore_mpd:  # continue means it wont be removed
+                    #     new_bbox.append(box[idx])
+                    #     new_label.append(label[idx])
+                    #     new_conf.append(conf[idx])
+                    #     new_model_names.append(model_names[idx])
+                    #     new_bbox_to_poly.append(b)
+                    #     continue
 
-                    # Format max difference area
-                    if mda:
-                        _m = re.match(r"(\d+)(px|%)?$", mda, re.IGNORECASE)
-                        if _m:
-                            max_diff_area = float(_m.group(1))
-                            use_percent = (
-                                True
-                                if _m.group(2) is None or _m.group(2) == "%"
-                                else False
-                            )
-                        else:
-                            g.logger.error(
-                                f"mpd:  malformed -> {mda}, setting to 5%..."
-                            )
-                            use_percent = True
-                            max_diff_area = 5.0
-
-                        # it's very easy to forget to add 'px' when using pixels
-                        if use_percent and (max_diff_area < 0 or max_diff_area > 100):
-                            g.logger.error(
-                                f"mpd: {max_diff_area} must be in the range 0-100 when "
-                                f"using percentages: {mda}, setting to 5%..."
-                            )
-                            max_diff_area = 5.0
-                    else:
-                        g.logger.debug(
-                            f"mpd: no past_det_max_diff_area or per label overrides configured while "
-                            f"match_past_detections=yes, setting to 5% as default"
-                        )
-                        max_diff_area = 5.0
-                        use_percent = True
-
-                    g.logger.debug(
-                        4,
-                        "mpd: max difference in area configured ({}) -> '{}', comparing past detections to "
-                        "current".format(mda_found, mda),
-                    )
-
-                    # Compare current detection to past detections AREA
-                    for saved_idx, saved_b in enumerate(saved_bs):
-                        # compare current detection element with saved list from file
-                        found_past_match = False
-                        aliases: Optional[Union[str, dict]] = self.ml_options.get("general", {}).get("aliases", {})
-                        if isinstance(aliases, str) and len(aliases):
-                            aliases = literal_eval(aliases)
-                        if saved_ls[saved_idx] != label[idx]:
-                            if aliases and isinstance(aliases, dict):
-                                g.logger.debug(f"mpd: checking aliases")
-                                for item, value in aliases.items():
-                                    if found_past_match:
-                                        break
-                                    elif (
-                                            saved_ls[saved_idx] in value
-                                            and label[idx] in value
-                                    ):
-                                        found_past_match = True
-                                        g.logger.debug(
-                                            2,
-                                            "mpd:aliases: found current label -> '{}' and past label -> '{}' "
-                                            "are in an alias group named -> '{}'".format(
-                                                label[idx], saved_ls[saved_idx], item
-                                            ),
-                                        )
-                            elif aliases and not isinstance(aliases, dict):
-                                g.logger.debug(
-                                    f"mpd: aliases are configured but the format is incorrect, check the example "
-                                    f"config for formatting and reformat aliases to a dictionary type setup"
+                    if not ignore_mpd:
+                        # Format max difference area
+                        if mda:
+                            _m = re.match(r"(\d+)(px|%)?$", mda, re.IGNORECASE)
+                            if _m:
+                                max_diff_area = float(_m.group(1))
+                                use_percent = (
+                                    True
+                                    if _m.group(2) is None or _m.group(2) == "%"
+                                    else False
                                 )
+                            else:
+                                g.logger.error(
+                                    f"mpd:  malformed -> {mda}, setting to 5%..."
+                                )
+                                use_percent = True
+                                max_diff_area = 5.0
 
-                        elif saved_ls[saved_idx] == label[idx]:
-                            found_past_match = True
-                        if not found_past_match:
-                            continue
-                        # Found a match by label, now compare the area using Polygon
-                        saved_poly = self._bbox2poly(saved_b)
-                        saved_obj = Polygon(saved_poly)
-                        max_diff_pixels = None
+                            # it's very easy to forget to add 'px' when using pixels
+                            if use_percent and (max_diff_area < 0 or max_diff_area > 100):
+                                g.logger.error(
+                                    f"mpd: {max_diff_area} must be in the range 0-100 when "
+                                    f"using percentages: {mda}, setting to 5%..."
+                                )
+                                max_diff_area = 5.0
+                        else:
+                            g.logger.debug(
+                                f"mpd: no past_det_max_diff_area or per label overrides configured while "
+                                f"match_past_detections=yes, setting to 5% as default"
+                            )
+                            max_diff_area = 5.0
+                            use_percent = True
+
                         g.logger.debug(
                             4,
-                            "mpd: comparing '{}' PAST->{} to CURR->{}".format(
-                                label[idx], saved_b, b
-                            ),
+                            "mpd: max difference in area configured ({}) -> '{}', comparing past detections to "
+                            "current".format(mda_found, mda),
                         )
-                        if saved_obj.intersects(obj):
+
+                        # Compare current detection to past detections AREA
+                        for saved_idx, saved_b in enumerate(saved_bs):
+                            # compare current detection element with saved list from file
+                            found_past_match = False
+                            aliases: Optional[Union[str, dict]] = self.ml_options.get("general", {}).get("aliases", {})
+                            if isinstance(aliases, str) and len(aliases):
+                                aliases = literal_eval(aliases)
+                            if saved_ls[saved_idx] != label[idx]:
+                                if aliases and isinstance(aliases, dict):
+                                    g.logger.debug(f"mpd: checking aliases")
+                                    for item, value in aliases.items():
+                                        if found_past_match:
+                                            break
+                                        elif (
+                                                saved_ls[saved_idx] in value
+                                                and label[idx] in value
+                                        ):
+                                            found_past_match = True
+                                            g.logger.debug(
+                                                2,
+                                                "mpd:aliases: found current label -> '{}' and past label -> '{}' "
+                                                "are in an alias group named -> '{}'".format(
+                                                    label[idx], saved_ls[saved_idx], item
+                                                ),
+                                            )
+                                elif aliases and not isinstance(aliases, dict):
+                                    g.logger.debug(
+                                        f"mpd: aliases are configured but the format is incorrect, check the example "
+                                        f"config for formatting and reformat aliases to a dictionary type setup"
+                                    )
+
+                            elif saved_ls[saved_idx] == label[idx]:
+                                found_past_match = True
+                            if not found_past_match:
+                                continue
+                            # Found a match by label, now compare the area using Polygon
+                            saved_poly = self._bbox2poly(saved_b)
+                            saved_obj = Polygon(saved_poly)
+                            max_diff_pixels = None
                             g.logger.debug(
-                                4, f"mpd: the past object INTERSECTS the new object"
+                                4,
+                                "mpd: comparing '{}' PAST->{} to CURR->{}".format(
+                                    label[idx], saved_b, b
+                                ),
                             )
-                            if obj.contains(saved_obj):
-                                diff_area = obj.difference(saved_obj).area
-                                if use_percent:
-                                    max_diff_pixels = obj.area * max_diff_area / 100
-                            else:
-                                diff_area = saved_obj.difference(obj).area
-                                if use_percent:
-                                    max_diff_pixels = (
-                                            saved_obj.area * max_diff_area / 100
-                                    )
-                            if diff_area <= max_diff_pixels:
+                            if saved_obj.intersects(obj):
                                 g.logger.debug(
-                                    "mpd: removing '{}' as it seems to be in the same spot as it was detected "
-                                    "last time based on '{}' -> NOW: {} --- PAST: {}".format(
-                                        show_label, mda, b, saved_b
+                                    4, f"mpd: the past object INTERSECTS the new object"
+                                )
+                                if obj.contains(saved_obj):
+                                    diff_area = obj.difference(saved_obj).area
+                                    if use_percent:
+                                        max_diff_pixels = obj.area * max_diff_area / 100
+                                else:
+                                    diff_area = saved_obj.difference(obj).area
+                                    if use_percent:
+                                        max_diff_pixels = (
+                                                saved_obj.area * max_diff_area / 100
+                                        )
+                                if diff_area <= max_diff_pixels:
+                                    g.logger.debug(
+                                        "mpd: removing '{}' as it seems to be in the same spot as it was detected "
+                                        "last time based on '{}' -> NOW: {} --- PAST: {}".format(
+                                            show_label, mda, b, saved_b
+                                        )
                                     )
-                                )
-                                removed_by_mpd = True
-                            else:
-                                g.logger.debug(
-                                    4,
-                                    "mpd: allowing '{}' -> the difference in the area of last detection to this "
-                                    "detection is '{:.2f}', a minimum of {:.2f} is needed to not be considered "
-                                    "'in the same spot'".format(
-                                        show_label, diff_area, max_diff_pixels
-                                    ),
-                                )
-                        # This is just for semantics and to see if it ever hits
-                        elif obj.intersects(saved_obj):
-                            g.logger.debug(
-                                4, f"mpd: the NEW object INTERSECTS the past object"
-                            )
-                            if obj.contains(saved_obj):
-                                diff_area = obj.difference(saved_obj).area
-                                if use_percent:
-                                    max_diff_pixels = obj.area * max_diff_area / 100
-                            else:
-                                diff_area = saved_obj.difference(obj).area
-                                if use_percent:
-                                    max_diff_pixels = (
-                                            saved_obj.area * max_diff_area / 100
+                                    removed_by_mpd = True
+                                else:
+                                    g.logger.debug(
+                                        4,
+                                        "mpd: allowing '{}' -> the difference in the area of last detection to this "
+                                        "detection is '{:.2f}', a minimum of {:.2f} is needed to not be considered "
+                                        "'in the same spot'".format(
+                                            show_label, diff_area, max_diff_pixels
+                                        ),
                                     )
-                            if diff_area <= max_diff_pixels:
+                            # This is just for semantics and to see if it ever hits
+                            elif obj.intersects(saved_obj):
                                 g.logger.debug(
-                                    "mpd: removing '{}' as it seems to be in the same spot as it was detected "
-                                    "last time -> NOW: {} -- PAST: {}".format(
-                                        show_label, b, saved_b
+                                    4, f"mpd: the NEW object INTERSECTS the past object"
+                                )
+                                if obj.contains(saved_obj):
+                                    diff_area = obj.difference(saved_obj).area
+                                    if use_percent:
+                                        max_diff_pixels = obj.area * max_diff_area / 100
+                                else:
+                                    diff_area = saved_obj.difference(obj).area
+                                    if use_percent:
+                                        max_diff_pixels = (
+                                                saved_obj.area * max_diff_area / 100
+                                        )
+                                if diff_area <= max_diff_pixels:
+                                    g.logger.debug(
+                                        "mpd: removing '{}' as it seems to be in the same spot as it was detected "
+                                        "last time -> NOW: {} -- PAST: {}".format(
+                                            show_label, b, saved_b
+                                        )
                                     )
-                                )
-                                removed_by_mpd = True
-                            elif diff_area == 0:
-                                g.logger.debug(
-                                    "mpd: removing '{}' as it is in the EXACT same spot as it was detected "
-                                    "last time -> NOW: {} -- PAST: {}".format(
-                                        show_label, b, saved_b
+                                    removed_by_mpd = True
+                                elif diff_area == 0:
+                                    g.logger.debug(
+                                        "mpd: removing '{}' as it is in the EXACT same spot as it was detected "
+                                        "last time -> NOW: {} -- PAST: {}".format(
+                                            show_label, b, saved_b
+                                        )
                                     )
-                                )
-                                removed_by_mpd = True
-                            else:
+                                    removed_by_mpd = True
+                                else:
+                                    g.logger.debug(
+                                        4,
+                                        "mpd: allowing '{}' -> the difference in the area of last detection to this "
+                                        "detection is '{:.2f}', a minimum of {:.2f} is needed to not be considered "
+                                        "'in the same spot'".format(
+                                            show_label, diff_area, max_diff_pixels
+                                        ),
+                                    )
+                            else:  # no where near each other
                                 g.logger.debug(
-                                    4,
-                                    "mpd: allowing '{}' -> the difference in the area of last detection to this "
-                                    "detection is '{:.2f}', a minimum of {:.2f} is needed to not be considered "
-                                    "'in the same spot'".format(
-                                        show_label, diff_area, max_diff_pixels
-                                    ),
+                                    f"mpd: current detection '{label[idx]}' is not near enough to '"
+                                    f"{saved_ls[saved_idx]}' to evaluate for match past detection filter"
                                 )
-                        else:  # no where near each other
-                            g.logger.debug(
-                                f"mpd: current detection '{label[idx]}' is not near enough to '"
-                                f"{saved_ls[saved_idx]}' to evaluate for match past detection filter"
-                            )
-                            continue
+                                continue
+                            if removed_by_mpd:
+                                if (
+                                        saved_bs[saved_idx] not in mpd_b
+                                        and saved_cs[saved_idx] not in mpd_c
+                                ):
+                                    g.logger.debug(
+                                        f"mpd: saving the removed detection to re-add to the buffer for next detection"
+                                    )
+                                    mpd_b.append(saved_bs[saved_idx])
+                                    mpd_c.append(saved_cs[saved_idx])
+                                    mpd_l.append(saved_ls[saved_idx])
+                                new_err.append(
+                                    b
+                                )  # b is Polygon ready, box[idx] is the top left(x,y), bottom right(x,y)
+                                continue
+                        # out of past detection bounding box loop, still inside if mpd
                         if removed_by_mpd:
-                            if (
-                                    saved_bs[saved_idx] not in mpd_b
-                                    and saved_cs[saved_idx] not in mpd_c
-                            ):
-                                g.logger.debug(
-                                    f"mpd: saving the removed detection to re-add to the buffer for next detection"
-                                )
-                                mpd_b.append(saved_bs[saved_idx])
-                                mpd_c.append(saved_cs[saved_idx])
-                                mpd_l.append(saved_ls[saved_idx])
-                            new_err.append(
-                                b
-                            )  # b is Polygon ready, box[idx] is the top left(x,y), bottom right(x,y)
+                            failed = True
                             continue
-                    # out of past detection bounding box loop, still inside if mpd
-                    if removed_by_mpd:
-                        failed = True
-                        continue
 
             elif (g.config.get("PAST_EVENT")) and (str2bool(mpd) or str2bool(seq_mpd)):
                 g.logger.debug(
@@ -1211,7 +1210,7 @@ class DetectSequence:
                             f"{lp}strategy: '{filtered_tot_labels}' filtered label"
                             f"{'s' if filtered_tot_labels > 1 else ''}: {_l} {_c} {_m} {_b}",
                         )
-                        high_conf = str2bool(g.config.get("same_model_high_conf"))
+
                         if (
                                 (same_model_sequence_strategy == "first")
                                 or (
@@ -1251,172 +1250,7 @@ class DetectSequence:
                             # _polygons_in_same_model.extend(bbox_to_polygon)
                             # _error_polygons_in_same_model.extend(error_bbox_to_polygon)
 
-                        if (
-                                high_conf
-                        ):
-                            # g.logger.debug(
-                            #     f"HIGH_CONF=YES: current best detection {repr(_l_best_in_same_model)}->
-                            #     {repr(_c_best_in_same_model)}"
-                            #     f"-->{repr(_m_best_in_same_model)} --- current comparison "
-                            #     f"{repr(_l)}->{repr(_c)}-->{repr(_m)}"
-                            # )
-                            # detection but different models and pick the higher confidence match. Currently it will add
-                            # duplicates which causes unnecessary clutter in image and detection data
-                            # todo: clean this up, POC works
-                            nb_l, nb_c, nb_b, nb_e, nb_m = [], [], [], [], []
-                            if len(_b_best_in_same_model):
-                                max_diff_pixels = None
-                                max_diff_area = 15.00  # configurable?
-                                use_percent = True
-                                for idx, best_bbox in enumerate(_b_best_in_same_model):
-                                    poly_bbox = self._bbox2poly(best_bbox)
-                                    best_obj = Polygon(poly_bbox)
 
-                                    for new_idx, new_bbox in enumerate(_b):
-                                        if _l_best_in_same_model[idx] != _l[new_idx]:
-                                            continue  # aliases?
-                                        if (
-                                                _c_best_in_same_model[idx] == _c[new_idx]
-                                                and _b_best_in_same_model[idx]
-                                                == _b[new_idx]
-                                        ):
-                                            # g.logger.debug(
-                                            #     f"high confidence match: skipping this comparison as the two "
-                                            #     f"detections that are about to be compared are the exact same"
-                                            # )
-                                            continue
-
-                                        npoly_bbox = self._bbox2poly(new_bbox)
-                                        new_obj = Polygon(npoly_bbox)
-                                        if new_obj.intersects(best_obj):
-                                            # g.logger.debug(
-                                            #     4,
-                                            #     f"high confidence match: the current object INTERSECTS"
-                                            #     f" the best object",
-                                            # )
-                                            if new_obj.contains(best_obj):
-                                                diff_area = new_obj.difference(
-                                                    best_obj
-                                                ).area
-                                                if use_percent:
-                                                    max_diff_pixels = (
-                                                            new_obj.area
-                                                            * max_diff_area
-                                                            / 100
-                                                    )
-                                            else:
-                                                diff_area = best_obj.difference(
-                                                    new_obj
-                                                ).area
-                                                if use_percent:
-                                                    max_diff_pixels = (
-                                                            best_obj.area
-                                                            * max_diff_area
-                                                            / 100
-                                                    )
-                                            if diff_area <= max_diff_pixels:
-                                                # which one has the highest confidence
-                                                g.logger.debug(
-                                                    f"high confidence match: '{_l[new_idx]}' is  in the same spot as "
-                                                    f"the current best detection '{_l_best_in_same_model[idx]}' based "
-                                                    f"on '{round(max_diff_area)}%' -> BEST: {poly_bbox} --- "
-                                                    f"CURRENT: {npoly_bbox}"
-                                                )
-                                                # g.logger.debug(f"DBG=Y: {new_idx=} -- {_e=} ")
-                                                if (
-                                                        _c_best_in_same_model[idx]
-                                                        >= _c[new_idx]
-                                                ):
-                                                    if (
-                                                            _c_best_in_same_model[idx]
-                                                            not in nb_c
-                                                    ):
-                                                        nb_b.append(
-                                                            _b_best_in_same_model[idx]
-                                                        )
-                                                        nb_l.append(
-                                                            _l_best_in_same_model[idx]
-                                                        )
-                                                        nb_c.append(
-                                                            _c_best_in_same_model[idx]
-                                                        )
-                                                        nb_m.append(
-                                                            _m_best_in_same_model[idx]
-                                                        )
-                                                        if (
-                                                                not _e_best_in_same_model == nb_e
-                                                        ):
-                                                            nb_e = copy.deepcopy(
-                                                                _e_best_in_same_model
-                                                            )
-                                                        g.logger.debug(
-                                                            f"high confidence match: for '"
-                                                            f"{_l_best_in_same_model[idx]}' @ "
-                                                            f"{_b_best_in_same_model[idx]} the current best model"
-                                                            f" '{_m_best_in_same_model[idx]}' has the higher "
-                                                            f"confidence -> {_c_best_in_same_model[idx]} > "
-                                                            f"{_c[new_idx]} of '{_l[new_idx]}'"
-                                                        )
-                                                else:
-                                                    if _c[new_idx] not in nb_c:
-                                                        nb_b.append(_b[new_idx])
-                                                        nb_l.append(_l[new_idx])
-                                                        nb_c.append(_c[new_idx])
-                                                        nb_m.append(_m[new_idx])
-                                                        if (
-                                                                not _e_best_in_same_model == nb_e
-                                                        ):
-                                                            nb_e = copy.deepcopy(
-                                                                _e_best_in_same_model
-                                                            )
-                                                        g.logger.debug(
-                                                            f"high confidence match: for '"
-                                                            f"{_l[new_idx]}' @ "
-                                                            f"{_b[new_idx]} the current best model"
-                                                            f" '{_m[new_idx]}' has the higher "
-                                                            f"confidence -> {_c[new_idx]} than "
-                                                            f"'{_m_best_in_same_model}' @ {_b_best_in_same_model} has "
-                                                            f"{_c_best_in_same_model[idx]}"
-                                                        )
-
-                                            else:
-                                                # high confidence match not needed here because they arent within the
-                                                # configured difference apart
-                                                if _c[new_idx] not in nb_c:
-                                                    nb_b.append(_b[new_idx])
-                                                    nb_l.append(_l[new_idx])
-                                                    nb_c.append(_c[new_idx])
-                                                    nb_m.append(_m[new_idx])
-                                                    if not nb_e == _e:
-                                                        nb_e = copy.deepcopy(_e)
-                                                g.logger.debug(
-                                                    4,
-                                                    "high confidence match: '{}' has a difference in the area of best "
-                                                    "detection of '{:.2f}', a minimum of {:.2f} is needed to not be "
-                                                    "considered 'in the same spot', high confidence filter disabled for"
-                                                    "this match".format(
-                                                        _l[new_idx],
-                                                        diff_area,
-                                                        max_diff_pixels,
-                                                    ),
-                                                )
-                                        elif best_obj.intersects(new_obj):
-                                            g.logger.debug(
-                                                f"high confidence match: best INTERSECTS current, COME AND "
-                                                f"FIX ME 'MAN' plz=yes"
-                                            )
-
-                            if len(nb_l):
-                                g.logger.debug(
-                                    f"high confidence match: overriding BEST match in this sequence with "
-                                    f"'{nb_m}' found '{nb_l}' ({nb_c}) @  {nb_b}"
-                                )
-                                _b_best_in_same_model = nb_b
-                                _l_best_in_same_model = nb_l
-                                _c_best_in_same_model = nb_c
-                                _e_best_in_same_model = nb_e
-                                _m_best_in_same_model = nb_m
-                        # ---------------------------------------------------------------------
                         if (same_model_sequence_strategy == "first") and len(_b):
                             g.logger.debug(
                                 3,
@@ -1493,26 +1327,24 @@ class DetectSequence:
         # end of while media loop
         # find best match in all_matches
         # matched_poly, matched_err_poly = [], []
-
         for idx, item in enumerate(all_matches):
             # g.logger.debug(1,f"dbg:strategy: most:[{len(item['labels']) = } > {len(matched_l) = }]
             # most_models:[{len(item['detection_types']) = } > {len(matched_detection_types) = }]"
             #                    f"most_unique:[{len(set(item['labels'])) = } > {len(set(matched_l)) = }]")
-            if (
-                    (frame_strategy == "first")
-                    or (
-                    (frame_strategy == "most")
-                    and (len(item["labels"]) > len(matched_l))
-            )
-                    or (
-                    (frame_strategy == "most_models")
-                    and (len(item["detection_types"]) > len(matched_detection_types))
-            )
-                    or (
-                    (frame_strategy == "most_unique")
-                    and (len(set(item["labels"])) > len(set(matched_l)))
-            )
-            ):
+            # Credit to @hqhoang for this idea - https://github.com/ZoneMinder/pyzm/issues/36
+            # Takes into consideration confidences instead of returning the first match.
+            if ((frame_strategy == 'first') or
+                    ((frame_strategy == 'most') and (len(item['labels']) > len(matched_l))) or
+                    ((frame_strategy == 'most') and (len(item['labels']) == len(matched_l)) and (
+                            sum(matched_c) < sum(item['confidences']))) or
+                    ((frame_strategy == 'most_models') and (
+                            len(item['detection_types']) > len(matched_detection_types))) or
+                    ((frame_strategy == 'most_models') and (
+                            len(item['detection_types']) == len(matched_detection_types)) and (
+                             sum(matched_c) < sum(item['confidences']))) or
+                    ((frame_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l)))) or
+                    ((frame_strategy == 'most_unique') and (len(set(item['labels'])) == len(set(matched_l))) and (
+                            sum(matched_c) < sum(item['confidences'])))):
                 # matched_poly = item['bbox2poly']
                 matched_l = item["labels"]
                 matched_model_names = item["model_names"]
