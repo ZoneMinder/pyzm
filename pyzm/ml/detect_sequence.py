@@ -33,6 +33,7 @@ from pyzm.ml.coral_edgetpu import Tpu
 lp: str = 'detect:'
 g: GlobalConfig
 
+
 class DetectSequence:
     def __init__(self, options: Optional[dict] = None):
         """Initializes ML entry point with various parameters
@@ -180,7 +181,6 @@ class DetectSequence:
 
     def _load_models(self, models=None):
 
-
         def get_correct_model(frame_work):
             if frame_work == 'opencv':
                 return Yolo(options=model_sequence)
@@ -291,7 +291,8 @@ class DetectSequence:
 
     # todo: clean up (kw)args
     def _filter_detections(
-            self, seq, box, label, conf, polygons, h, w, model_names, seq_opt=None, model_type=None, pkl_data=None
+            self, model_name, box, label, conf, polygons, h, w, model_names, seq_opt=None, model_type=None,
+            pkl_data=None
     ):
 
         saved_ls: Optional[List[str]] = None
@@ -327,25 +328,43 @@ class DetectSequence:
         min_conf_found: str = ""
         ioa_found: str = ""
         moa_found: str = ""
-        if seq_opt.get("object_min_confidence"):
-            min_conf = seq_opt.get("object_min_confidence")
-            min_conf_found = f"object_min_conf:sequence->{seq_opt.get('name')}"
-        if seq_opt.get("max_detection_size"):
-            moa = seq_opt.get("max_detection_size")
-            moa_found = f"max_detection_size:sequence->{seq_opt.get('name')}"
-        if self.ml_options.get("object", {}).get("general", {}).get("contained_area"):
-            ioa = (
-                self.ml_options.get("object", {})
-                    .get("general", {})
-                    .get("contained_area")
-            )
-            ioa_found = f"contained_area:object->general"
-        if seq_opt.get("contained_area"):
-            ioa = seq_opt.get("contained_area")
-            ioa_found = f"contained_area:sequence->{seq_opt.get('name')}"
+        _per_keys = (
+            'object_min_confidence',
+            'max_detection_size',
+            'contained_area',
+        )
+        for _key in _per_keys:
+            if _key in seq_opt and seq_opt[_key] is not None and not seq_opt[_key].startswith('{{'):
+                if _key == 'object_min_confidence':
+                    min_conf = seq_opt[_key]
+                    min_conf_found = f"object_min_conf:sequence->{seq_opt.get('name')}"
+                    g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {min_conf = } -- {min_conf_found = }")
+                elif _key == 'max_detection_size':
+                    moa = seq_opt[_key]
+                    moa_found = f"max_detection_size:sequence->{seq_opt.get('name')}"
+                    g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {moa = } -- {moa_found = }")
+                elif _key == 'contained_area':
+                    ioa = seq_opt[_key]
+                    ioa_found = f"contained_area:sequence->{seq_opt.get('name')}"
+                    g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {ioa = } -- {ioa_found = }")
+            elif (
+                    _key in self.ml_options.get(model_name, {}).get('general')
+                    and self.ml_options.get(model_name, {}).get('general')[_key] is not None
+                    and not self.ml_options.get(model_name, {}).get('general')[_key].startswith('{{')
+            ):
+                if _key == 'object_min_confidence':
+                    min_conf = self.ml_options.get(model_name, {}).get('general').get(_key)
+                    min_conf_found = f"object_min_conf:{model_name}->general:"
+                    g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {min_conf = } -- {min_conf_found = }")
+                elif _key == 'max_detection_size':
+                    moa = self.ml_options.get(model_name, {}).get('general').get(_key)
+                    moa_found = f"max_detection_size:{model_name}->general:"
+                    g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {moa = } -- {moa_found = }")
+                elif _key == 'contained_area':
+                    ioa = self.ml_options.get(model_name, {}).get('general').get(_key)
+                    ioa_found = f"contained_area:{model_name}->general:"
+                    g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {ioa = } -- {ioa_found = }")
 
-        # g.logger.debug(f"before looping {g.config.get('contained_area') = } {ioa = } {ioa_found = }
-        # {min_conf = } {min_conf_found = } {moa = } {moa_found = }")
         for idx, b in enumerate(box):
             if failed:
                 g.logger.debug(
@@ -354,57 +373,78 @@ class DetectSequence:
                 )  # for each object that failed before loop end
                 failed = False
             show_label = f"{label[idx]} ({idx + 1}/{tot_labels})"
-            g.logger.debug(
-                f">>> detected '{show_label}' confidence: {conf[idx]:.2f}"
-            )
+            g.logger.debug(f">>> detected '{show_label}' confidence: {conf[idx]:.2f}")
             poly_b = self._bbox2poly(b)
             # save b as the objects polygon
             obj = Polygon(poly_b)
-            # get minimum confidence override per label
-            if (
-                    self.ml_options.get("general", {}).get(f"{label[idx]}_min_confidence")
-                    and self.ml_options.get("general", {}).get(f"{label[idx]}_min_confidence", "").startswith("{{")
-            ):
-                min_conf = self.ml_options.get("general", {}).get(
-                    f"{label[idx]}_min_confidence"
-                )
-                min_conf_found = "overridden:ml_sequence->general"
 
-            # get intersection area of bounding box inside polygon zone
-            if (
-                    self.ml_options.get("general", {}).get(f"{label[idx]}_contained_area")
-                    and self.ml_options.get("general", {}).get(f"{label[idx]}_contained_area", "").startswith("{{")
-            ):
-                ioa = self.ml_options.get("general", {}).get(
-                    f"{label[idx]}_contained_area"
-                )
-                ioa_found = "overriden:ml_sequence->general"
+            # Per label overrides
+            _per_keys = (
+                "_object_min_confidence",
+                "_max_detection_size",
+                "_contained_area",
+            )
+            for _key in _per_keys:
+                if (
+                        seq_opt.get(f"{label[idx]}{_key}")
+                        and seq_opt[f"{label[idx]}{_key}"] is not None
+                        and not seq_opt[f"{label[idx]}{_key}"].startswith('{{')
+                ):
+                    if _key == "_object_min_confidence":
+                        min_conf = seq_opt.get(f"{label[idx]}{_key}")
+                        min_conf_found = f"{label[idx]}{_key}->sequence->{seq_opt.get('name')}"
+                        g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {min_conf = } -- {min_conf_found = }")
+                    elif _key == "_max_detection_size":
+                        moa = seq_opt.get(f"{label[idx]}{_key}")
+                        moa_found = f"{label[idx]}{_key}->sequence->{seq_opt.get('name')}"
+                        g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {moa = } -- {moa_found = }")
+                    elif _key == "_contained_area":
+                        ioa = seq_opt.get(f"{label[idx]}{_key}")
+                        ioa_found = f"{label[idx]}{_key}->sequence->{seq_opt.get('name')}"
+                        g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {ioa = } -- {ioa_found = }")
+                elif (
+                        self.ml_options.get(model_name, {}).get('general').get(f"{label[idx]}{_key}")
+                        and self.ml_options.get(model_name, {}).get('general').get(f"{label[idx]}{_key}") is not None
+                        and not self.ml_options.get(model_name, {}).get('general').get(f"{label[idx]}{_key}").startswith('{{')
+                ):
+                    if _key == "_object_min_confidence":
+                        min_conf = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{_key}")
+                        min_conf_found = f"{label[idx]}{_key}->{model_name}:general:"
+                        g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {min_conf = } -- {min_conf_found = }")
+                    elif _key == "_max_detection_size":
+                        moa = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{_key}")
+                        moa_found = f"{label[idx]}{_key}->{model_name}:general:"
+                        g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {moa = } -- {moa_found = }")
+                    elif _key == "_contained_area":
+                        ioa = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{_key}")
+                        ioa_found = f"{label[idx]}{_key}->{model_name}:general:"
+                        g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {ioa = } -- {ioa_found = }")
 
-            # max detected object area
-            if (
-                    self.ml_options.get("general", {}).get(f"{label[idx]}_max_detection_size")
-                    and self.ml_options.get("general", {}).get(f"{label[idx]}_max_detection_size", "").startswith("{{")
-            ):
-                moa = self.ml_options.get("general", {}).get(
-                    f"{label[idx]}_max_detection_size"
-                )
-                moa_found = "overridden:ml_sequence->general"
+            # if not min_conf and g.config.get(f"{label[idx]}_object_min_confidence"):
+            #     min_conf = g.config.get(f"{label[idx]}_object_min_confidence")
+            #     min_conf_found = f"{label[idx]}_object_min_conf:GLOBAL config->{g.config.get('name')}"
+            #     g.logger.debug(f"DEBUG!>>> GLOBAL CONFIG {min_conf = } -- {min_conf_found = }")
+            # if not moa and g.config.get(f"{label[idx]}_max_detection_size"):
+            #     moa = g.config.get(f"{label[idx]}_max_detection_size")
+            #     moa_found = f"{label[idx]}_max_detection_size:GLOBAL config->{g.config.get('name')}"
+            #     g.logger.debug(f"DEBUG!>>> GLOBAL CONFIG {moa = } -- {moa_found = }")
+            # if not ioa and g.config.get(f"{label[idx]}_contained_area"):
+            #     ioa = g.config.get(f"{label[idx]}_contained_area")
+            #     ioa_found = f"{label[idx]}_contained_area:GLOBAL config->{g.config.get('name')}"
+            #     g.logger.debug(f"DEBUG!>>> GLOBAL CONFIG {ioa = } -- {ioa_found = }")
 
-            # do confidence filtering first then max object area
-            mc_exc = False
-            try:
-                min_conf = g.config.get('object_min_confidence')
-                min_conf_found = "malformed:GLOBAL>>object_min_confidence"
-                min_conf = float(min_conf)
-            except ValueError:
-                mc_exc = True
-            except TypeError:
-                mc_exc = True
-            if mc_exc:
-                g.logger.error(f'{lp} minimum confidence is malformed! ({min_conf}) setting to 50%')
-                min_conf_found = 'malformed:DEFAULT'
+            if not min_conf:
+                # min_conf IS REQUIRED
+                g.logger.warning(f"{lp} {show_label} min_conf not found! Using 50%")
                 min_conf = 0.5
+                min_conf_found = "DEFAULT->50%"
             if min_conf:
+                try:
+                    min_conf = float(min_conf)
+                except Exception:
+                    g.logger.warning(f"{lp} {show_label} min_conf could not be converted to a FLOAT! Using 50%")
+                    min_conf = 0.5
+                    min_conf_found = "DEFAULT->50%"
                 g.logger.debug(
                     f"'{show_label}' minimum confidence found: ({min_conf_found}) -> '{min_conf}'"
                 )
@@ -426,6 +466,7 @@ class DetectSequence:
                     f"'{show_label}' max area of detected object found ({moa_found}) -> '{moa}'",
                 )
                 # Let's make sure its the right size
+
                 _m = re.match(r"(\d*\.?\d*)(px|%)?$", moa, re.IGNORECASE)
                 if _m:
                     max_object_area = float(_m.group(1))
@@ -486,7 +527,6 @@ class DetectSequence:
                                         f"contained within zone: converted {_m.group(1)}% of {show_label}'s area "
                                         f"({obj.area}) to {contained_area} pixels",
                                     )
-                        # setup a contained within polygon filter here
                         if pixels_inside < contained_area:
                             g.logger.debug(
                                 f"'{show_label}' only has {pixels_inside:.2f} pixels ({percent_inside:.2f}%) inside "
@@ -506,12 +546,12 @@ class DetectSequence:
                         )
 
                 # pattern matching is here because polygon/zone might have its own match pattern
-                if str2bool(self.ml_overrides.get('enable')) and self.ml_overrides.get(seq, {}).get(
+                if str2bool(self.ml_overrides.get('enable')) and self.ml_overrides.get(model_name, {}).get(
                         f'{model_type}_detection_pattern'):
-                    match_pattern = self.ml_overrides.get(seq, {}).get(
+                    match_pattern = self.ml_overrides.get(model_name, {}).get(
                         f'{model_type}_detection_pattern')
                     g.logger.debug(2, "match pattern: overridden by ml_overrides from '{}' to '{}'".format(
-                        self.ml_options.get(seq, {}).get('general', {}).get(
+                        self.ml_options.get(model_name, {}).get('general', {}).get(
                             '{}_detection_pattern'.format(model_type), '.*'), match_pattern))
                 elif p["pattern"]:
                     g.logger.debug(
@@ -520,7 +560,7 @@ class DetectSequence:
                         "zone '{}' has overrides->'{}'".format(
                             p["name"],
                             p["pattern"],
-                            self.ml_options.get(seq, {})
+                            self.ml_options.get(model_name, {})
                                 .get("general", {})
                                 .get("pattern", ".*"),
                         ),
@@ -528,7 +568,7 @@ class DetectSequence:
                     match_pattern = p["pattern"]
                 else:
                     match_pattern = (
-                        self.ml_options.get(seq, {})
+                        self.ml_options.get(model_name, {})
                             .get("general", {})
                             .get('{}_detection_pattern'.format(model_type), ".*")
                     )
@@ -561,8 +601,10 @@ class DetectSequence:
                     not g.eid == saved_event
                     or (
                             not g.config.get("PAST_EVENT")
-                            or g.config.get("PAST_EVENT")
-                            and g.config.get("mpd_force")
+                            or
+                            (g.config.get("PAST_EVENT")
+                             and g.config.get("mpd_force")
+                            )
                     )
             ):
                 if not saved_bs:
@@ -708,6 +750,7 @@ class DetectSequence:
                             found_past_match = True
                         if not found_past_match:
                             continue
+                        # Found a match by label, now compare the area using Polygon
                         saved_poly = self._bbox2poly(saved_b)
                         saved_obj = Polygon(saved_poly)
                         max_diff_pixels = None
@@ -748,6 +791,7 @@ class DetectSequence:
                                         show_label, diff_area, max_diff_pixels
                                     ),
                                 )
+                        # This is just for semantics and to see if it ever hits
                         elif obj.intersects(saved_obj):
                             g.logger.debug(
                                 4, f"mpd: the NEW object INTERSECTS the past object"
@@ -837,6 +881,7 @@ class DetectSequence:
                 2,
                 f"detection: '{label[-1]} ({tot_labels}/{tot_labels})' has FAILED filtering",
             )
+            failed = False
         data = {
             '_b': new_bbox,
             '_l': new_label,
@@ -1133,7 +1178,7 @@ class DetectSequence:
                         if tot_labels:  # ONLY FILTER IF THERE ARE DETECTIONS
                             h, w = frame.shape[:2]
                             filtered_data, filtered_extras = self._filter_detections(
-                            # _b, _l, _c, _e, _m, bbox_to_polygon, error_bbox_to_polygon = self._filter_detections(
+                                # _b, _l, _c, _e, _m, bbox_to_polygon, error_bbox_to_polygon = self._filter_detections(
                                 model_name,
                                 _b,
                                 _l,
@@ -1172,11 +1217,11 @@ class DetectSequence:
                                 or (
                                 (same_model_sequence_strategy == "most")
                                 and (len(_l) > len(_l_best_in_same_model))
-                                )
+                        )
                                 or (
                                 (same_model_sequence_strategy == "most_unique")
                                 and (len(set(_l)) > len(set(_l_best_in_same_model)))
-                                )
+                        )
                         ):
                             # self.has_rescaled = True
                             # dimensions = self.media.image_dimensions()
@@ -1458,15 +1503,15 @@ class DetectSequence:
                     or (
                     (frame_strategy == "most")
                     and (len(item["labels"]) > len(matched_l))
-                    )
+            )
                     or (
                     (frame_strategy == "most_models")
                     and (len(item["detection_types"]) > len(matched_detection_types))
-                    )
+            )
                     or (
                     (frame_strategy == "most_unique")
                     and (len(set(item["labels"])) > len(set(matched_l)))
-                    )
+            )
             ):
                 # matched_poly = item['bbox2poly']
                 matched_l = item["labels"]
