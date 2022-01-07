@@ -422,16 +422,20 @@ class DetectSequence:
                         g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {ioa = } -- {ioa_found = }")
 
             pattern_match = None
+
             for p in polygons:
-                if label[idx] in p.get('contains'):
+                p_ioa = p.get('contains', {})
+                p_moa = p.get('max_size', {})
+                p_min_conf = p.get('min_conf', {})
+                if label[idx] in p_ioa:
                     ioa = p.get('contains').get(label[idx])
                     ioa_found = f"ZONE_CONTAINS"
                     g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {ioa = } -- {ioa_found = }")
-                if label[idx] in p.get('max_size'):
+                if label[idx] in p_moa:
                     moa = p.get('max_size').get(label[idx])
                     moa_found = f"ZONE_MAX_SIZE"
                     g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {moa = } -- {moa_found = }")
-                if label[idx] in p.get('min_conf'):
+                if label[idx] in p_min_conf:
                     min_conf = p.get('min_conf').get(label[idx])
                     min_conf_found = f"ZONE_MIN_CONF"
                     g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {min_conf = } -- {min_conf_found = }")
