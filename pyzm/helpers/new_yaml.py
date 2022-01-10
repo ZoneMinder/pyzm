@@ -564,7 +564,7 @@ class ConfigParse:
                                 f"this may cause unexpected behavior and is off limits for per monitor overrides")
                             continue
                         if overrode_key == 'zones':
-                            print(f"KEY=ZONES {overrode_key = } ----- {overrode_val = }")
+                            # print(f"KEY=ZONES {overrode_key = } ----- {overrode_val = }")
                             zones: dict = overrode_val
                             for zone_name, zone_items in zones.items():
                                 zone_coords = zone_items.get('coords')
