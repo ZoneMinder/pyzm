@@ -59,6 +59,7 @@ class DetectSequence:
                                 # the moment we get a match using any object detection library.
                                 # 'most' - run through all libraries, select one that has most object matches
                                 # 'most_unique' - run all models, select one that has most unique object matches
+                                # 'union' - sum all the detected objects together between models
 
                                 'same_model_sequence_strategy': 'first' # 'first' 'most', 'most_unique', 'union'
                                 'pattern': '.*' # any pattern
@@ -428,6 +429,9 @@ class DetectSequence:
                 p_ioa = p.get('contains', {})
                 p_moa = p.get('max_size', {})
                 p_min_conf = p.get('min_conf', {})
+                p_ioa = {} if p_ioa is None else p_ioa
+                p_moa = {} if p_moa is None else p_moa
+                p_min_conf = {} if p_min_conf is None else p_min_conf
                 if label[idx] in p_ioa:
                     ioa = p.get('contains').get(label[idx])
                     ioa_found = f"Defined Zone:{p.get('name')}:{label[idx]}:"
@@ -565,10 +569,7 @@ class DetectSequence:
                         "detection label match pattern: "
                         "zone '{}' has overrides->'{}'".format(
                             p["name"],
-                            p["pattern"],
-                            self.ml_options.get(model_name, {})
-                                .get("general", {})
-                                .get("pattern", ".*"),
+                            p["pattern"]
                         ),
                     )
                     match_pattern = p["pattern"]

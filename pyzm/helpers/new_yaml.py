@@ -295,7 +295,7 @@ class ConfigParse:
                 self.monitors = dc.get('monitors')
                 self.default_monitor_overrides = dc.get('monitors')
                 g.logger.debug(
-                    f"{lp}:init: default configuration built (no secrets or substitution vars replaced, yet!)"
+                    f"{lp}init: default configuration built (no secrets or substitution vars replaced, yet!)"
                 )
 
         elif not Path(cfn).exists():
@@ -564,8 +564,9 @@ class ConfigParse:
                                 f"this may cause unexpected behavior and is off limits for per monitor overrides")
                             continue
                         if overrode_key == 'zones':
-                            # print(f"KEY=ZONES {overrode_key = } ----- {overrode_val = }")
+                            g.logger.debug(f"KEY=ZONES {overrode_key = } ----- {overrode_val = }")
                             zones: dict = overrode_val
+                            g.logger.debug(f"NEW PRE DEFINED ZONES>>> {zones = }")
                             for zone_name, zone_items in zones.items():
                                 zone_coords = zone_items.get('coords')
                                 zone_pattern = zone_items.get('pattern')
@@ -586,11 +587,12 @@ class ConfigParse:
                                         f"{lp}{self.type}:{mid}: the polygon coordinates supplied from '{overrode_key}' "
                                         f"are malformed! -> {overrode_val}"
                                     )
-                                    exit()
                                 else:
+                                    if not zone_pattern:
+                                        zone_pattern = g.config.get('')
                                     if mid in self.polygons:
                                         g.logger.debug(
-                                            f"{lp}{self.type}:{mid}: appending to the existing entry in "
+                                            f"{lp}{self.type}:{mid}: appending to the existing monitor ID in "
                                             f"polygons!"
                                         )
                                         self.polygons[mid].append(
