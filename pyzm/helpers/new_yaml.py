@@ -563,6 +563,63 @@ class ConfigParse:
                                 f"{lp}{self.type}:{mid}: can not override '{overrode_key}' in monitor '{mid}' config, "
                                 f"this may cause unexpected behavior and is off limits for per monitor overrides")
                             continue
+                        if overrode_key == 'zones':
+                            print(f"KEY=ZONES {overrode_key = } ----- {overrode_val = }")
+                            zones: dict = overrode_val
+                            for zone_name, zone_items in zones.items():
+                                zone_coords = zone_items.get('coords')
+                                zone_pattern = zone_items.get('pattern')
+                                zone_contains = zone_items.get('contains')
+                                zone_max_size = zone_items.get('max_size')
+                                zone_min_conf = zone_items.get('min_conf')
+                                if not zone_coords:
+                                    print(f"{lp}{self.type}:{mid}: no coords for zone {zone_name}")
+                                    continue
+
+                                g.logger.debug(f"{lp}{self.type}:{mid}: polygon specified -> '{zone_name}' for"
+                                               f" monitor {mid}, validating polygon shape...")
+                                try:
+                                    coords = str2tuple(zone_coords)
+                                    test = Polygon(coords)
+                                except Exception as exc:
+                                    print(
+                                        f"{lp}{self.type}:{mid}: the polygon coordinates supplied from '{overrode_key}' "
+                                        f"are malformed! -> {overrode_val}"
+                                    )
+                                    exit()
+                                else:
+                                    if mid in self.polygons:
+                                        g.logger.debug(
+                                            f"{lp}{self.type}:{mid}: appending to the existing entry in "
+                                            f"polygons!"
+                                        )
+                                        self.polygons[mid].append(
+                                            {
+                                                'name': zone_name,
+                                                'value': coords,
+                                                'pattern': zone_pattern,
+                                                'contains': zone_contains,
+                                                'max_size': zone_max_size,
+                                                'min_conf': zone_min_conf
+                                            }
+                                        )
+                                    else:
+                                        g.logger.debug(f"{lp}{self.type}:{mid}: creating new entry in polygons!")
+                                        self.polygons[mid] = [
+                                            {
+                                                'name': zone_name,
+                                                'value': coords,
+                                                'pattern': zone_pattern,
+                                                'contains': zone_contains,
+                                                'max_size': zone_max_size,
+                                                'min_conf': zone_min_conf
+                                            }
+                                        ]
+                                    g.logger.debug(
+                                        f"{lp}{self.type}:{mid}: successfully validated polygon for defined zone "
+                                        f"'{zone_name}' -> {zone_coords}"
+                                    )
+
                         # custom detection patterns for zones
                         elif overrode_key.endswith('_zone_detection_pattern'):
                             name = overrode_key.split('_zone_detection_pattern')[0]
