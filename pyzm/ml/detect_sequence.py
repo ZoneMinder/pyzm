@@ -8,15 +8,16 @@ lower level interfaces as they may change drastically.
 # modified from source, original author @pliablepixels see: https://github.com/pliablepixels
 
 
-import copy
 import re
 from ast import literal_eval
-from typing import Optional, List, Dict, AnyStr, Union
+from traceback import format_exc
+from typing import Optional, List, Dict, AnyStr, Union, Any
 
 import numpy as np
 from shapely.geometry import Polygon
-from traceback import format_exc
 
+import pyzm.ml.alpr as alpr_detect
+import pyzm.ml.face as face_detect
 from pyzm.helpers.Media import MediaStream
 from pyzm.helpers.pyzm_utils import (
     Timer,
@@ -24,14 +25,30 @@ from pyzm.helpers.pyzm_utils import (
     pkl,
     de_dup, )
 from pyzm.interface import GlobalConfig
-import pyzm.ml.alpr as alpr_detect
-import pyzm.ml.face as face_detect
-from pyzm.ml.yolo import Yolo
 from pyzm.ml.aws_rekognition import AwsRekognition
 from pyzm.ml.coral_edgetpu import Tpu
+from pyzm.ml.yolo import Yolo
 
 lp: str = 'detect:'
 g: GlobalConfig
+
+
+def _is_unconverted(expr: Any) -> bool:
+    """Evaluate a string to see if it is an unconverted secret or substitution variable. If the string begins with
+    `{{` or `{[` then it is an unconverted secret or substitution variable.
+
+    Example:
+        >>> _is_unconverted(string)
+    """
+    if isinstance(expr, str):
+        expr = expr.strip()
+        if expr.startswith('{{'):
+            g.logger.debug(f"{expr} seems to be an unconverted substitution variable!")
+        elif expr.startswith('{['):
+            g.logger.debug(f"{expr} seems to be an unconverted secret!")
+        else:
+            return True
+    return False
 
 
 class DetectSequence:
@@ -149,11 +166,10 @@ class DetectSequence:
         self.models: Dict[AnyStr, List[Union[Tpu, AwsRekognition, Yolo, face_detect, alpr_detect]]] = {}
         self.model_name: str = ""
         self.model_valid: bool = True
-        self.raw_seq: dict = {}
-        self.raw_frames: Optional[dict] = {}
         self.set_ml_options(options, force_reload=True)
 
     def get_ml_options(self) -> dict:
+        """Return the ml_options (ml_sequence) dict"""
         return self.ml_options
 
     def set_ml_options(self, options: dict, force_reload: bool = False):
@@ -163,18 +179,18 @@ class DetectSequence:
 
         if force_reload:
             if self.models:
-                if g:
-                    g.logger.debug(f"{lp}set ml opts: resetting the loaded models!")
+                g.logger.debug(f"{lp}set ml opts: resetting the loaded models!")
             self.models = {}
-            if not options:
-                return
-        model_sequence: Optional[str] = options.get("general", {}).get('model_sequence', None)
+        if not options:
+            return
+        model_sequence: Optional[str] = options.get("general", {}).get('model_sequence')
+        # convert model_sequence to a list if it is a string
         if model_sequence and isinstance(model_sequence, str):
             self.model_sequence = model_sequence.split(",")
             self.model_sequence = [x.strip() for x in self.model_sequence]
         else:
-            raise ValueError(f"model_sequence must be a string (comma seperated), got {type(model_sequence)}")
-        # print(f"{force_reload=} {preload=}")
+            raise ValueError(f"model_sequence ({model_sequence}) must be a comma seperated string, current type is "
+                             f"{type(model_sequence)}")
         self.ml_options: dict = options
         self.stream_options: Optional[dict] = None
         self.media: Optional[MediaStream] = None
@@ -182,11 +198,10 @@ class DetectSequence:
 
     def _load_models(self, models=None):
 
-        def get_correct_model(frame_work):
+        def get_correct_object_framework(frame_work):
             if frame_work == 'opencv':
                 return Yolo(options=model_sequence)
             elif frame_work == 'coral_edgetpu':
-
                 return Tpu(options=model_sequence)
                 # AWS Rekognition
             elif frame_work == 'aws_rekognition':
@@ -200,27 +215,28 @@ class DetectSequence:
         if not isinstance(models, list):
             g.logger.error(f"{lp} models must be a list of models (object, face, alpr)")
         if not models:
+            # convert model_sequence to a list if it is a string
             if self.model_sequence and isinstance(self.model_sequence, str):
                 models = self.model_sequence.split(',')
             else:
                 models = self.model_sequence
-        # print(f"****** {self.ml_options = }")
 
         accepted_models: tuple = ('object', 'face', 'alpr')
         for model in models:
             if model in accepted_models:
+                # create an empty list in the model dict for current valid model
                 self.models[model] = []
                 sequences = self.ml_options.get(model, {}).get("sequence")
                 if sequences:
-                    for ndx, model_sequence in enumerate(sequences):
+                    ndx = 0
+                    for model_sequence in sequences:
+                        ndx += 1
                         obj = None
-                        seq_name = model_sequence.get('name')
-                        if not seq_name:
-                            seq_name = f"sequence:{ndx + 1}"
+                        seq_name = model_sequence.get('name', f"sequence:{ndx}")
                         if not str2bool(model_sequence.get("enabled", "yes")):
                             g.logger.debug(
                                 2,
-                                f"{lp} skipping sequence '{seq_name}' ({ndx + 1} of "
+                                f"{lp} skipping sequence '{seq_name}' ({ndx} of "
                                 f"{len(sequences)}) as it is disabled"
                             )
                             continue
@@ -228,12 +244,12 @@ class DetectSequence:
                             "general", {}).get("disable_locks", "no")
                         g.logger.debug(
                             2,
-                            f"{lp} loading '{model}' sequence '{seq_name}' ({ndx + 1} of {len(sequences)}"
+                            f"{lp} loading '{model}' sequence '{seq_name}' ({ndx} of {len(sequences)}"
                         )
                         try:
                             if model == 'object':
                                 framework = model_sequence.get('object_framework')
-                                obj = get_correct_model(framework)
+                                obj = get_correct_object_framework(framework)
                             elif model == 'alpr':
                                 obj = alpr_detect.Alpr(options=model_sequence, globs=g)
                             elif model == 'face':
@@ -245,7 +261,7 @@ class DetectSequence:
                             g.logger.error(f"{lp} {exc}")
                             g.logger.debug(format_exc())
                 else:
-                    g.logger.debug(
+                    g.logger.warning(
                         f"{lp} '{model}' configured, but there are NO 'sequence' sections defined! skipping..."
                     )
             else:
@@ -283,6 +299,7 @@ class DetectSequence:
 
     @staticmethod
     def _bbox2poly(bbox):
+        """Convert bounding box coords to a Polygon acceptable input for shapely."""
         it = iter(bbox)
         bbox = list(zip(it, it))
         bbox.insert(1, (bbox[1][0], bbox[0][1]))
@@ -295,6 +312,16 @@ class DetectSequence:
             self, model_name, box, label, conf, polygons, h, w, model_names, seq_opt=None, model_type=None,
             pkl_data=None
     ):
+        """INTERNAL METHOD. Filter out detected objects based upon configured options."""
+
+        # Try to validate options
+        if not seq_opt:
+            raise ValueError(f"_filter_detections -> seq_opt (sequence options) is Empty or None!")
+        elif not self.ml_options:
+            raise ValueError(f"_filter_detections -> ml_options (machine learning options) is Empty or None!")
+        elif 'general' not in self.ml_options:
+            raise ValueError(f"_filter_detections -> ml_options:general is not configured!")
+
 
         saved_ls: Optional[List[str]] = None
         saved_bs: Optional[List[str]] = None
@@ -304,6 +331,7 @@ class DetectSequence:
         mpd_b: Optional[list] = None
         mpd_l: Optional[list] = None
         mpd_c: Optional[list] = None
+
         if pkl_data:
             saved_bs = pkl_data['saved_bs']
             saved_ls = pkl_data['saved_ls']
@@ -313,8 +341,7 @@ class DetectSequence:
             mpd_b = pkl_data['mpd_b']
             mpd_l = pkl_data['mpd_l']
             mpd_c = pkl_data['mpd_c']
-        if seq_opt is None:
-            raise ValueError(f"_filter_detections -> seq_opt (sequence options) is None")
+            g.logger.debug(f"PICKLE DATA: {pkl_data}")
         tot_labels: int = len(label) or 0
         max_object_area: Optional[Union[str, float]] = None
         contained_area: float = 10.0
@@ -554,6 +581,8 @@ class DetectSequence:
                             2,
                             f"intersection: '{show_label}' does not intersect zone: {p['name']}, removing...",
                         )
+                        failed = True
+                        continue
 
                 # pattern matching is here because polygon/zone might have its own match pattern
                 if str2bool(self.ml_overrides.get('enable')) and self.ml_overrides.get(model_name, {}).get(
@@ -566,8 +595,9 @@ class DetectSequence:
                 elif p["pattern"]:
                     g.logger.debug(
                         3,
-                        "detection label match pattern: "
+                        "match pattern: '{}' "
                         "zone '{}' has overrides->'{}'".format(
+                            show_label,
                             p["name"],
                             p["pattern"]
                         ),
@@ -579,7 +609,7 @@ class DetectSequence:
                             .get("general", {})
                             .get('{}_detection_pattern'.format(model_type), ".*")
                     )
-                g.logger.debug(2, f"match pattern: {match_pattern}")
+                    g.logger.debug(2, f"match pattern: {match_pattern}")
 
                 r = re.compile(match_pattern)
                 match = list(filter(r.match, label))
@@ -604,19 +634,23 @@ class DetectSequence:
             # todo add buffer and time based configurations
             seq_mpd = seq_opt.get("match_past_detections")
             # g.logger.debug(f"{type(saved_event)=} {type(g.eid)=}")
-            if (str2bool(mpd) or str2bool(seq_mpd)) and (
-                    not g.eid == saved_event
-                    or (
+            if (
+                    (str2bool(mpd) or str2bool(seq_mpd))
+                        and (
                             not g.config.get("PAST_EVENT")
                             or
                             (g.config.get("PAST_EVENT")
-                             and g.config.get("mpd_force")
-                            )
+                             and str2bool(g.config.get("force_mpd")))
+                        )
+                    and (
+                    (not g.eid == saved_event)
+                    or (g.eid == saved_event and str2bool(g.config.get("force_mpd")))
                     )
             ):
+                lp ='mpd:'
                 if not saved_bs:
                     g.logger.debug(
-                        f"mpd: there are no saved detections to evaluate, skipping match past detection filter"
+                        f"{lp} there are no saved detections to evaluate, skipping match past detection filter"
                     )
                 else:
                     mda_found: str = ''
@@ -626,29 +660,37 @@ class DetectSequence:
                     removed_by_mpd: bool = False
                     mda: Optional[str] = None
                     # Start in the general section of ml_sequence
-                    if self.ml_options.get("general", {}).get(
-                            f"past_det_max_diff_area"
-                    ):
-                        mda = self.ml_options.get("general", {}).get(
-                            f"past_det_max_diff_area"
-                        )
-                        mda_found = "past_det_max_diff_area:general"
-                    if self.ml_options.get("general", {}).get(
-                            f"{label[idx]}_past_det_max_diff_area"
-                    ):
-                        mda = self.ml_options.get("general", {}).get(
-                            f"{label[idx]}_past_det_max_diff_area"
-                        )
-                        mda_found = "overriden:general"
-                    mpd_ig = seq_opt.get(
-                        "ignore_past_detection_labels",
-                        self.ml_options.get("general", {}).get(
-                            "ignore_past_detection_labels", []
-                        ),
-                    )
-                    # make sure it is an iterable list
+                    if self.ml_options.get("general", {}).get("past_det_max_diff_area"):
+                        if _is_unconverted(self.ml_options.get("general", {}).get("past_det_max_diff_area")):
+                            mda = self.ml_options.get("general", {}).get(
+                                f"past_det_max_diff_area"
+                            )
+                            mda_found = "past_det_max_diff_area:general"
+                    if self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area"):
+                        if _is_unconverted(self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area")):
+                            mda = self.ml_options.get("general", {}).get(
+                                f"{label[idx]}_past_det_max_diff_area"
+                            )
+                            mda_found = f"{label[idx]}:overridden:general"
+
+                    # Check if the mpd_ignore option is configured in general or in the per sequence
+                    mpd_ig = self.ml_options.get("general", {}).get("ignore_past_detection_labels")
+                    # If it is still a string it needs to be evaluated into a list
                     if isinstance(mpd_ig, str) and len(mpd_ig):
-                        mpd_ig = literal_eval(mpd_ig)
+                        try:
+                            mpd_ig = literal_eval(mpd_ig)
+                            if not isinstance(mpd_ig, list):
+                                g.logger.warning(f'{lp} ignore_past_detection_labels is not a list after evaluation! '
+                                                 f'raising ValueError')
+                                raise ValueError()
+                        except ValueError or SyntaxError as e:
+                            g.logger.warning(
+                                f"{lp} ignore_past_detection_labels ("
+                                f"{self.ml_options.get('general', {}).get('ignore_past_detection_labels')}) is malformed, ignoring..."
+                            )
+
+                            g.logger.debug(f"{lp} ignore_past_detection_labels EXCEPTION MESSAGE: {e}")
+                            mpd_ig = []
 
                     # Sequence options
                     if seq_opt.get("past_det_max_diff_area"):
@@ -663,24 +705,12 @@ class DetectSequence:
                     if mpd_ig and label[idx] in mpd_ig:
                         g.logger.debug(
                             4,
-                            f"mpd: {label[idx]} is in ignore list: {mpd_ig}, skipping",
+                            f"{lp} {label[idx]} is in ignore list: {mpd_ig}, skipping",
                         )
                         ignore_mpd = True
-                    if mda and isinstance(mda, str) and str(mda).startswith("0"):
-                        g.logger.debug(
-                            4,
-                            f"mpd:  is set to {label[idx]} (Leading 0 means BYPASS), skipping",
-                        )
-                        ignore_mpd = True
-                    # if ignore_mpd:  # continue means it wont be removed
-                    #     new_bbox.append(box[idx])
-                    #     new_label.append(label[idx])
-                    #     new_conf.append(conf[idx])
-                    #     new_model_names.append(model_names[idx])
-                    #     new_bbox_to_poly.append(b)
-                    #     continue
 
                     if not ignore_mpd:
+                        g.logger.debug(f"{lp} max detection area found! ({mda_found}) -> {mda}")
                         # Format max difference area
                         if mda:
                             _m = re.match(r"(\d+)(px|%)?$", mda, re.IGNORECASE)
@@ -693,7 +723,7 @@ class DetectSequence:
                                 )
                             else:
                                 g.logger.error(
-                                    f"mpd:  malformed -> {mda}, setting to 5%..."
+                                    f"{lp}  malformed -> {mda}, setting to 5%..."
                                 )
                                 use_percent = True
                                 max_diff_area = 5.0
@@ -701,13 +731,13 @@ class DetectSequence:
                             # it's very easy to forget to add 'px' when using pixels
                             if use_percent and (max_diff_area < 0 or max_diff_area > 100):
                                 g.logger.error(
-                                    f"mpd: {max_diff_area} must be in the range 0-100 when "
+                                    f"{lp} {max_diff_area} must be in the range 0-100 when "
                                     f"using percentages: {mda}, setting to 5%..."
                                 )
                                 max_diff_area = 5.0
                         else:
                             g.logger.debug(
-                                f"mpd: no past_det_max_diff_area or per label overrides configured while "
+                                f"{lp} no past_det_max_diff_area or per label overrides configured while "
                                 f"match_past_detections=yes, setting to 5% as default"
                             )
                             max_diff_area = 5.0
@@ -715,8 +745,7 @@ class DetectSequence:
 
                         g.logger.debug(
                             4,
-                            "mpd: max difference in area configured ({}) -> '{}', comparing past detections to "
-                            "current".format(mda_found, mda),
+                            f"{lp} max difference in area configured ({mda_found}) -> '{mda}', comparing past detections to current",
                         )
 
                         # Compare current detection to past detections AREA
@@ -728,7 +757,7 @@ class DetectSequence:
                                 aliases = literal_eval(aliases)
                             if saved_ls[saved_idx] != label[idx]:
                                 if aliases and isinstance(aliases, dict):
-                                    g.logger.debug(f"mpd: checking aliases")
+                                    g.logger.debug(f"{lp} checking aliases")
                                     for item, value in aliases.items():
                                         if found_past_match:
                                             break
@@ -739,14 +768,12 @@ class DetectSequence:
                                             found_past_match = True
                                             g.logger.debug(
                                                 2,
-                                                "mpd:aliases: found current label -> '{}' and past label -> '{}' "
-                                                "are in an alias group named -> '{}'".format(
-                                                    label[idx], saved_ls[saved_idx], item
-                                                ),
+                                                f"{lp} aliases: found current label -> '{label[idx]}' and past label "
+                                                f"-> '{saved_ls[saved_idx]}' are in an alias group named -> '{item}'"
                                             )
                                 elif aliases and not isinstance(aliases, dict):
                                     g.logger.debug(
-                                        f"mpd: aliases are configured but the format is incorrect, check the example "
+                                        f"{lp} aliases are configured but the format is incorrect, check the example "
                                         f"config for formatting and reformat aliases to a dictionary type setup"
                                     )
 
@@ -760,13 +787,11 @@ class DetectSequence:
                             max_diff_pixels = None
                             g.logger.debug(
                                 4,
-                                "mpd: comparing '{}' PAST->{} to CURR->{}".format(
-                                    label[idx], saved_b, b
-                                ),
+                                f"{lp} comparing '{label[idx]}' PAST->{saved_b} to CURR->{b}",
                             )
                             if saved_obj.intersects(obj):
                                 g.logger.debug(
-                                    4, f"mpd: the past object INTERSECTS the new object"
+                                    4, f"{lp} the past object INTERSECTS the new object"
                                 )
                                 if obj.contains(saved_obj):
                                     diff_area = obj.difference(saved_obj).area
@@ -780,96 +805,49 @@ class DetectSequence:
                                         )
                                 if diff_area <= max_diff_pixels:
                                     g.logger.debug(
-                                        "mpd: removing '{}' as it seems to be in the same spot as it was detected "
-                                        "last time based on '{}' -> NOW: {} --- PAST: {}".format(
-                                            show_label, mda, b, saved_b
-                                        )
+                                        f"{lp} removing '{show_label}' as it seems to be in the same spot as it was "
+                                        f"detected last time based on '{mda}' -> NOW: {b} --- PAST: {saved_b}"
                                     )
                                     removed_by_mpd = True
                                 else:
                                     g.logger.debug(
                                         4,
-                                        "mpd: allowing '{}' -> the difference in the area of last detection to this "
-                                        "detection is '{:.2f}', a minimum of {:.2f} is needed to not be considered "
-                                        "'in the same spot'".format(
-                                            show_label, diff_area, max_diff_pixels
-                                        ),
+                                        f"{lp} allowing '{show_label}' -> the difference in the area of last detection to this detection is '{diff_area:.2f}', a minimum of {max_diff_pixels:.2f} is needed to not be considered 'in the same spot'",
                                     )
-                            # This is just for semantics and to see if it ever hits
-                            elif obj.intersects(saved_obj):
+                            # Saved does not intersect the current object/label
+                            else:
                                 g.logger.debug(
-                                    4, f"mpd: the NEW object INTERSECTS the past object"
-                                )
-                                if obj.contains(saved_obj):
-                                    diff_area = obj.difference(saved_obj).area
-                                    if use_percent:
-                                        max_diff_pixels = obj.area * max_diff_area / 100
-                                else:
-                                    diff_area = saved_obj.difference(obj).area
-                                    if use_percent:
-                                        max_diff_pixels = (
-                                                saved_obj.area * max_diff_area / 100
-                                        )
-                                if diff_area <= max_diff_pixels:
-                                    g.logger.debug(
-                                        "mpd: removing '{}' as it seems to be in the same spot as it was detected "
-                                        "last time -> NOW: {} -- PAST: {}".format(
-                                            show_label, b, saved_b
-                                        )
-                                    )
-                                    removed_by_mpd = True
-                                elif diff_area == 0:
-                                    g.logger.debug(
-                                        "mpd: removing '{}' as it is in the EXACT same spot as it was detected "
-                                        "last time -> NOW: {} -- PAST: {}".format(
-                                            show_label, b, saved_b
-                                        )
-                                    )
-                                    removed_by_mpd = True
-                                else:
-                                    g.logger.debug(
-                                        4,
-                                        "mpd: allowing '{}' -> the difference in the area of last detection to this "
-                                        "detection is '{:.2f}', a minimum of {:.2f} is needed to not be considered "
-                                        "'in the same spot'".format(
-                                            show_label, diff_area, max_diff_pixels
-                                        ),
-                                    )
-                            else:  # no where near each other
-                                g.logger.debug(
-                                    f"mpd: current detection '{label[idx]}' is not near enough to '"
+                                    f"{lp} current detection '{label[idx]}' is not near enough to '"
                                     f"{saved_ls[saved_idx]}' to evaluate for match past detection filter"
                                 )
                                 continue
                             if removed_by_mpd:
-                                if (
-                                        saved_bs[saved_idx] not in mpd_b
-                                        and saved_cs[saved_idx] not in mpd_c
-                                ):
-                                    g.logger.debug(
-                                        f"mpd: saving the removed detection to re-add to the buffer for next detection"
-                                    )
-                                    mpd_b.append(saved_bs[saved_idx])
-                                    mpd_c.append(saved_cs[saved_idx])
-                                    mpd_l.append(saved_ls[saved_idx])
-                                new_err.append(
-                                    b
-                                )  # b is Polygon ready, box[idx] is the top left(x,y), bottom right(x,y)
+                                # if (
+                                #         saved_bs[saved_idx] not in mpd_b
+                                #         and saved_cs[saved_idx] not in mpd_c
+                                # ):
+                                #     g.logger.debug(
+                                #         f"{lp} saving the removed detection to re-add to the buffer for next detection"
+                                #     )
+                                #     mpd_b.append(saved_bs[saved_idx])
+                                #     mpd_c.append(saved_cs[saved_idx])
+                                #     mpd_l.append(saved_ls[saved_idx])
+                                # b is Polygon ready, box[idx] is the top left(x,y), bottom right(x,y)
+                                new_err.append(b)
+                                failed = True
                                 continue
                         # out of past detection bounding box loop, still inside if mpd
-                        if removed_by_mpd:
-                            failed = True
-                            continue
 
-            elif (g.config.get("PAST_EVENT")) and (str2bool(mpd) or str2bool(seq_mpd)):
+            elif (g.config.get("PAST_EVENT") and not str2bool(g.config.get('force_mpd'))) and (str2bool(mpd) or str2bool(seq_mpd)):
                 g.logger.debug(
-                    f"mpd: this is a PAST event, skipping match past detections filter... override with "
+                    f"{lp} this is a PAST event, skipping match past detections filter... override with "
                     f"'mpd_force=yes'"
                 )
-            elif str(g.eid) == saved_event and (str2bool(mpd) or str2bool(seq_mpd)):
+            elif (g.eid == saved_event) and (str2bool(mpd) or str2bool(seq_mpd)):
                 g.logger.debug(
-                    f"mpd: the current event is the same event as the last time this monitor processed an"
-                    f" event, skipping match past detections filter"
+                    f"{lp} the current event is the same event as the last time this monitor processed an"
+                    f" event, skipping match past detections filter... override with "
+                    f"'mpd_force=yes'"
                 )
 
             # end of main loop, if we made it this far label[idx] has passed filtering
@@ -879,6 +857,7 @@ class DetectSequence:
             new_model_names.append(model_names[idx])
             new_bbox_to_poly.append(b)
             g.logger.debug(2, f"detection: '{show_label}' has PASSED filtering")
+            g.logger.debug(f"{new_bbox = } -- {new_label = } -- {new_conf = }")
         # out of primary bounding box loop
         if failed:
             g.logger.debug(
@@ -944,6 +923,7 @@ class DetectSequence:
                     ret_val = True
             return ret_val
 
+        filtered_extras = {}
         if ml_overrides is None:
             ml_overrides = {}
         if options is None:
@@ -966,9 +946,12 @@ class DetectSequence:
         pkl_data: dict = {}
         self.ml_overrides = ml_overrides
         self.stream_options = options
+        # Hack to forward PAST_EVENT via stream options
+        # todo: remove this hack
         if not g.config.get("PAST_EVENT") and self.stream_options.get("PAST_EVENT"):
             g.config["PAST_EVENT"] = self.stream_options.get("PAST_EVENT")
         past_event: Optional[bool] = g.config.get('PAST_EVENT')
+
         frame_set: List[AnyStr] = self.stream_options.get("frame_set", ["snapshot", "alarm", "snapshot"])
         if frame_set and past_event:
             g.logger.debug(
@@ -984,10 +967,9 @@ class DetectSequence:
         frame_strategy: Optional[str] = self.stream_options.get("frame_strategy", "most_models")
         # g.logger.debug(1,f"{lp} provided stream_sequence = {self.stream_options}")
         t: Timer = Timer()
-        self.media = MediaStream(stream, "video", self.stream_options)
+        self.media = MediaStream(stream=stream, options=self.stream_options)
         polygons: Optional[list] = self.stream_options.get("polygons", [])
         if polygons:
-            # make a new instance so we dont modify the original
             polygons = list(polygons)
         # todo: mpd as part of ml_overrides?
         mpd: Optional[Union[str, bool]] = self.ml_options.get("general", {}).get("match_past_detections")
@@ -996,6 +978,7 @@ class DetectSequence:
         # match past detections is here so we don't try and load/dump while still detecting
         # todo: ADD SMART BUFFER TO MPD - with timeout
         # g.logger.debug(f"{self.ml_options = }")
+        # ml_overrides now has an enable flag
         if str2bool(self.ml_overrides.get('enable')):
             g.logger.debug(f"{lp} ml_overrides are enabled! -> {self.ml_overrides}")
             self.model_sequence = (self.ml_overrides.get("model_sequence").split(","))
@@ -1131,8 +1114,8 @@ class DetectSequence:
                 _error_polygons_in_same_model: list = []
                 _e: list = []
                 # For each model, loop across different variations/sequences
+                filtered: bool = False
                 for sequence_loop, sequence in enumerate(self.models[model_name]):
-                    filtered: bool = False
                     seq_opt: dict = sequence.get_options()
                     # g.logger.debug(f"{seq_opt = }")
                     seq_mpd = seq_opt.get("match_past_detections")
@@ -1179,10 +1162,10 @@ class DetectSequence:
                             f" -> {', '.join(_l)}",
                         )
                         filtered_tot_labels: int = 0
-                        if tot_labels:  # ONLY FILTER IF THERE ARE DETECTIONS
+                        # ONLY FILTER IF THERE ARE DETECTIONS
+                        if tot_labels:
                             h, w = frame.shape[:2]
                             filtered_data, filtered_extras = self._filter_detections(
-                                # _b, _l, _c, _e, _m, bbox_to_polygon, error_bbox_to_polygon = self._filter_detections(
                                 model_name,
                                 _b,
                                 _l,
@@ -1205,7 +1188,7 @@ class DetectSequence:
                             filtered_tot_labels = len(_l)
                             _e_best_in_same_model.extend(_e)
                             if not filtered_tot_labels:
-                                print(f"nothing left after filtering detections -> {filtered_tot_labels = }")
+                                g.logger.debug(f"nothing left after filtering detections -> {filtered_tot_labels = }")
                                 filtered = True  # nothing left after filtering
 
                         if filtered:
@@ -1382,17 +1365,40 @@ class DetectSequence:
             # "err2poly": matched_err_poly,
             "image": matched_frame_img,
         }
-        # if str2bool(mpd):
-        #     # this is any mpd detections that were removed from this detections 'matched' lists, since
-        #     # we don't want to be notified next time of the same thing we removed this detection, we will add it
-        #     # back to the mpd buffer
-        #     pkl("write", matched_b, matched_l, matched_c, saved_event)
 
         mon_name = f"'Monitor': {g.config.get('mon_name')} ({g.mid})->'Event': "
         g.logger.debug(
-            f"perf:{lp}FINAL: {mon_name if stream.isnumeric() else ''}"
+            f"perf:{lp}FINAL: {mon_name if isinstance(stream, int) else ''}"
             f"{stream} -> complete detection sequence took: {diff_time}"
         )
+        if str2bool(mpd):
+            # TODO: should have logic to check if objects were removed by mpd, if so keep the old detection data
+            # Write detections to the MPD buffer to be evaluated next time
+            if filtered_extras:
+                extended = False
+                g.logger.debug(f"BEFORE EXTENDING>>> {mpd_b = } -- {mpd_c = } -- {mpd_l = }")
+                if filtered_extras.get('mpd_b'):
+                    g.logger.debug(f"adding the filtered mpd_b to mpd_b")
+                    mpd_b.extend(filtered_extras.get('mpd_b'))
+                    extended = True
+                if filtered_extras.get('mpd_c'):
+                    g.logger.debug(f"adding the filtered mpd_c to mpd_c")
+                    mpd_c.extend(filtered_extras.get('mpd_c'))
+                    extended = True
+                if filtered_extras.get('mpd_l'):
+                    g.logger.debug(f"adding the filtered mpd_l to mpd_l")
+                    mpd_l.extend(filtered_extras.get('mpd_l'))
+                    extended = True
+                if matched_b:
+                    mpd_b.extend(matched_b)
+                    mpd_c.extend(matched_c)
+                    mpd_l.extend(matched_l)
+                    g.logger.debug(f"Adding the current detection to the MATCH PAST DETECTION buffer!")
+                    extended = True
+
+                if extended:
+                    g.logger.debug(f"AFTER EXTENDING>>> {mpd_b = } -- {mpd_c = } -- {mpd_l = }")
+            pkl("write", mpd_b, mpd_l, mpd_c, g.eid)
         self.media.stop()
         # if invoked again, we need to resize polys
         self.has_rescaled = False
