@@ -188,6 +188,8 @@ class ConfigParse:
                     for k, v in tmp_dft_cfg[section].items():
                         if k not in self.config:
                             self.config[k] = v
+                # else:
+                #     print(f"{lp}{self.type}:proc: the default config file has a section that is not a dict! -> {section}")
         else:
             self.config = tmp_dft_cfg
         if not self.config:
@@ -197,7 +199,7 @@ class ConfigParse:
             )
             # todo pushover notification of failure
             exit(1)
-
+        # default values
         for default_key, default_value in self.builtin_default_config.items():
             if default_key not in self.config or (self.config.get(default_key) and not self.config[default_key]):
                 def_keys_added.append(default_key)
@@ -213,17 +215,20 @@ class ConfigParse:
         self.secret_file_name = self.config.get('secrets')
         self.config = self.parse_secrets(config=self.config, filename=self.secret_file_name)
         # Building Base Config - {{VARS}} replacement
-        self.config = self.parse_vars(config=self.config, filename=self.config_file_name, config_pool=self.config)
+        self._parse_conf()
+        g.logger.debug(
+            f"{lp}{self.type}:proc: Base config has been built, all properly configured {{[secrets]}} "
+            f"and {{{{vars}}}} have been replaced! Remember you must manually build per monitor overrode configurations"
+        )
+
+    def _parse_conf(self):
+        self.config = self.parse_vars()
         # todo make configurable? so users can add complex data structures and have them safely evaluated
         eval_sections = {'pyzm_overrides', 'platerec_regions', 'poly_color', 'hass_people', }
         for e_sec in eval_sections:
             # convert specific keys into python structures
             if self.config.get(e_sec) and isinstance(self.config[e_sec], str):
                 self.config[e_sec] = literal_eval(self.config[e_sec])
-        g.logger.debug(
-            f"{lp}{self.type}:proc: Base config has been built, all properly configured {{[secrets]}} "
-            f"and {{{{vars}}}} have been replaced! Remember you must manually build per monitor overrode configurations"
-        )
 
     def __init__(self, config_file_name: str, default: dict, type_: Optional[str] = None):
         # custom detection patterns per monitor
@@ -235,7 +240,6 @@ class ConfigParse:
         # Zones defined in the config
         self.defined_zones = None
         # Defaults that will not change after being written
-        self.default_monitor_overrides = None
         self.default_ml_sequence = None
         self.default_stream_sequence = None
         # The config before any base keys are replaced
@@ -293,7 +297,6 @@ class ConfigParse:
             else:
                 dc: dict = self.default_config
                 self.monitors = dc.get('monitors')
-                self.default_monitor_overrides = dc.get('monitors')
                 g.logger.debug(
                     f"{lp}init: default configuration built (no secrets or substitution vars replaced, yet!)"
                 )
@@ -385,21 +388,24 @@ class ConfigParse:
         else:
             g.logger.debug(f"{lp}{self.type}: no secrets file configured")
 
-    def parse_vars(self, config=None, filename=None, config_pool=None):
-        if filename and Path(filename).exists() and Path(filename).is_file():
-            g.logger.debug(f"{lp}{self.type}: starting '{{{{variable}}}}' substitution")
-        new_config = str(config)
+    def parse_vars(self):
+        g.logger.debug(f"{lp}{self.type}: starting '{{{{variable}}}}' substitution")
+        new_config = str(self.config)
         # This pattern finds the secret and returns the key inside of the {[ ]}
         vars_regex = compile(r'{{(\w*)}}')
         all_vars = set(vars_regex.findall(new_config))
         vars_replaced = []
         vars_not_replaced = []
         for var in all_vars:
-            if var in config:
+            if var in self.config:
                 # The replacement variable has a key: value in the base config
                 vars_replaced.append(var)
                 # Compile and sub 1 liner to replace all occurrences of {{variable}} with the keys value
-                new_config = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(config[var]), new_config)
+                test = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(self.config[var]), new_config)
+                if test == new_config:
+                    g.logger.debug(f'There is no change after SUBSTITUTING VARS!')
+                else:
+                    new_config = test
             else:
                 # There is a {{variable}} but there is no configured key: value for it
                 vars_not_replaced.append(var)
@@ -407,13 +413,13 @@ class ConfigParse:
             g.logger.debug(f"{lp}{self.type}: successfully replaced {len(vars_replaced)} sub var"
                            f"{'' if len(vars_replaced) == 1 else 's'} in the base config -> {vars_replaced}"
                            )
-            if vars_not_replaced:
-                g.logger.debug(
-                    f"{lp}{self.type}: there {'was' if len(vars_not_replaced) == 1 else 'were'} "
-                    f"{len(vars_not_replaced)} secret{'' if len(vars_not_replaced) == 1 else 's'}"
-                    f"  configured that {'has' if len(vars_not_replaced) == 1 else 'have'} no substitution in the "
-                    f"base config -> {vars_not_replaced}"
-                )
+        if vars_not_replaced:
+            g.logger.debug(
+                f"{lp}{self.type}: there {'was' if len(vars_not_replaced) == 1 else 'were'} "
+                f"{len(vars_not_replaced)} sub var{'' if len(vars_not_replaced) == 1 else 's'}"
+                f" configured that {'has' if len(vars_not_replaced) == 1 else 'have'} no substitution in the "
+                f"base config -> {vars_not_replaced}"
+            )
         try:
             return literal_eval(new_config)
         except ValueError:
@@ -450,12 +456,11 @@ class ConfigParse:
             # first replace secrets if there are any but when replacing grab the values from the monitor
             # overrides first. If the monitors overrides don't have the key, grab it from the current config.
             # same thing for {{vars}} and then create the overrode config property
-            dmo: dict = self.default_monitor_overrides
+            dmo: dict = self.monitors
             if dmo and mid in dmo and dmo[mid] is not None:
-                # Flag that there is an overrode config
-                self.overrode = True
-                # Convert to string to do the regex replacements
-                new_overrides = str(dmo[mid])
+
+                # Convert python dict to a str to run regex replacements on it
+                replacement_overrides = str(dmo[mid])
                 if self.monitor_overrides is not None:
                     self.override_config = self.monitor_overrides[mid] = deepcopy(self.config)
                 secrets_replaced_by_overrides = []
@@ -466,7 +471,7 @@ class ConfigParse:
                     f"substitution"
                 )
                 secrets_regex = compile(r'\{\[(\w*)\]\}')
-                all_secs = set(secrets_regex.findall(new_overrides))
+                all_secs = set(secrets_regex.findall(replacement_overrides))
                 for sec in all_secs:
                     # g.logger.Debug(f"{type(sec)} --- {sec}")
                     if sec in dmo[mid]:
@@ -474,16 +479,15 @@ class ConfigParse:
                         secrets_replaced_by_overrides.append(sec)
                         pattern = [r'\{\[', r'{}'.format(sec), r'\]\}']
                         pattern = r''.join(pattern)
-                        new_overrides = compile(pattern=pattern).sub(dmo[mid][sec], new_overrides)
+                        replacement_overrides = compile(pattern=pattern).sub(dmo[mid][sec], replacement_overrides)
                     elif sec in self.config:
                         # If not check if the config has a key: value for the secret
                         secrets_replaced_by_config.append(sec)
                         pattern = [r'\{\[', r'{}'.format(sec), r'\]\}']
                         pattern = r''.join(pattern)
-                        new_overrides = compile(pattern=pattern).sub(self.config[sec], new_overrides)
+                        replacement_overrides = compile(pattern=pattern).sub(self.config[sec], replacement_overrides)
                     else:
                         secrets_not_replaced.append(sec)
-
                 if secrets_replaced_by_overrides:
                     g.logger.debug(
                         f"{lp}{self.type}:{mid}: successfully replaced {len(secrets_replaced_by_overrides)} secret"
@@ -503,19 +507,31 @@ class ConfigParse:
                         f"  configured that have no substitution in the base config -> {secrets_not_replaced}"
                     )
                 if not secrets_replaced_by_overrides and not secrets_replaced_by_config and not secrets_not_replaced:
-                    g.logger.debug(f"{lp}{self.type}:{mid}: no secrets were replace during overrode config build")
+                    g.logger.debug(f"{lp}{self.type}:{mid}: no secrets were replaced during overrode config build")
                 # {{VARS}}
                 vars_regex = compile(r'{{(\w*)}}')
-                all_vars = set(vars_regex.findall(new_overrides))
+                all_vars = set(vars_regex.findall(replacement_overrides))
                 vars_replaced_by_overrides = []
                 vars_replaced_by_config = []
                 vars_not_replaced = []
+                for k, v in dmo[mid].items():
+                    if (
+                            (v is not None and v != 'zones')
+                            and k not in self.config
+                    ):
+                        g.logger.debug(f"{lp}{self.type}:{mid}: this monitor has a key defined that is not in the "
+                                       f"BASE config?! adding '{k}'={v} to the BASE config")
+                        self.config[k] = v
+                new_config = str(self.config)
                 for var in all_vars:
                     if var in dmo:
                         vars_replaced_by_overrides.append(var)
                         new_config = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(dmo[var]), new_config)
 
                     if var in self.config:
+                        if var == 'car_past_det_max_diff_area':
+                            g.logger.debug(f"GLOBAL>>> FOUND REPLACEMENT of SUBVAR '{var}' declared inside of monitor "
+                                           f"#{mid} per-monitor config")
                         vars_replaced_by_config.append(var)
                         new_config = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(self.config[var]),
                                                                                          new_config)
@@ -524,13 +540,13 @@ class ConfigParse:
                 if vars_replaced_by_overrides:
                     g.logger.debug(
                         f"{lp}{self.type}:{mid}: successfully replaced {len(vars_replaced_by_overrides)} sub var"
-                        f"{'' if len(vars_replaced_by_overrides) == 1 else 's'} in the base config -> "
+                        f"{'' if len(vars_replaced_by_overrides) == 1 else 's'} in the base config FROM PER-MONITOR -> "
                         f"{vars_replaced_by_overrides}"
                     )
                 if vars_replaced_by_config:
                     g.logger.debug(
                         f"{lp}{self.type}:{mid}: successfully replaced {len(vars_replaced_by_config)} sub var"
-                        f"{'' if len(vars_replaced_by_config) == 1 else 's'} in the base config -> "
+                        f"{'' if len(vars_replaced_by_config) == 1 else 's'} in the base config FROM GLOBAL -> "
                         f"{vars_replaced_by_config}"
                     )
                 if vars_not_replaced:
@@ -543,7 +559,7 @@ class ConfigParse:
                 if not vars_replaced_by_overrides and not vars_replaced_by_config and not vars_not_replaced:
                     g.logger.debug(f"{lp}{self.type}:{mid}: no vars were replace during overrode config build")
                 try:
-                    new_overrides = literal_eval(new_overrides)
+                    replacement_overrides = literal_eval(replacement_overrides)
                 except ValueError:
                     print(
                         f"{lp}{self.type}:{mid}: there is a formatting error in the config "
@@ -556,7 +572,8 @@ class ConfigParse:
                     from pyzm.helpers.pyzm_utils import str2tuple
                     # use Polygon to confirm proper coords
                     from shapely.geometry import Polygon
-                    for overrode_key, overrode_val in new_overrides.items():
+                    reparse = False
+                    for overrode_key, overrode_val in replacement_overrides.items():
                         # Check for fuc*ery
                         if overrode_key in illegal_keys:
                             g.logger.debug(
@@ -564,9 +581,8 @@ class ConfigParse:
                                 f"this may cause unexpected behavior and is off limits for per monitor overrides")
                             continue
                         if overrode_key == 'zones':
-                            g.logger.debug(f"KEY=ZONES {overrode_key = } ----- {overrode_val = }")
+                            g.logger.debug(f"{lp}{self.type}:{mid}: pre-defined 'zones' found, parsing...")
                             zones: dict = overrode_val
-                            g.logger.debug(f"NEW PRE DEFINED ZONES>>> {zones = }")
                             for zone_name, zone_items in zones.items():
                                 zone_coords = zone_items.get('coords')
                                 zone_pattern = zone_items.get('pattern')
@@ -574,22 +590,22 @@ class ConfigParse:
                                 zone_max_size = zone_items.get('max_size')
                                 zone_min_conf = zone_items.get('min_conf')
                                 if not zone_coords:
-                                    print(f"{lp}{self.type}:{mid}: no coords for zone {zone_name}")
+                                    print(f"{lp}{self.type}:{mid}: no coords for zone {zone_name}, 'coords' is "
+                                          f"REQUIRED! skipping...")
                                     continue
 
-                                g.logger.debug(f"{lp}{self.type}:{mid}: polygon specified -> '{zone_name}' for"
-                                               f" monitor {mid}, validating polygon shape...")
+                                g.logger.debug(f"{lp}{self.type}:{mid}: polygon specified -> '{zone_name}', "
+                                               f"validating polygon shape...")
                                 try:
                                     coords = str2tuple(zone_coords)
                                     test = Polygon(coords)
                                 except Exception as exc:
                                     print(
                                         f"{lp}{self.type}:{mid}: the polygon coordinates supplied from '{overrode_key}' "
-                                        f"are malformed! -> {overrode_val}"
+                                        f"are malformed! -> {overrode_val}, skipping..."
                                     )
                                 else:
-                                    if not zone_pattern:
-                                        zone_pattern = g.config.get('')
+                                    # Handle append or creating a new entry
                                     if mid in self.polygons:
                                         g.logger.debug(
                                             f"{lp}{self.type}:{mid}: appending to the existing monitor ID in "
@@ -681,6 +697,9 @@ class ConfigParse:
                         else:
                             # there is not a key to override so a new key will be created
                             new_.append(overrode_key)
+                            if overrode_key != 'zones':
+                                self.config[overrode_key] = overrode_val
+                                reparse = True
                         self.override_config[overrode_key] = overrode_val
 
                     # Make a new deep copy of the overrode config for the monitor in the overrides dict
@@ -695,6 +714,16 @@ class ConfigParse:
                             f"{lp}{self.type}:{mid}: {len(new_)} keys that did not have a 'base' value to override "
                             f"that are now in the 'base' config -> {new_}"
                         )
+                    if reparse:
+                        g.logger.debug(f"{lp}{self.type}:{mid}: re-parsing SUB VARS...")
+                        self._parse_conf()
+                        g.logger.debug(f"{self.config.get('ml_sequence', {}).get('general') = }")
+                        for mon in self.monitor_overrides:
+                            if self.monitor_overrides[mon] != self.config:
+                                g.logger.debug(f"{lp}{self.type}:{mid}: OVERWRITING OLD PER MONITOR GLOBAL "
+                                               f"CONFIG AS NEW DATA IS AVAILABLE!")
+                                self.monitor_overrides[mon] = deepcopy(self.config)
+
 
 
 def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False):
@@ -830,7 +859,6 @@ def process_config(
         # stream options will override this if resize is set in the zmes config
         if config_obj.config.get('resize') is not None:
             config_obj.config.pop('resize')
-
     return config_obj, g
 
 
@@ -858,16 +886,24 @@ def create_api(args: dict):
         # get and set the monitor id, name, eventpath
         if args.get("eventid"):
             # set event id globally first before calling api event data
-            g.config['eid'] = g.eid = args['eventid']
+            g.config['eid'] = g.eid = int(args['eventid'])
             # api call for event data
-            g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
-            g.config["mon_name"] = g.Monitor.get("Name")
-            g.config["api_cause"] = g.Event.get("Cause")
-            if not args.get('reason'):
-                args['reason'] = g.Event.get("Notes")
-            g.config['mid'] = g.mid = args["monitor_id"] = int(g.Monitor.get("Id"))
-            if args.get("eventpath", "") == "":
-                g.config["eventpath"] = args["eventpath"] = g.Event.get("FileSystemPath")
+            try:
+                g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
+            except ValueError as err:
+                if str(err) == 'Invalid Event':
+                    g.logger.error(f"{lp} there seems to be an error while grabbing event data, EXITING!")
+                    exit(1)
+                else:
+                    g.logger.debug(f"{lp} there is a ValueError exception >>> {err}")
             else:
-                g.config["eventpath"] = args["eventpath"] = args.get("eventpath")
+                g.config["mon_name"] = g.Monitor.get("Name")
+                g.config["api_cause"] = g.Event.get("Cause")
+                if not args.get('reason'):
+                    args['reason'] = g.Event.get("Notes")
+                g.config['mid'] = g.mid = args["monitor_id"] = int(g.Monitor.get("Id"))
+                if args.get("eventpath", "") == "":
+                    g.config["eventpath"] = args["eventpath"] = g.Event.get("FileSystemPath")
+                else:
+                    g.config["eventpath"] = args["eventpath"] = args.get("eventpath")
         g.logger.debug(f"{lp} ZM API created")
