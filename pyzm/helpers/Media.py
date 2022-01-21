@@ -20,10 +20,18 @@ from pyzm.interface import GlobalConfig
 lp: str = 'media:'
 g: GlobalConfig
 
+
 class MediaStream:
     frames_processed: int
 
-    def __init__(self, stream=None, type_="video", options=None):
+    def __init__(
+            self,
+            stream=None,
+            type_: Optional[str] = None,
+            options=None
+    ):
+        if type_ is None:
+            type_ = 'video'
         if not options:
             raise ValueError(f"{lp} no stream options provided!")
         global g
@@ -72,11 +80,12 @@ class MediaStream:
                     )
                     sleep(float(options.get("delay")))
 
-        ext = Path(self.stream).suffix
-        if ext.lower() in (".jpg", ".png", ".jpeg"):
-            g.logger.debug(f"{lp} The supplied stream '{self.stream}' is an image file")
-            self.type = "file"
-            return
+        if isinstance(self.stream, str):
+            ext = Path(self.stream).suffix
+            if ext.lower() in (".jpg", ".png", ".jpeg"):
+                g.logger.debug(f"{lp} The supplied stream '{self.stream}' is an image file")
+                self.type = "file"
+                return
 
         self.start_frame = int(options.get("start_frame", 1))
         self.frame_skip = int(options.get("frame_skip", 1))
@@ -85,7 +94,10 @@ class MediaStream:
             options.get("contig_frames_before_error", 5)
         )
         self.frames_before_error = 0
-        if self.stream.isnumeric():
+        if (
+                (isinstance(self.stream, str) and self.stream.isnumeric())
+                or (isinstance(self.stream, int))
+        ):
             # assume it is an event id, in which case we
             # need to access it via ZM API
 
@@ -189,7 +201,7 @@ class MediaStream:
         return self.last_frame_id_read
 
     def more(self):
-        
+
         if self.type == "file":
             return self.more_images_to_read
 
@@ -209,7 +221,7 @@ class MediaStream:
                 return self.more_images_to_read
 
     def stop(self):
-        
+
         if self.type == "video":
             self.fvs.stop()
         if self.is_deletable:
@@ -232,7 +244,6 @@ class MediaStream:
     def val_type(self, cls, k, v, msg=None) -> Any:
         """return *v* converted to class type *cls* object, msg is the ValueError message to display
         if v cannot be converted to cls"""
-        
 
         if v is None or not v:
             return v
@@ -289,7 +300,7 @@ class MediaStream:
                 return None
 
     def read(self):
-        
+
         response: Optional[requests.Response] = None
         past_event: Optional[str] = g.config.get("PAST_EVENT")
         frame: Optional[np.ndarray] = None
