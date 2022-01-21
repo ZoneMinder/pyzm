@@ -24,6 +24,7 @@ Important:
 
 import datetime
 
+import requests
 from requests import Session
 from requests.packages.urllib3 import disable_warnings
 from requests.exceptions import HTTPError
@@ -47,21 +48,29 @@ lp = 'api:'
 class ZMApi:
     def __init__(self, options=None, kickstart=None):
         """
-        Options is a dict with the following keys:
+        options (dict):
+            - apiurl (str) - the full API URL (example https://server/zm/api)
+            - portalurl (str) - the full portal URL (example https://server/zm). Only needed if you are downloading events/images
+            - user (str) - username (None if using 'no auth')
+            - password (str) - password (None if using 'no auth')
+            - disable_ssl_cert_check (bool) - if True will let you use self-signed certs
+            - basic_auth_user (str) - basic auth username
+            - basic_auth_password (str) - basic auth password
 
-            - apiurl - the full API URL (example https://server/zm/api)
-            - portalurl - the full portal URL (example https://server/zm). Only needed if you are downloading events/images
-            - user - username (don't specify if no auth)
-            - password - password (don't specify if no auth)
-            - disable_ssl_cert_check - if True will let you use self signed certs
-            - basic_auth_user - basic auth username
-            - basic_auth_password - basic auth password
-            - logger - logger to use
-            - api_globals - pre-instantiated GlobalConfig object
-            - kickstart - (dict) containing existing JWT token data, instead of logging in and grabbing for ourself.
-            Note: you can connect your own customer logging class to the API in which case all modules will use your
-            custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.
-            Base.SimpleLog` for method details.
+
+
+
+        kickstart - (dict) containing existing JWT token data supplied to MLAPI by ZMES (saves time by skipping login).
+              - user (str): Username,
+              - password (str): Password,
+              - access_token (str): Access token,
+              - refresh_token (str): Refresh token,
+              - access_token_expires (str|int): Access token expiration time in seconds (Example: 3600),
+              - refresh_token_expires (str|int): Refresh token expiration time in seconds (Example: 3600),
+              - access_token_datetime (str|float): Access token datetime in timestamp format,
+              - refresh_token_datetime (str|float): Refresh token datetime in timestamp format,
+              - api_version (str): API version,
+              - zm_version (str): ZoneMinder version,
         """
         global g
         g = GlobalConfig()
@@ -136,7 +145,7 @@ class ZMApi:
             )
             g.logger.debug(
                 2,
-                f"{lp}kick start: ZMES sent the AUTH JWT, no need to re login to ZM API",
+                f"{lp}KICKSTART: an AUTH JWT and associated data has been supplied, no need to re login to ZM API",
                 caller=caller,
             )
         else:
@@ -162,6 +171,7 @@ class ZMApi:
             "zm_version": self.zm_version,
         }
         return ret_val
+
     @staticmethod
     def _versiontuple(v):
         # https://stackoverflow.com/a/11887825/1361529
@@ -196,7 +206,7 @@ class ZMApi:
         Returns:
            string: timezone of ZoneMinder server (or None if API not supported)
         """
-        
+
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         if not self.zm_tz:
@@ -220,12 +230,12 @@ class ZMApi:
         Returns:
             boolean -- True if Login API worked
         """
-        
+
         return self.authenticated
 
     # called in _make_request to avoid 401s if possible
     def _refresh_tokens_if_needed(self):
-        
+
         # global GRACE
         if not (self.access_token_expires and self.refresh_token_expires):
             return
@@ -238,7 +248,7 @@ class ZMApi:
 
     def _re_login(self):
         """Used for 401. I could use _login too but decided to do a simpler fn"""
-        
+
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         # global GRACE
@@ -266,7 +276,7 @@ class ZMApi:
         Raises:
             err: reason for failure
         """
-        
+
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         try:
@@ -308,7 +318,7 @@ class ZMApi:
             r = self.session.post(url, data=data)
             if r.status_code == 401 and self.options.get("token") and self.auth_enabled:
                 g.logger.debug(
-                    f"{lp} token auth with refresh failed. Likely revoked, trying user/pass login",
+                    f"{lp} using refresh token failed. Likely revoked, trying user/pass login",
                     caller=caller,
                 )
                 self.options["token"] = None
@@ -352,7 +362,8 @@ class ZMApi:
                                 + datetime.timedelta(seconds=self.refresh_token_expires)
                         )
                         g.logger.debug(
-                            f"{lp} refresh token expires on: {self.refresh_token_datetime} ({self.refresh_token_expires}s)",
+                            f"{lp} refresh token expires on: {self.refresh_token_datetime} "
+                            f"({self.refresh_token_expires}s)",
                             caller=caller,
                         )
                 else:
@@ -407,7 +418,7 @@ If you do not supply it an event_id it will use the global event id.
 
     :param update_frame_buffer_length: (bool) If True, will update the frame_buffer_length (Default: True).
     :param event_id: (str/int) Optional, the event ID to query."""
-        
+
         if not event_id:
             event_id = g.eid
         Event: Optional[Dict]
@@ -447,7 +458,7 @@ If you do not supply it an event_id it will use the global event id.
         :rtype: dict
         :rtype: object
         """
-        
+
         idx = min(len(stack()), 1)
         caller = getframeinfo(stack()[idx][0])
         if payload is None:
@@ -523,7 +534,6 @@ If you do not supply it an event_id it will use the global event id.
                 # return r.text
 
         except HTTPError as err:
-
             if err.response.status_code == 401 and reauth:
                 g.logger.debug(
                     f"{lp} Got 401 (Unauthorized) - retrying auth login once",
@@ -533,13 +543,26 @@ If you do not supply it an event_id it will use the global event id.
                 g.logger.debug(f"{lp} Retrying failed request again...", caller=caller)
                 return self.make_request(url, query, payload, type_action, reauth=False)
             elif err.response.status_code == 404:
-                # ZM returns 404 when an image cannot be decoded
-                g.logger.debug(
-                    4,
-                    f"{lp} raising BAD_IMAGE ValueError for a 404 (image does not exist)",
-                    caller=caller,
-                )
-                raise ValueError("BAD_IMAGE")
+                err.response: requests.Response
+                err_json: Optional[dict] = err.response.json()
+                if err_json:
+                    g.logger.error(f"{lp} JSON ERROR response >>> {err_json}")
+                    if err_json.get('success') is False:
+                        # get the reason instead of guessing
+                        err_name = err_json.get('data').get('message')
+                        err_message = err_json.get('data').get('message')
+                        err_url = err_json.get('data').get('url')
+                        if err_name == 'Invalid event':
+                            g.logger.debug(f"{lp} raising Invalid Event", caller=caller)
+                            raise ValueError("Invalid Event")
+                        else:
+                            # ZM returns 404 when an image cannot be decoded or the requested event does not exist
+                            g.logger.debug(
+                                4,
+                                f"{lp} raising BAD_IMAGE ValueError for a 404 (image does not exist)",
+                                caller=caller,
+                            )
+                            raise ValueError("BAD_IMAGE")
             else:
                 err_msg = (
                     str(err).replace(self.portal_url, f"{g.config['sanitize_str']}")
@@ -563,10 +586,9 @@ If you do not supply it an event_id it will use the global event id.
                     return self.make_request(
                         url, query, payload, type_action, reauth=False
                     )
-                else:
-                    raise err
-            elif err_msg == "BAD_IMAGE":
-                raise ValueError("BAD_IMAGE")
+            else:
+                raise err
+
 
     def zones(self, options=None):
         """Returns list of zones. Given zones are fairly static, maintains a cache and returns from cache on subsequent calls.
