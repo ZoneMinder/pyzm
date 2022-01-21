@@ -201,7 +201,7 @@ class MediaStream:
         return self.last_frame_id_read
 
     def more(self):
-
+        
         if self.type == "file":
             return self.more_images_to_read
 
@@ -221,7 +221,7 @@ class MediaStream:
                 return self.more_images_to_read
 
     def stop(self):
-
+        
         if self.type == "video":
             self.fvs.stop()
         if self.is_deletable:
@@ -244,6 +244,7 @@ class MediaStream:
     def val_type(self, cls, k, v, msg=None) -> Any:
         """return *v* converted to class type *cls* object, msg is the ValueError message to display
         if v cannot be converted to cls"""
+        
 
         if v is None or not v:
             return v
@@ -300,7 +301,7 @@ class MediaStream:
                 return None
 
     def read(self):
-
+        
         response: Optional[requests.Response] = None
         past_event: Optional[str] = g.config.get("PAST_EVENT")
         frame: Optional[np.ndarray] = None

@@ -653,31 +653,9 @@ def de_dup(task, separator=None, return_str=False) -> list:
     ret_list = []
     append = None
     if isinstance(task, str):
-        snapshots = 0
-        for x in task.split(separator):
-            if str(x).startswith("s") and snapshots < 1:
-                snapshots += 1
-                append = True
-            elif x not in ret_list:
-                append = True
-            if append:
-                # g.logger.debug(f"DEDUP STR -> appending {x} ")
-                ret_list.append(x)
-                append = None
-        # [ret_list.append(x) for x in task.split(seperator) if x not in ret_list]
+        [ret_list.append(x.strip()) for x in task.split(separator) if x.strip() not in ret_list]
     elif isinstance(task, list):
-        snapshots = 0
-        for x in task:
-            if str(x).startswith("s") and snapshots < 1:
-                snapshots += 1
-                append = True
-            elif x not in ret_list:
-                append = True
-            if append:
-                ret_list.append(x)
-                append = None
-
-        # [ret_list.append(x) for x in task if x not in ret_list]
+        [ret_list.append(x) for x in task if x not in ret_list]
 
     return ret_list if not return_str else " ".join([str(x) for x in ret_list])
 
@@ -920,12 +898,8 @@ def draw_bbox(
 
 
 def str2tuple(string):
+    """Convert a string of Polygon points '123,456 789,012' to a list of int filled tuples [(123,456), (789,012)]"""
     return [tuple(map(int, x.strip().split(","))) for x in string.split(" ")]
-
-
-def str2arr(string: str, delimiter=",") -> list:
-    """send a comma delimited"""
-    return [map(int, x.strip().split(",")) for x in string.split(" ")]
 
 
 def str_split(my_str):
@@ -1122,7 +1096,8 @@ def pkl(action, boxes=None, labels=None, confs=None, event=None):
                 pickle_dump(event, f)
                 g.logger.debug(
                     4,
-                    f"pkl: saved_event:{event} saved boxes:{boxes} - labels:{labels} - confs:{confs} to file: '{mon_file}'",
+                    f"pkl: saved_event:{event} saved boxes:{boxes} - labels:{labels} "
+                    f"- confs:{confs} to file: '{mon_file}'"
                 )
         except Exception as e:
             g.logger.error(
@@ -1245,6 +1220,7 @@ class Pushover:
                 f"pushover: sending notification data and converting response to JSON FAILED -> {ex}"
             )
         else:
+            g.logger.debug(f"PUSHOVER DEBUG>>> {r = }")
             if record_last:
                 if r.get("status") == 1:
                     # pushover success

@@ -206,7 +206,7 @@ class ZMApi:
         Returns:
            string: timezone of ZoneMinder server (or None if API not supported)
         """
-
+        
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         if not self.zm_tz:
@@ -230,12 +230,12 @@ class ZMApi:
         Returns:
             boolean -- True if Login API worked
         """
-
+        
         return self.authenticated
 
     # called in _make_request to avoid 401s if possible
     def _refresh_tokens_if_needed(self):
-
+        
         # global GRACE
         if not (self.access_token_expires and self.refresh_token_expires):
             return
@@ -248,7 +248,7 @@ class ZMApi:
 
     def _re_login(self):
         """Used for 401. I could use _login too but decided to do a simpler fn"""
-
+        
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         # global GRACE
@@ -276,7 +276,7 @@ class ZMApi:
         Raises:
             err: reason for failure
         """
-
+        
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         try:
@@ -418,7 +418,7 @@ If you do not supply it an event_id it will use the global event id.
 
     :param update_frame_buffer_length: (bool) If True, will update the frame_buffer_length (Default: True).
     :param event_id: (str/int) Optional, the event ID to query."""
-
+        
         if not event_id:
             event_id = g.eid
         Event: Optional[Dict]
@@ -458,7 +458,7 @@ If you do not supply it an event_id it will use the global event id.
         :rtype: dict
         :rtype: object
         """
-
+        
         idx = min(len(stack()), 1)
         caller = getframeinfo(stack()[idx][0])
         if payload is None:

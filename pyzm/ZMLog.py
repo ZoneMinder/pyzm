@@ -544,23 +544,13 @@ class ZMLog:
                     self.conn.execute(cmd)
                 except SQLAlchemyError as e:
                     self.sql_connected = False
-                    self.syslog.syslog(syslog.LOG_ERR, self._format_string("Error writing to DB:" + str(e)))
-
-        print_log_string: str = '{timestamp} {pname}[{pid}] {level} {fnfl}->[{msg}]'.format(timestamp=dt,
-                                                                                       level=display_level,
-                                                                                       pname=self.process_name,
-                                                                                       pid=pid, msg=message,
-                                                                                       fnfl=fnfl)
+                    self.syslog.syslog(syslog.LOG_ERR, self._format_string(f"Error writing to DB: {e}"))
+        if not fnfl:
+            fnfl = f"{Path(caller.filename).name.split('.')[0]}:{caller.lineno}"
+        print_log_string: str = f'{dt} {self.process_name}[{pid}] {display_level} {fnfl}->[{message}]'
 
         if levels[level] <= self.config['log_level_file']:
-            if not fnfl:
-                fnfl = f"{Path(caller.filename).name.split('.')[0]}:{caller.lineno}"
-
-            file_log_string = '{timestamp} {pname}[{pid}] {level} {fnfl} [{msg}]\n'.format(timestamp=dt,
-                                                                                           level=display_level,
-                                                                                           pname=self.process_name,
-                                                                                           pid=pid, msg=message,
-                                                                                           fnfl=fnfl)
+            file_log_string = f'{dt} {self.process_name}[{pid}] {display_level} {fnfl} [{message}]\n'
 
             if self.log_file_handler:
                 try:
