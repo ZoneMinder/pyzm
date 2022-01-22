@@ -7,9 +7,10 @@ import cv2
 # from cv2 import cv2
 import numpy as np
 
-from pycoral.adapters import common
-from pycoral.adapters import detect
-from pycoral.utils.edgetpu import make_interpreter
+# from pycoral.adapters import common
+# from pycoral.adapters import detect
+# from pycoral.utils.edgetpu import make_interpreter
+
 from pathlib import Path
 
 from pyzm.ml.object import Object
@@ -36,34 +37,44 @@ class TPUException(Exception):
 class Tpu(Object):
     def __init__(self, *args, **kwargs):
         global g, lp
-        self.lp = lp = 'coral:'
         g = GlobalConfig()
-        options = kwargs['options']
-        kwargs['globs'] = g
+        self.lp = lp = 'coral:'
+        try:
+            from pycoral.adapters import common
+            from pycoral.adapters import detect
+            from pycoral.utils.edgetpu import make_interpreter
+        except ImportError:
+            g.logger.warning(f"{lp} pycoral libs not installed, this is ok if you do not plan to use "
+                             f"TPU as detection processor. If you intend to use a TPU please install the TPU libs "
+                             f"and pycoral!")
+        else:
+            g.logger.debug(f"{lp} TPU libraries have been installed and imported!")
+            options = kwargs['options']
+            kwargs['globs'] = g
 
-        super().__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
-        if options is None:
-            g.logger.error(
-                f"{lp} cannot initialize TPU object detection model -> no 'sequence' sent with weights, conf, "
-                f"labels, etc.")
-            raise TPUException(f"{lp} -> NO OPTIONS")
-        g.logger.debug(f"{lp} initializing edge TPU with params: {options}")
-        self.sequence_name: str = ''
+            if options is None:
+                g.logger.error(
+                    f"{lp} cannot initialize TPU object detection model -> no 'sequence' sent with weights, conf, "
+                    f"labels, etc.")
+                raise TPUException(f"{lp} -> NO OPTIONS")
+            g.logger.debug(f"{lp} initializing edge TPU with params: {options}")
+            self.sequence_name: str = ''
 
-        self.classes = {}
-        self.options = options
-        self.processor = 'tpu'
-        self.lock_maximum = int(options.get(f"{self.processor}_max_processes", 1))
-        self.lock_name = f"pyzm_uid{getuid()}_{self.processor.upper()}_lock"
-        self.lock_timeout = int(options.get(f"{self.processor}_max_lock_wait", 120))
-        self.disable_locks = options.get('disable_locks', 'no')
-        self.create_lock()
-        self.is_locked = False
-        self.model = None
-        self.model_height = self.options.get('model_height', 312)
-        self.model_width = self.options.get('model_width', 312)
-        self.populate_class_labels()
+            self.classes = {}
+            self.options = options
+            self.processor = 'tpu'
+            self.lock_maximum = int(options.get(f"{self.processor}_max_processes", 1))
+            self.lock_name = f"pyzm_uid{getuid()}_{self.processor.upper()}_lock"
+            self.lock_timeout = int(options.get(f"{self.processor}_max_lock_wait", 120))
+            self.disable_locks = options.get('disable_locks', 'no')
+            self.create_lock()
+            self.is_locked = False
+            self.model = None
+            self.model_height = self.options.get('model_height', 312)
+            self.model_width = self.options.get('model_width', 312)
+            self.populate_class_labels()
 
     def get_model_name(self) -> str:
         return 'coral'
@@ -95,11 +106,12 @@ class Tpu(Object):
                     fp.close()
         elif not Path(label_file).is_file():
             g.logger.error(f"{lp} '{Path(label_file).name}' does not exist or is not an actual file")
-            raise TPUException(f"Provided label file does not exist or is not a file! Check the config for any spelling mistakes in the entire Path")
+            raise TPUException(
+                f"Provided label file does not exist or is not a file! Check the config for any spelling mistakes in the entire Path")
         else:
             g.logger.debug(f"{lp} No label file provided for this model")
-            raise TPUException(f"Provided label file does not exist or is not a file! Check the config for any spelling mistakes in the entire Path")
-
+            raise TPUException(
+                f"Provided label file does not exist or is not a file! Check the config for any spelling mistakes in the entire Path")
 
     def get_classes(self):
         return self.classes
@@ -131,12 +143,13 @@ class Tpu(Object):
                     f"perf:{lp} initialization -> loading '{Path(self.options.get('object_weights')).name}' "
                     f"took: {diff_time}")
         else:
-            g.logger.error(f"{lp} The supplied model file does not exist or is not an actual file. Can't run detection!")
+            g.logger.error(
+                f"{lp} The supplied model file does not exist or is not an actual file. Can't run detection!")
 
     @staticmethod
     def _nms(objects, threshold):
         # not used - its already part of TPU core libs it seems
-        # credit 
+        # credit
         # https://github.com/google-coral/pycoral/blob/master/examples/small_object_detection.py
 
         """Returns a list of indexes of objects passing the NMS.
@@ -200,7 +213,8 @@ class Tpu(Object):
             downscaled = True
             g.logger.debug(2, f"{lp} model dimensions requested -> "
                               f"{self.model_width}*{self.model_height}")
-            input_image = cv2.resize(input_image, (int(self.model_width), int(self.model_height)), interpolation=cv2.INTER_AREA)
+            input_image = cv2.resize(input_image, (int(self.model_width), int(self.model_height)),
+                                     interpolation=cv2.INTER_AREA)
             newHeight, newWidth = input_image.shape[:2]
             # getscaling so we can make correct bounding boxes
             upsize_xfactor = w / newWidth
@@ -260,7 +274,6 @@ class Tpu(Object):
                            f"y={upsize_yfactor:.4}"
                            )
             bbox = self.downscale(bbox, upsize_xfactor, upsize_yfactor)
-
 
         if labels:
             g.logger.debug(f"{lp} returning {labels} -- {bbox} -- {conf}")
