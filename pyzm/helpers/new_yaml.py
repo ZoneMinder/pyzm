@@ -720,8 +720,8 @@ class ConfigParse:
                         g.logger.debug(f"{self.config.get('ml_sequence', {}).get('general') = }")
                         for mon in self.monitor_overrides:
                             if self.monitor_overrides[mon] != self.config:
-                                g.logger.debug(f"{lp}{self.type}:{mid}: OVERWRITING OLD PER MONITOR GLOBAL "
-                                               f"CONFIG AS NEW DATA IS AVAILABLE!")
+                                g.logger.debug(f"{lp}{self.type}:{mon}: overwriting old per monitor global "
+                                               f"config as new data is available!")
                                 self.monitor_overrides[mon] = deepcopy(self.config)
 
 

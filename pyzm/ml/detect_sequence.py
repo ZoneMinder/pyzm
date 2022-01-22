@@ -38,7 +38,7 @@ def _is_unconverted(expr: Any) -> bool:
     `{{` or `{[` then it is an unconverted secret or substitution variable.
 
     Example:
-        >>> _is_unconverted(string)
+        >>> _is_unconverted('var/string')
     """
     if isinstance(expr, str):
         expr = expr.strip()
@@ -267,7 +267,9 @@ class DetectSequence:
             else:
                 g.logger.error(f"{lp} the configured model '{model}' is not a valid type! skipping...")
 
-    def rescale_polygons(self, polygons, x_factor, y_factor, method='down'):
+
+    @staticmethod
+    def rescale_polygons(polygons, x_factor, y_factor, method='down'):
         new_ps = []
         for p in polygons:
             # from pyzm.helpers.pyzm_utils import str2tuple
@@ -321,7 +323,6 @@ class DetectSequence:
             raise ValueError(f"_filter_detections -> ml_options (machine learning options) is Empty or None!")
         elif 'general' not in self.ml_options:
             raise ValueError(f"_filter_detections -> ml_options:general is not configured!")
-
 
         saved_ls: Optional[List[str]] = None
         saved_bs: Optional[List[str]] = None
@@ -490,9 +491,9 @@ class DetectSequence:
                     if conf[idx] < min_conf:  # confidence filter
                         g.logger.debug(
                             2,
-                            f"confidence: {conf[idx] * 100:.2f} is lower than minimum of {min_conf * 100:.2f}, removing..."
-                        )
-                        # don't draw red error boxes around filtered out objects by confidence if not specified in config
+                            f"confidence: {conf[idx] * 100:.2f} is lower than minimum of {min_conf * 100:.2f}, "
+                            f"removing...")
+                        # don't draw red error boxes around filtered out objects by conf if not specified in config
                         if str2bool(g.config.get("show_conf_filtered")):
                             error_bbox_to_poly.append(b)
                             new_err.append(b)
@@ -504,7 +505,7 @@ class DetectSequence:
                         4,
                         f"'{show_label}' max area of detected object found ({moa_found}) -> '{moa}'",
                     )
-                    # Let's make sure its the right size
+                    # Let's make sure it's the right size
 
                     _m = re.match(r"(\d*\.?\d*)(px|%)?$", moa, re.IGNORECASE)
                     if _m:
@@ -521,8 +522,8 @@ class DetectSequence:
                                 max_object_area = h * w
                     if max_object_area and obj.area > max_object_area:
                         g.logger.debug(
-                            f"max size: {obj.area:.2f} is larger then the max allowed: {max_object_area:.2f}, removing...",
-                        )
+                            f"max size: {obj.area:.2f} is larger then the max allowed: {max_object_area:.2f},"
+                            f"removing...")
                         failed = True
                         error_bbox_to_poly.append(b)
                         new_err.append(b)
@@ -667,7 +668,11 @@ class DetectSequence:
                             )
                             mda_found = "past_det_max_diff_area:general"
                     if self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area"):
-                        if _is_unconverted(self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area")):
+                        if (
+                                _is_unconverted(
+                                    self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area")
+                                )
+                        ):
                             mda = self.ml_options.get("general", {}).get(
                                 f"{label[idx]}_past_det_max_diff_area"
                             )
@@ -686,7 +691,8 @@ class DetectSequence:
                         except ValueError or SyntaxError as e:
                             g.logger.warning(
                                 f"{lp} ignore_past_detection_labels ("
-                                f"{self.ml_options.get('general', {}).get('ignore_past_detection_labels')}) is malformed, ignoring..."
+                                f"{self.ml_options.get('general', {}).get('ignore_past_detection_labels')}) "
+                                f"is malformed, ignoring..."
                             )
 
                             g.logger.debug(f"{lp} ignore_past_detection_labels EXCEPTION MESSAGE: {e}")
@@ -745,7 +751,8 @@ class DetectSequence:
 
                         g.logger.debug(
                             4,
-                            f"{lp} max difference in area configured ({mda_found}) -> '{mda}', comparing past detections to current",
+                            f"{lp} max difference in area configured ({mda_found}) -> '{mda}', comparing past "
+                            f"detections to current"
                         )
 
                         # Compare current detection to past detections AREA
@@ -812,7 +819,8 @@ class DetectSequence:
                                 else:
                                     g.logger.debug(
                                         4,
-                                        f"{lp} allowing '{show_label}' -> the difference in the area of last detection to this detection is '{diff_area:.2f}', a minimum of {max_diff_pixels:.2f} is needed to not be considered 'in the same spot'",
+                                        f"{lp} allowing '{show_label}' -> the difference in the area of last "
+                                        f"detection to this detection is '{diff_area:.2f}', a minimum of {max_diff_pixels:.2f} is needed to not be considered 'in the same spot'",
                                     )
                             # Saved does not intersect the current object/label
                             else:
@@ -1376,28 +1384,21 @@ class DetectSequence:
             # Write detections to the MPD buffer to be evaluated next time
             if filtered_extras:
                 extended = False
-                g.logger.debug(f"BEFORE EXTENDING>>> {mpd_b = } -- {mpd_c = } -- {mpd_l = }")
                 if filtered_extras.get('mpd_b'):
                     g.logger.debug(f"adding the filtered mpd_b to mpd_b")
                     mpd_b.extend(filtered_extras.get('mpd_b'))
-                    extended = True
                 if filtered_extras.get('mpd_c'):
                     g.logger.debug(f"adding the filtered mpd_c to mpd_c")
                     mpd_c.extend(filtered_extras.get('mpd_c'))
-                    extended = True
                 if filtered_extras.get('mpd_l'):
                     g.logger.debug(f"adding the filtered mpd_l to mpd_l")
                     mpd_l.extend(filtered_extras.get('mpd_l'))
-                    extended = True
                 if matched_b:
                     mpd_b.extend(matched_b)
                     mpd_c.extend(matched_c)
                     mpd_l.extend(matched_l)
                     g.logger.debug(f"Adding the current detection to the MATCH PAST DETECTION buffer!")
-                    extended = True
 
-                if extended:
-                    g.logger.debug(f"AFTER EXTENDING>>> {mpd_b = } -- {mpd_c = } -- {mpd_l = }")
             pkl("write", mpd_b, mpd_l, mpd_c, g.eid)
         self.media.stop()
         # if invoked again, we need to resize polys

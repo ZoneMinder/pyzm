@@ -8,7 +8,7 @@ from setuptools import setup
 
 # Package meta-data.
 NAME = 'neo-pyzm'
-DESCRIPTION = 'ZoneMinder API, Logger and other base utilities for python programmers'
+DESCRIPTION = 'baudneo-FORKED: ZoneMinder API, Logger and other base utilities for python programmers'
 URL = 'https://github.com/baudneo/pyzm/'
 AUTHOR_EMAIL = 'baudneo@protonmail.com'
 AUTHOR = 'Pliable Pixels forked by baudneo'
@@ -16,7 +16,6 @@ LICENSE = 'GPL'
 INSTALL_REQUIRES = [
     'pyyaml',
     'requests_toolbelt',
-    'pydantic',
     'SQLAlchemy>=1.3.20,<1.4.0',
     'mysql-connector-python>=8.0.16',
     'requests>=2.18.4',

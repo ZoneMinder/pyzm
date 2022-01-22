@@ -353,7 +353,7 @@ class ZMLog:
                 syslog_str = True
             tmp_msg = (
                     f"Logging to {'console ' if str2bool(self.config['dump_console']) else ''}"
-                    f"{'and ' if self.syslog and self.config['log_level_syslog'] > -5 or self.log_file_handler else ''}"
+                    f"{'and ' if self.syslog and self.config['log_level_syslog'] > -5 else ''}"
                     f"{'syslog ' if self.syslog and self.config['log_level_syslog'] > -5 else ''}"
                     f"{'and ' if self.syslog and self.log_file_handler else ''}"
                     f"{'file ' if self.log_file_handler else ''}with user '{getuser()}'"
