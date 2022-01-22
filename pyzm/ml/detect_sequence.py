@@ -324,6 +324,7 @@ class DetectSequence:
         elif 'general' not in self.ml_options:
             raise ValueError(f"_filter_detections -> ml_options:general is not configured!")
 
+
         saved_ls: Optional[List[str]] = None
         saved_bs: Optional[List[str]] = None
         saved_cs: Optional[List[str]] = None
@@ -478,12 +479,29 @@ class DetectSequence:
                     min_conf = 0.5
                     min_conf_found = "NOT FOUND - DEFAULT->50%"
                 if min_conf:
-                    try:
-                        min_conf = float(min_conf)
-                    except TypeError or ValueError:
-                        g.logger.warning(f"{lp} {show_label} min_conf could not be converted to a FLOAT! Using 50%")
+                    # Allow for 0.XX , 34 or 34% input for confidence - 34 would be evaluated as 34%
+                    _m = re.match(r"(\d*\.?\d*)(%)?$", min_conf, re.IGNORECASE)
+                    if _m:
+                        try:
+                            if _m.group(2) == "%":
+                                # Explicit %
+                                min_conf = float(_m.group(1) / 100.0)
+                            elif not _m.group(1).startswith('.') and not _m.group(1).startswith('0.'):
+                                # there is no % at end and the string does not start with 0. or .
+                                # consider it a percentile input
+                                g.logger.debug(f"{lp} it seems minimum confidence should be a percentile? "
+                                               f">>> {min_conf}")
+                                min_conf = (float(_m.group(1)) / 100.0)
+                            else:
+                                min_conf = float(_m.group(1))
+                        except TypeError or ValueError:
+                            g.logger.warning(f"{lp} {show_label} min_conf could not be converted to a FLOAT! Using 50%")
+                            min_conf = 0.5
+                            min_conf_found = "FLOAT ERROR - DEFAULT->50%"
+                    else:
+                        g.logger.warning(f"{lp} {show_label} minimum confidence malformed! ({min_conf}) Using 50%")
                         min_conf = 0.5
-                        min_conf_found = "FLOAT ERROR - DEFAULT->50%"
+                        min_conf_found = "MALFORMED - DEFAULT->50%"
                     g.logger.debug(
                         f"'{show_label}' minimum confidence found: ({min_conf_found}) -> '{min_conf}'"
                     )
@@ -505,7 +523,6 @@ class DetectSequence:
                         f"'{show_label}' max area of detected object found ({moa_found}) -> '{moa}'",
                     )
                     # Let's make sure it's the right size
-
                     _m = re.match(r"(\d*\.?\d*)(px|%)?$", moa, re.IGNORECASE)
                     if _m:
                         max_object_area = float(_m.group(1))
@@ -632,6 +649,7 @@ class DetectSequence:
             # FIXME match past detections
             # MATCH PAST DETECTIONS
             # todo add buffer and time based configurations
+            # Allows match_past_detections to be enabled using sequence options
             seq_mpd = seq_opt.get("match_past_detections")
             # g.logger.debug(f"{type(saved_event)=} {type(g.eid)=}")
             if (
@@ -713,7 +731,9 @@ class DetectSequence:
                         g.logger.debug(f"{lp} max detection area found! ({mda_found}) -> {mda}")
                         # Format max difference area
                         if mda:
-                            _m = re.match(r"(\d+)(px|%)?$", mda, re.IGNORECASE)
+                            # _m = re.match(r"(\d+)(px|%)?$", mda, re.IGNORECASE)
+                            _m = re.match(r"(\d*\.?\d*)(px|%)?$", mda, re.IGNORECASE)
+
                             if _m:
                                 max_diff_area = float(_m.group(1))
                                 use_percent = (
@@ -745,8 +765,7 @@ class DetectSequence:
 
                         g.logger.debug(
                             4,
-                            f"{lp} max difference in area configured ({mda_found}) -> '{mda}', comparing past "
-                            f"detections to current"
+                            f"{lp} max difference in area configured ({mda_found}) -> '{mda}', comparing past detections to current",
                         )
 
                         # Compare current detection to past detections AREA
