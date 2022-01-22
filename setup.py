@@ -11,7 +11,7 @@ NAME = 'neo-pyzm'
 DESCRIPTION = 'baudneo-FORKED: ZoneMinder API, Logger and other base utilities for python programmers'
 URL = 'https://github.com/baudneo/pyzm/'
 AUTHOR_EMAIL = 'baudneo@protonmail.com'
-AUTHOR = 'Pliable Pixels forked by baudneo'
+AUTHOR = 'baudneo'
 LICENSE = 'GPL'
 INSTALL_REQUIRES = [
     'pyyaml',
