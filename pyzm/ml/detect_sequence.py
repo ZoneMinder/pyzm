@@ -342,7 +342,6 @@ class DetectSequence:
             mpd_b = pkl_data['mpd_b']
             mpd_l = pkl_data['mpd_l']
             mpd_c = pkl_data['mpd_c']
-            g.logger.debug(f"PICKLE DATA: {pkl_data}")
         tot_labels: int = len(label) or 0
         max_object_area: Optional[Union[str, float]] = None
         contained_area: float = 10.0
@@ -658,7 +657,6 @@ class DetectSequence:
                     max_diff_area: Optional[Union[str, float]]
                     use_percent: bool = False
                     ignore_mpd: bool = False
-                    removed_by_mpd: bool = False
                     mda: Optional[str] = None
                     # Start in the general section of ml_sequence
                     if self.ml_options.get("general", {}).get("past_det_max_diff_area"):
@@ -668,11 +666,7 @@ class DetectSequence:
                             )
                             mda_found = "past_det_max_diff_area:general"
                     if self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area"):
-                        if (
-                                _is_unconverted(
-                                    self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area")
-                                )
-                        ):
+                        if _is_unconverted(self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area")):
                             mda = self.ml_options.get("general", {}).get(
                                 f"{label[idx]}_past_det_max_diff_area"
                             )
@@ -815,12 +809,13 @@ class DetectSequence:
                                         f"{lp} removing '{show_label}' as it seems to be in the same spot as it was "
                                         f"detected last time based on '{mda}' -> NOW: {b} --- PAST: {saved_b}"
                                     )
-                                    removed_by_mpd = True
+                                    new_err.append(b)
+                                    failed = True
+                                    continue
                                 else:
                                     g.logger.debug(
                                         4,
-                                        f"{lp} allowing '{show_label}' -> the difference in the area of last "
-                                        f"detection to this detection is '{diff_area:.2f}', a minimum of {max_diff_pixels:.2f} is needed to not be considered 'in the same spot'",
+                                        f"{lp} allowing '{show_label}' -> the difference in the area of last detection to this detection is '{diff_area:.2f}', a minimum of {max_diff_pixels:.2f} is needed to not be considered 'in the same spot'",
                                     )
                             # Saved does not intersect the current object/label
                             else:
@@ -829,21 +824,9 @@ class DetectSequence:
                                     f"{saved_ls[saved_idx]}' to evaluate for match past detection filter"
                                 )
                                 continue
-                            if removed_by_mpd:
-                                # if (
-                                #         saved_bs[saved_idx] not in mpd_b
-                                #         and saved_cs[saved_idx] not in mpd_c
-                                # ):
-                                #     g.logger.debug(
-                                #         f"{lp} saving the removed detection to re-add to the buffer for next detection"
-                                #     )
-                                #     mpd_b.append(saved_bs[saved_idx])
-                                #     mpd_c.append(saved_cs[saved_idx])
-                                #     mpd_l.append(saved_ls[saved_idx])
-                                # b is Polygon ready, box[idx] is the top left(x,y), bottom right(x,y)
-                                new_err.append(b)
-                                failed = True
-                                continue
+                        if failed:
+                            continue
+
                         # out of past detection bounding box loop, still inside if mpd
 
             elif (g.config.get("PAST_EVENT") and not str2bool(g.config.get('force_mpd'))) and (str2bool(mpd) or str2bool(seq_mpd)):
@@ -865,7 +848,6 @@ class DetectSequence:
             new_model_names.append(model_names[idx])
             new_bbox_to_poly.append(b)
             g.logger.debug(2, f"detection: '{show_label}' has PASSED filtering")
-            g.logger.debug(f"{new_bbox = } -- {new_label = } -- {new_conf = }")
         # out of primary bounding box loop
         if failed:
             g.logger.debug(
