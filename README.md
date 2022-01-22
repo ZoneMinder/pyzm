@@ -1,6 +1,8 @@
-<img src="https://raw.githubusercontent.com/pliablepixels/pyzm/master/images/pyzm.png" width="200"/>
+<img src="https://raw.githubusercontent.com/baudneo/pyzm/master/images/pyzm.png" width="200"/>
 
 # *** This is the 'neo-ZMES' forked version! ***
+## PULL FROM pull_req branch to test the code that is being reviewed for merge to upstream ZoneMinder repo
+
 
 # Note
 All credit goes to the original author @pliablepixels. Please see https://github.com/pliablepixels
