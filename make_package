@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 rm -fr dist
 python3 setup.py sdist
-twine upload dist/*
+twine upload --repository pyzm dist/*
