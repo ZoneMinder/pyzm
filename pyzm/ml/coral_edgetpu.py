@@ -20,6 +20,11 @@ from pyzm.interface import GlobalConfig
 g: GlobalConfig
 lp: str
 
+# global placeholders for TPU lib imports
+common = None
+detect = None
+make_interpreter = None
+
 
 class TPUException(Exception):
     def __init__(self, *args):
@@ -40,6 +45,7 @@ class Tpu(Object):
         g = GlobalConfig()
         self.lp = lp = 'coral:'
         try:
+            global common, detect, make_interpreter
             from pycoral.adapters import common
             from pycoral.adapters import detect
             from pycoral.utils.edgetpu import make_interpreter
