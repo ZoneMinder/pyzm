@@ -244,7 +244,7 @@ class DetectSequence:
                             "general", {}).get("disable_locks", "no")
                         g.logger.debug(
                             2,
-                            f"{lp} loading '{model}' sequence '{seq_name}' ({ndx} of {len(sequences)}"
+                            f"{lp} loading '{model}' sequence '{seq_name}' ({ndx} of {len(sequences)})"
                         )
                         try:
                             if model == 'object':
@@ -480,7 +480,7 @@ class DetectSequence:
                     min_conf_found = "NOT FOUND - DEFAULT->50%"
                 if min_conf:
                     # Allow for 0.XX , 34 or 34% input for confidence - 34 would be evaluated as 34%
-                    _m = re.match(r"(\d*\.?\d*)(%)?$", min_conf, re.IGNORECASE)
+                    _m = re.match(r"(\d*\.?\d*)(%)?$", str(min_conf), re.IGNORECASE)
                     if _m:
                         try:
                             if _m.group(2) == "%":
