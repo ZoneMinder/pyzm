@@ -324,7 +324,6 @@ class DetectSequence:
         elif 'general' not in self.ml_options:
             raise ValueError(f"_filter_detections -> ml_options:general is not configured!")
 
-
         saved_ls: Optional[List[str]] = None
         saved_bs: Optional[List[str]] = None
         saved_cs: Optional[List[str]] = None
@@ -371,19 +370,19 @@ class DetectSequence:
             if key_ in seq_opt and seq_opt[key_] is not None and not seq_opt[key_].startswith('{{'):
                 if key_ == 'object_min_confidence':
                     min_conf = seq_opt[key_]
-                    min_conf_found = f"Sequence {seq_opt.get('name')} -> {key_}:"
+                    min_conf_found = f"Sequence {seq_opt.get('name')} -> {key_}"
                     g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {min_conf = } -- {min_conf_found = }")
                 elif key_ == 'confidence_upper':
                     conf_upper = seq_opt[key_]
-                    conf_upper_found = f"Sequence {seq_opt.get('name')} -> {key_}:"
+                    conf_upper_found = f"Sequence {seq_opt.get('name')} -> {key_}"
                     g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {conf_upper = } -- {conf_upper_found = }")
                 elif key_ == 'max_detection_size':
                     moa = seq_opt[key_]
-                    moa_found = f"Sequence {seq_opt.get('name')} -> {key_}:"
+                    moa_found = f"Sequence {seq_opt.get('name')} -> {key_}"
                     g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {moa = } -- {moa_found = }")
                 elif key_ == 'contained_area':
                     ioa = seq_opt[key_]
-                    ioa_found = f"Sequence {seq_opt.get('name')} -> {key_}:"
+                    ioa_found = f"Sequence {seq_opt.get('name')} -> {key_}"
                     g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {ioa = } -- {ioa_found = }")
             elif (
                     key_ in self.ml_options.get('general')
@@ -392,19 +391,19 @@ class DetectSequence:
             ):
                 if key_ == 'object_min_confidence':
                     min_conf = self.ml_options.get('general').get(key_)
-                    min_conf_found = f"ml_sequence {model_name}:general -> {key_}:"
+                    min_conf_found = f"ml_sequence {model_name}:general -> {key_}"
                     g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {min_conf = } -- {min_conf_found = }")
                 elif key_ == 'confidence_upper':
                     conf_upper = self.ml_options.get('general').get(key_)
-                    conf_upper_found = f"ml_sequence {model_name}:general -> {key_}:"
+                    conf_upper_found = f"ml_sequence {model_name}:general -> {key_}"
                     g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {conf_upper = } -- {conf_upper_found = }")
                 elif key_ == 'max_detection_size':
                     moa = self.ml_options.get('general').get(key_)
-                    moa_found = f"ml_sequence general -> {key_}:"
+                    moa_found = f"ml_sequence general -> {key_}"
                     g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {moa = } -- {moa_found = }")
                 elif key_ == 'contained_area':
                     ioa = self.ml_options.get('general').get(key_)
-                    ioa_found = f"ml_sequence {model_name}:general -> {key_}:"
+                    ioa_found = f"ml_sequence {model_name}:general -> {key_}"
                     g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {ioa = } -- {ioa_found = }")
             elif (
                     key_ in self.ml_options.get(model_name, {}).get('general')
@@ -413,34 +412,33 @@ class DetectSequence:
             ):
                 if key_ == 'object_min_confidence':
                     min_conf = self.ml_options.get(model_name, {}).get('general').get(key_)
-                    min_conf_found = f"Model {model_name}:general -> {key_}:"
+                    min_conf_found = f"Model {model_name}:general -> {key_}"
                     g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {min_conf = } -- {min_conf_found = }")
                 elif key_ == 'confidence_upper':
                     conf_upper = self.ml_options.get(model_name, {}).get('general').get(key_)
-                    conf_upper_found = f"Model {model_name}:general -> {key_}:"
+                    conf_upper_found = f"Model {model_name}:general -> {key_}"
                     g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {conf_upper = } -- {conf_upper_found = }")
                 elif key_ == 'max_detection_size':
                     moa = self.ml_options.get(model_name, {}).get('general').get(key_)
-                    moa_found = f"Model {model_name}:general -> {key_}:"
+                    moa_found = f"Model {model_name}:general -> {key_}"
                     g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {moa = } -- {moa_found = }")
                 elif key_ == 'contained_area':
                     ioa = self.ml_options.get(model_name, {}).get('general').get(key_)
-                    ioa_found = f"Model {model_name}:general -> {key_}:"
+                    ioa_found = f"Model {model_name}:general -> {key_}"
                     g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {ioa = } -- {ioa_found = }")
         appended: bool = False
 
         for idx, b in enumerate(box):
-            lp = 'detect:'
+            lp = 'detect:filter:'
             if failed:
                 g.logger.debug(
                     2,
-                    f"detection: '{label[idx - 1]} ({idx}/{tot_labels})' has FAILED filtering",
+                    f"{lp} '{label[idx - 1]} ({idx}/{tot_labels})' has FAILED filtering",
                 )  # for each object that failed before loop end
                 failed = False
-            elif conf_upper_break and appended: # and self.ml_options.get(model_name, {}).get('general', {}).get('same_model_sequence_strategy') == 'first':
+            elif conf_upper_break and appended:
                 g.logger.debug(f"{lp} CONFIDENCE UPPER HAS BEEN HIT AND A MATCH WAS APPENDED TO THE RETURN DATA, "
                                f"BREAKING OUT OF FILTERING LOOP!")
-                # self.ml_options[model_name]['general']['same_model_sequence_strategy'] = 'first'
                 break
             elif conf_upper_break and not appended:
                 conf_upper_break = False
@@ -468,19 +466,19 @@ class DetectSequence:
                 ):
                     if key_ == "_object_min_confidence":
                         min_conf = seq_opt.get(f"{label[idx]}{key_}")
-                        min_conf_found = f"Sequence {seq_opt.get('name')} - {label[idx]}{key_}:"
+                        min_conf_found = f"Sequence {seq_opt.get('name')} -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {min_conf = } -- {min_conf_found = }")
                     elif key_ == '_confidence_upper':
                         conf_upper = seq_opt.get(f"{label[idx]}{key_}")
-                        conf_upper_found = f"Sequence {seq_opt.get('name')} - {label[idx]}{key_}:"
+                        conf_upper_found = f"Sequence {seq_opt.get('name')} -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {conf_upper = } -- {conf_upper_found = }")
                     elif key_ == "_max_detection_size":
                         moa = seq_opt.get(f"{label[idx]}{key_}")
-                        moa_found = f"Sequence {seq_opt.get('name')} - {label[idx]}{key_}:"
+                        moa_found = f"Sequence {seq_opt.get('name')} -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {moa = } -- {moa_found = }")
                     elif key_ == "_contained_area":
                         ioa = seq_opt.get(f"{label[idx]}{key_}")
-                        ioa_found = f"Sequence {seq_opt.get('name')} - {label[idx]}{key_}:"
+                        ioa_found = f"Sequence {seq_opt.get('name')} -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {ioa = } -- {ioa_found = }")
                 elif (
                         self.ml_options.get('general').get(f"{label[idx]}{key_}")
@@ -489,19 +487,19 @@ class DetectSequence:
                 ):
                     if key_ == '_min_confidence':
                         min_conf = self.ml_options.get('general').get(key_)
-                        min_conf_found = f"ml_sequence {model_name}:general -> {key_}:"
+                        min_conf_found = f"ml_sequence->general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {min_conf = } -- {min_conf_found = }")
                     elif key_ == '_confidence_upper':
                         conf_upper = self.ml_options.get('general').get(key_)
-                        conf_upper_found = f"ml_sequence {model_name}:general -> {key_}:"
+                        conf_upper_found = f"ml_sequence->general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {conf_upper = } -- {conf_upper_found = }")
                     elif key_ == '_max_detection_size':
                         moa = self.ml_options.get('general').get(key_)
-                        moa_found = f"ml_sequence general -> {key_}:"
+                        moa_found = f"ml_sequence->general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {moa = } -- {moa_found = }")
                     elif key_ == '_contained_area':
                         ioa = self.ml_options.get('general').get(key_)
-                        ioa_found = f"ml_sequence {model_name}:general -> {key_}:"
+                        ioa_found = f"ml_sequence->general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {ioa = } -- {ioa_found = }")
                 elif (
                         self.ml_options.get(model_name, {}).get('general').get(f"{label[idx]}{key_}")
@@ -511,19 +509,19 @@ class DetectSequence:
                 ):
                     if key_ == "_object_min_confidence":
                         min_conf = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}")
-                        min_conf_found = f"Model {model_name}:general -> {label[idx]}{key_}:"
+                        min_conf_found = f"Model {model_name}:general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {min_conf = } -- {min_conf_found = }")
                     elif key_ == '_confidence_upper':
                         conf_upper = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}")
-                        conf_upper_found = f"Model {model_name}:general -> {label[idx]}{key_}:"
+                        conf_upper_found = f"Model {model_name}:general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {conf_upper = } -- {conf_upper_found = }")
                     elif key_ == "_max_detection_size":
                         moa = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}")
-                        moa_found = f"Model {model_name}:general -> {label[idx]}{key_}:"
+                        moa_found = f"Model {model_name}:general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {moa = } -- {moa_found = }")
                     elif key_ == "_contained_area":
                         ioa = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}")
-                        ioa_found = f"Model {model_name}:general -> {label[idx]}{key_}:"
+                        ioa_found = f"Model {model_name}:general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {ioa = } -- {ioa_found = }")
 
             pattern_match = None
@@ -533,21 +531,54 @@ class DetectSequence:
                 p_ioa = p.get('contains', {})
                 p_moa = p.get('max_size', {})
                 p_min_conf = p.get('min_conf', {})
+                p_mpd = p.get('past_area_diff', {})
+                p_conf_upper = p.get('conf_upper', {})
+
                 p_ioa = {} if p_ioa is None else p_ioa
                 p_moa = {} if p_moa is None else p_moa
                 p_min_conf = {} if p_min_conf is None else p_min_conf
-                if label[idx] in p_ioa:
+                p_mpd = {} if p_mpd is None else p_mpd
+                p_conf_upper = {} if p_min_conf is None else p_conf_upper
+                if 'all' in p_mpd:
+                    mda = p['past_area_diff']['all']
+                    mda_found = f"Defined Zone:{p.get('name')} -> ALL"
+                    g.logger.debug(f"DEBUG!>>>'MPD' ZONE OPTIONS {mda = } -- {mda_found = }")
+                elif label[idx] in p_mpd:
+                    mda = p['past_area_diff'][label[idx]]
+                    mda_found = f"Defined Zone:{p.get('name')} -> {label[idx]}"
+                    g.logger.debug(f"DEBUG!>>>'MPD' ZONE OPTIONS {mda = } -- {mda_found = }")
+                if 'all' in p_conf_upper:
+                    conf_upper = p['conf_upper']['all']
+                    conf_upper_found = f"Defined Zone:{p.get('name')} -> ALL"
+                    g.logger.debug(f"DEBUG!>>>'CONF_UPPER' ZONE OPTIONS {conf_upper = } -- {conf_upper_found = }")
+                elif label[idx] in p_conf_upper:
+                    conf_upper = p['conf_upper'][label[idx]]
+                    conf_upper_found = f"Defined Zone:{p.get('name')} -> {label[idx]}"
+                    g.logger.debug(f"DEBUG!>>>'CONF_UPPER' ZONE OPTIONS {conf_upper = } -- {conf_upper_found = }")
+                if 'all' in p_ioa:
+                    ioa = p.get('contains').get('all')
+                    ioa_found = f"Defined Zone:{p.get('name')} -> ALL"
+                    g.logger.debug(f"DEBUG!>>>'CONTAINS' ZONE OPTIONS {ioa = } -- {ioa_found = }")
+                elif label[idx] in p_ioa:
                     ioa = p.get('contains').get(label[idx])
-                    ioa_found = f"Defined Zone:{p.get('name')}:{label[idx]}:"
-                    g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {ioa = } -- {ioa_found = }")
-                if label[idx] in p_moa:
+                    ioa_found = f"Defined Zone:{p.get('name')} -> {label[idx]}"
+                    g.logger.debug(f"DEBUG!>>>'CONTAINS' ZONE OPTIONS {ioa = } -- {ioa_found = }")
+                if 'all' in p_moa:
+                    moa = p.get('max_size').get('all')
+                    moa_found = f"Defined Zone:{p.get('name')} -> ALL"
+                    g.logger.debug(f"DEBUG!>>>'MAX_SIZE' ZONE OPTIONS {moa = } -- {moa_found = }")
+                elif label[idx] in p_moa:
                     moa = p.get('max_size').get(label[idx])
                     moa_found = f"Defined Zone:{p.get('name')}:{label[idx]}:"
-                    g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {moa = } -- {moa_found = }")
-                if label[idx] in p_min_conf:
+                    g.logger.debug(f"DEBUG!>>>'MAX_SIZE' ZONE OPTIONS {moa = } -- {moa_found = }")
+                if 'all' in p_min_conf:
+                    min_conf = p['min_conf']['all']
+                    min_conf_found = f"Defined Zone:{p.get('name')} -> ALL"
+                    g.logger.debug(f"DEBUG!>>>'MIN_CONF' ZONE OPTIONS {min_conf = } -- {min_conf_found = }")
+                elif label[idx] in p_min_conf:
                     min_conf = p.get('min_conf').get(label[idx])
                     min_conf_found = f"Defined Zone:{p.get('name')}:{label[idx]}:"
-                    g.logger.debug(f"DEBUG!>>> ZONE OPTIONS {min_conf = } -- {min_conf_found = }")
+                    g.logger.debug(f"DEBUG!>>>'MIN_CONF' ZONE OPTIONS {min_conf = } -- {min_conf_found = }")
 
                 if not min_conf:
                     # min_conf IS REQUIRED
@@ -555,15 +586,18 @@ class DetectSequence:
                     min_conf = 0.5
                     min_conf_found = "NOT FOUND - DEFAULT->50%"
                 if min_conf:
-                    # Allow for 0.XX , 34 or 34% input for confidence - 34 would be evaluated as 34%
-                    _m = re.match(r"(\d*\.?\d*)(%)?$", str(min_conf), re.IGNORECASE)
+                    # Allow for [0*]0.XX , 34 or 34% input for confidence - 34 would be evaluated as 34%
+                    _m = re.match(r"(0*?\.?\d*)(%)?$", str(min_conf), re.IGNORECASE)
                     if _m:
                         try:
+                            starts_with: Optional[re.Match] = None
+                            if _m.group(1):
+                                starts_with = re.search(r'(0*\.?)(\d*)(%)?$', _m.group(1), re.IGNORECASE)
                             if _m.group(2) == "%":
                                 # Explicit %
-                                min_conf = float(float(_m.group(1)) / 100.0)
-                            elif not _m.group(1).startswith('.') and not _m.group(1).startswith('0.'):
-                                # there is no % at end and the string does not start with 0. or .
+                                min_conf = (float(_m.group(1)) / 100.0)
+                            elif starts_with and not starts_with.group(1):
+                                # there is no % at end and the string does not start with 0*. or .
                                 # consider it a percentile input
                                 g.logger.debug(f"{lp} it seems minimum confidence should be a percentile? "
                                                f">>> {min_conf}")
@@ -596,14 +630,15 @@ class DetectSequence:
                     # Allow for 0.XX , 34 or 34% input for confidence - 34 would be evaluated as 34%
                     _m = re.match(r"(\d*\.?\d*)(%)?$", str(conf_upper), re.IGNORECASE)
                     if _m:
-                        g.logger.debug(f"\n -- {_m.groups() = }")
                         try:
+                            starts_with: Optional[re.Match] = None
+                            if _m.group(1):
+                                starts_with = re.search(r'(0*\.?)(\d*)(%)?$', _m.group(1), re.IGNORECASE)
                             if _m.group(2) == "%":
                                 # Explicit %
-                                g.logger.debug(f"CONFIDENCE UPPER IS EXPLICITLY % ---- {_m.group(1) = }")
-                                conf_upper = float(float(_m.group(1)) / 100.0)
-                            elif not _m.group(1).startswith('.') and not _m.group(1).startswith('0.'):
-                                # there is no % at end and the string does not start with 0. or .
+                                conf_upper = (float(_m.group(1)) / 100.0)
+                            elif starts_with and not starts_with.group(1):
+                                # there is no % at end and the string does not start with 0*. or .
                                 # consider it a percentile input
                                 g.logger.debug(f"{lp} it seems confidence_upper should be a percentile? "
                                                f">>> {conf_upper}")
@@ -617,7 +652,7 @@ class DetectSequence:
                             g.logger.debug(
                                 f"'{show_label}' UPPER confidence found: ({conf_upper_found}) -> '{conf_upper}'"
                             )
-                            if conf[idx] >= conf_upper:  # confidence filter
+                            if conf[idx] >= conf_upper:  # upper confidence filter (satisfactory/good enough logic)
                                 g.logger.debug(
                                     2,
                                     f"confidence: {conf[idx] * 100:.2f} is equal to or higher than "
@@ -1533,8 +1568,8 @@ class DetectSequence:
                     g.logger.debug(f"Adding the current detection to the MATCH PAST DETECTION buffer!")
                 if filtered_extras.get('mpd_stats'):
                     mpd_stats = filtered_extras.get('mpd_stats')
-                    results = sorted(mpd_stats)
-                    g.logger.debug(f"{mpd_stats = } -- sorted mpd_stats = {results}")
+                    # results = sorted(mpd_stats)
+                    # g.logger.debug(f"{mpd_stats = } -- sorted mpd_stats = {results}")
 
             pkl("write", mpd_b, mpd_l, mpd_c, g.eid)
         self.media.stop()
