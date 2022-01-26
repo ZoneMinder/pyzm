@@ -23,6 +23,7 @@ Important:
 """
 
 import datetime
+from traceback import format_exc
 
 import requests
 from requests import Session
@@ -159,17 +160,24 @@ class ZMApi:
             self._login()
 
     def cred_dump(self):
-        ret_val = {
-            "user": self.options.get('user'),
-            "password": self.options.get('password'),
-            "allow_self_signed": self.options.get("disable_ssl_cert_check"),
-            "access_token": self.access_token,
-            "refresh_token": self.refresh_token,
-            "access_token_datetime": self.access_token_datetime.timestamp(),
-            "refresh_token_datetime": self.refresh_token_datetime.timestamp(),
-            "api_version": self.api_version,
-            "zm_version": self.zm_version,
-        }
+        ret_val: Optional[dict] = None
+        try:
+            ret_val = {
+                "user": self.options.get('user'),
+                "password": self.options.get('password'),
+                "allow_self_signed": self.options.get("disable_ssl_cert_check"),
+                "access_token": self.access_token,
+                "refresh_token": self.refresh_token,
+                "access_token_datetime": self.access_token_datetime.timestamp(),
+                "refresh_token_datetime": self.refresh_token_datetime.timestamp(),
+                "api_version": self.api_version,
+                "zm_version": self.zm_version,
+            }
+        except Exception as e:
+            g.logger.error(f"{lp} ERROR while attempting to dump current credentials")
+            g.logger.debug(f"CRED DUMP DEBUG>>>  exception as str -> {e}")
+            g.logger.debug(format_exc())
+
         return ret_val
 
     @staticmethod
