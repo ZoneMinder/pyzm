@@ -1426,7 +1426,7 @@ class LogBuffer:
             # sort it by timestamp
             self.buffer = sorted(self.buffer, key=lambda x: x['timestamp'], reverse=True)
             for _ in range(len(self.buffer)):
-                line = self.buffer.pop()
+                line = self.buffer.pop() if len(self.buffer) > 0 else None
                 if line:
                     fnfl = f"{line['filename']}:{line['lineno']}"
                     print_log_string = (f"{line['timestamp']} LOG_BUFFER[{os.getpid()}] {line['display_level']} " 

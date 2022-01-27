@@ -329,9 +329,9 @@ class DetectSequence:
         saved_cs: Optional[List[str]] = None
         saved_event: Optional[str] = None
         mpd: Optional[Union[str, bool]] = None
-        mpd_b: Optional[list] = None
-        mpd_l: Optional[list] = None
-        mpd_c: Optional[list] = None
+        mpd_b: list = []
+        mpd_l: list = []
+        mpd_c: list = []
         mpd_stats: dict = {}
 
         if pkl_data:
@@ -371,19 +371,19 @@ class DetectSequence:
                 if key_ == 'object_min_confidence':
                     min_conf = seq_opt[key_]
                     min_conf_found = f"Sequence {seq_opt.get('name')} -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {min_conf = } -- {min_conf_found = }")
+                    g.logger.debug(f"DEBUG!>>> {model_name.upper()} SEQUENCE OPTIONS {min_conf = } -- {min_conf_found = }")
                 elif key_ == 'confidence_upper':
                     conf_upper = seq_opt[key_]
                     conf_upper_found = f"Sequence {seq_opt.get('name')} -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {conf_upper = } -- {conf_upper_found = }")
+                    g.logger.debug(f"DEBUG!>>> {model_name.upper()} SEQUENCE OPTIONS {conf_upper = } -- {conf_upper_found = }")
                 elif key_ == 'max_detection_size':
                     moa = seq_opt[key_]
                     moa_found = f"Sequence {seq_opt.get('name')} -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {moa = } -- {moa_found = }")
+                    g.logger.debug(f"DEBUG!>>> {model_name.upper()} SEQUENCE OPTIONS {moa = } -- {moa_found = }")
                 elif key_ == 'contained_area':
                     ioa = seq_opt[key_]
                     ioa_found = f"Sequence {seq_opt.get('name')} -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> SEQUENCE OPTIONS {ioa = } -- {ioa_found = }")
+                    g.logger.debug(f"DEBUG!>>> {model_name.upper()} SEQUENCE OPTIONS {ioa = } -- {ioa_found = }")
             elif (
                     key_ in self.ml_options.get('general')
                     and self.ml_options.get('general')[key_] is not None
@@ -391,20 +391,20 @@ class DetectSequence:
             ):
                 if key_ == 'object_min_confidence':
                     min_conf = self.ml_options.get('general').get(key_)
-                    min_conf_found = f"ml_sequence {model_name}:general -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {min_conf = } -- {min_conf_found = }")
+                    min_conf_found = f"ml_sequence:general -> {key_}"
+                    g.logger.debug(f"DEBUG!>>> ml_sequence>general OPTIONS {min_conf = } -- {min_conf_found = }")
                 elif key_ == 'confidence_upper':
                     conf_upper = self.ml_options.get('general').get(key_)
-                    conf_upper_found = f"ml_sequence {model_name}:general -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {conf_upper = } -- {conf_upper_found = }")
+                    conf_upper_found = f"ml_sequence:general -> {key_}"
+                    g.logger.debug(f"DEBUG!>>> ml_sequence>general OPTIONS {conf_upper = } -- {conf_upper_found = }")
                 elif key_ == 'max_detection_size':
                     moa = self.ml_options.get('general').get(key_)
-                    moa_found = f"ml_sequence general -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {moa = } -- {moa_found = }")
+                    moa_found = f"ml_sequence:general -> {key_}"
+                    g.logger.debug(f"DEBUG!>>> ml_sequence>general OPTIONS {moa = } -- {moa_found = }")
                 elif key_ == 'contained_area':
                     ioa = self.ml_options.get('general').get(key_)
-                    ioa_found = f"ml_sequence {model_name}:general -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {ioa = } -- {ioa_found = }")
+                    ioa_found = f"ml_sequence:general -> {key_}"
+                    g.logger.debug(f"DEBUG!>>> ml_sequence>general OPTIONS {ioa = } -- {ioa_found = }")
             elif (
                     key_ in self.ml_options.get(model_name, {}).get('general')
                     and self.ml_options.get(model_name, {}).get('general')[key_] is not None
@@ -413,19 +413,19 @@ class DetectSequence:
                 if key_ == 'object_min_confidence':
                     min_conf = self.ml_options.get(model_name, {}).get('general').get(key_)
                     min_conf_found = f"Model {model_name}:general -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {min_conf = } -- {min_conf_found = }")
+                    g.logger.debug(f"DEBUG!>>> MODEL {model_name.upper()}>GENERAL OPTIONS {min_conf = } -- {min_conf_found = }")
                 elif key_ == 'confidence_upper':
                     conf_upper = self.ml_options.get(model_name, {}).get('general').get(key_)
                     conf_upper_found = f"Model {model_name}:general -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {conf_upper = } -- {conf_upper_found = }")
+                    g.logger.debug(f"DEBUG!>>> MODEL {model_name.upper()}>GENERAL OPTIONS {conf_upper = } -- {conf_upper_found = }")
                 elif key_ == 'max_detection_size':
                     moa = self.ml_options.get(model_name, {}).get('general').get(key_)
                     moa_found = f"Model {model_name}:general -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {moa = } -- {moa_found = }")
+                    g.logger.debug(f"DEBUG!>>> MODEL {model_name.upper()}>GENERAL OPTIONS {moa = } -- {moa_found = }")
                 elif key_ == 'contained_area':
                     ioa = self.ml_options.get(model_name, {}).get('general').get(key_)
                     ioa_found = f"Model {model_name}:general -> {key_}"
-                    g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {ioa = } -- {ioa_found = }")
+                    g.logger.debug(f"DEBUG!>>> MODEL {model_name.upper()}>GENERAL OPTIONS {ioa = } -- {ioa_found = }")
         appended: bool = False
 
         for idx, b in enumerate(box):
@@ -487,19 +487,19 @@ class DetectSequence:
                 ):
                     if key_ == '_min_confidence':
                         min_conf = self.ml_options.get('general').get(key_)
-                        min_conf_found = f"ml_sequence->general -> {label[idx]}{key_}"
+                        min_conf_found = f"ml_sequence:general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {min_conf = } -- {min_conf_found = }")
                     elif key_ == '_confidence_upper':
                         conf_upper = self.ml_options.get('general').get(key_)
-                        conf_upper_found = f"ml_sequence->general -> {label[idx]}{key_}"
+                        conf_upper_found = f"ml_sequence:general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {conf_upper = } -- {conf_upper_found = }")
                     elif key_ == '_max_detection_size':
                         moa = self.ml_options.get('general').get(key_)
-                        moa_found = f"ml_sequence->general -> {label[idx]}{key_}"
+                        moa_found = f"ml_sequence:general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {moa = } -- {moa_found = }")
                     elif key_ == '_contained_area':
                         ioa = self.ml_options.get('general').get(key_)
-                        ioa_found = f"ml_sequence->general -> {label[idx]}{key_}"
+                        ioa_found = f"ml_sequence:general -> {label[idx]}{key_}"
                         g.logger.debug(f"DEBUG!>>> ml_sequence OPTIONS {ioa = } -- {ioa_found = }")
                 elif (
                         self.ml_options.get(model_name, {}).get('general').get(f"{label[idx]}{key_}")
@@ -525,7 +525,9 @@ class DetectSequence:
                         g.logger.debug(f"DEBUG!>>> MODEL OPTIONS {ioa = } -- {ioa_found = }")
 
             pattern_match = None
-
+            p_mpd: Optional[dict] = None
+            mda: Optional[str] = None
+            mda_found: str = ''
             for p in polygons:
                 # defined 'zones'
                 p_ioa = p.get('contains', {})
@@ -539,14 +541,6 @@ class DetectSequence:
                 p_min_conf = {} if p_min_conf is None else p_min_conf
                 p_mpd = {} if p_mpd is None else p_mpd
                 p_conf_upper = {} if p_min_conf is None else p_conf_upper
-                if 'all' in p_mpd:
-                    mda = p['past_area_diff']['all']
-                    mda_found = f"Defined Zone:{p.get('name')} -> ALL"
-                    g.logger.debug(f"DEBUG!>>>'MPD' ZONE OPTIONS {mda = } -- {mda_found = }")
-                elif label[idx] in p_mpd:
-                    mda = p['past_area_diff'][label[idx]]
-                    mda_found = f"Defined Zone:{p.get('name')} -> {label[idx]}"
-                    g.logger.debug(f"DEBUG!>>>'MPD' ZONE OPTIONS {mda = } -- {mda_found = }")
                 if 'all' in p_conf_upper:
                     conf_upper = p['conf_upper']['all']
                     conf_upper_found = f"Defined Zone:{p.get('name')} -> ALL"
@@ -555,6 +549,14 @@ class DetectSequence:
                     conf_upper = p['conf_upper'][label[idx]]
                     conf_upper_found = f"Defined Zone:{p.get('name')} -> {label[idx]}"
                     g.logger.debug(f"DEBUG!>>>'CONF_UPPER' ZONE OPTIONS {conf_upper = } -- {conf_upper_found = }")
+                if 'all' in p_mpd:
+                    mda = p['past_area_diff']['all']
+                    mda_found = f"Defined Zone:{p.get('name')} -> ALL"
+                    g.logger.debug(f"DEBUG!>>>'MPD' ZONE OPTIONS {mda = } -- {mda_found = }")
+                elif label[idx] in p_mpd:
+                    mda = p['past_area_diff'][label[idx]]
+                    mda_found = f"Defined Zone:{p.get('name')} -> {label[idx]}"
+                    g.logger.debug(f"DEBUG!>>>'MPD' ZONE OPTIONS {mda = } -- {mda_found = }")
                 if 'all' in p_ioa:
                     ioa = p.get('contains').get('all')
                     ioa_found = f"Defined Zone:{p.get('name')} -> ALL"
@@ -813,25 +815,37 @@ class DetectSequence:
                         f"{lp} there are no saved detections to evaluate, skipping match past detection filter"
                     )
                 else:
-                    mda_found: str = ''
+
                     max_diff_area: Optional[Union[str, float]]
                     use_percent: bool = False
                     ignore_mpd: bool = False
-                    mda: Optional[str] = None
-                    # Start in the general section of ml_sequence
-                    if self.ml_options.get("general", {}).get("past_det_max_diff_area"):
-                        if _is_unconverted(self.ml_options.get("general", {}).get("past_det_max_diff_area")):
-                            mda = self.ml_options.get("general", {}).get(
-                                f"past_det_max_diff_area"
-                            )
-                            mda_found = "past_det_max_diff_area:general"
-                    if self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area"):
-                        if _is_unconverted(self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area")):
-                            mda = self.ml_options.get("general", {}).get(
-                                f"{label[idx]}_past_det_max_diff_area"
-                            )
-                            mda_found = f"{label[idx]}:overridden:general"
-
+                    # Check if the pre-defined zone filter was already set as it takes precedence
+                    if not p_mpd and not mda:
+                        # Start in the general section of ml_sequence
+                        if self.ml_options.get("general", {}).get("past_det_max_diff_area"):
+                            if _is_unconverted(self.ml_options["general"]["past_det_max_diff_area"]):
+                                mda = self.ml_options["general"]["past_det_max_diff_area"]
+                                mda_found = f"ml_sequence:general -> past_det_max_diff_area"
+                        if self.ml_options.get("general", {}).get(f"{label[idx]}_past_det_max_diff_area"):
+                            if _is_unconverted(self.ml_options["general"][f"{label[idx]}_past_det_max_diff_area"]):
+                                mda = self.ml_options["general"][f"{label[idx]}_past_det_max_diff_area"]
+                                mda_found = f"ml_sequence:general -> {label[idx]}_past_det_max_diff_area"
+                        # MODEL_NAME>general
+                        if self.ml_options.get(model_name, {}).get("general", {}).get("past_det_max_diff_area"):
+                            if _is_unconverted(self.ml_options[model_name]["general"]["past_det_max_diff_area"]):
+                                mda = self.ml_options[model_name]["general"]["past_det_max_diff_area"]
+                                mda_found = f"Model {model_name}:general -> past_det_max_diff_area"
+                        if self.ml_options.get(model_name, {}).get("general", {}).get(f"{label[idx]}_past_det_max_diff_area"):
+                            if _is_unconverted(self.ml_options[model_name]["general"][f"{label[idx]}_past_det_max_diff_area"]):
+                                mda = self.ml_options[model_name]["general"][f"{label[idx]}_past_det_max_diff_area"]
+                                mda_found = f"Model {model_name}:general -> {label[idx]}_past_det_max_diff_area"
+                        # Sequence options
+                        if seq_opt.get("past_det_max_diff_area"):
+                            mda = seq_opt.get("past_det_max_diff_area")
+                            mda_found = f"Sequence {seq_opt.get('name')} -> past_det_max_diff_area"
+                        if seq_opt.get(f"{label[idx]}_past_det_max_diff_area"):
+                            mda = seq_opt.get(f"{label[idx]}_past_det_max_diff_area")
+                            mda_found = f"Sequence {seq_opt.get('name')} -> {label[idx]}_past_det_max_diff_area"
                     # Check if the mpd_ignore option is configured in general or in the per sequence
                     mpd_ig = self.ml_options.get("general", {}).get("ignore_past_detection_labels")
                     # If it is still a string it needs to be evaluated into a list
@@ -841,27 +855,15 @@ class DetectSequence:
                             if not isinstance(mpd_ig, list):
                                 g.logger.warning(f'{lp} ignore_past_detection_labels is not a list after evaluation! '
                                                  f'raising ValueError')
-                                raise ValueError()
+                                raise ValueError('ignore_past_detection_labels is malformed!')
                         except ValueError or SyntaxError as e:
                             g.logger.warning(
                                 f"{lp} ignore_past_detection_labels ("
-                                f"{self.ml_options.get('general', {}).get('ignore_past_detection_labels')}) "
+                                f"{self.ml_options['general']['ignore_past_detection_labels']}) "
                                 f"is malformed, ignoring..."
                             )
-
                             g.logger.debug(f"{lp} ignore_past_detection_labels EXCEPTION MESSAGE: {e}")
                             mpd_ig = []
-
-                    # Sequence options
-                    if seq_opt.get("past_det_max_diff_area"):
-                        mda = seq_opt.get("past_det_max_diff_area")
-                        mda_found = (
-                            f'past_det_max_diff_area:sequence->{seq_opt.get("name")}'
-                        )
-                    if seq_opt.get(f"{label[idx]}_past_det_max_diff_area"):
-                        mda = seq_opt.get(f"{label[idx]}_past_det_max_diff_area")
-                        mda_found = f'overridden:sequence->{seq_opt.get("name")}'
-
                     if mpd_ig and label[idx] in mpd_ig:
                         g.logger.debug(
                             4,
@@ -912,7 +914,6 @@ class DetectSequence:
 
                         # Compare current detection to past detections AREA
                         for saved_idx, saved_b in enumerate(saved_bs):
-                            g.logger.debug(f"{type(saved_b) = } -- {saved_b = }")
                             mpd_stats[str(saved_b)] = 0
                             # compare current detection element with saved list from file
                             found_past_match = False
@@ -974,6 +975,13 @@ class DetectSequence:
                                         f"- Configured maximum difference in pixels: {max_diff_pixels}"
                                     )
                                     mpd_stats[str(saved_b)] += 1
+                                    if saved_b not in mpd_b:
+                                        g.logger.debug(f"DEBUG>>>>'MPD' appending this saved detection to the mpd "
+                                                       f"buffer as it has removed a detection so should be propagated "
+                                                       f"to the next event")
+                                        mpd_b.append(saved_bs[saved_idx])
+                                        mpd_l.append(saved_ls[saved_idx])
+                                        mpd_c.append(saved_cs[saved_idx])
                                     new_err.append(b)
                                     failed = True
                                     continue
@@ -1167,8 +1175,8 @@ class DetectSequence:
                 "mpd_c": mpd_c,
             }
             g.logger.debug(
-                f"{lp}mpd: last_event={saved_event} -- saved labels=[{saved_ls}] -- saved_bbox=[{saved_bs}] -- "
-                f"saved conf=[{saved_cs}]")
+                f"{lp}mpd: last_event={saved_event} -- saved labels={saved_ls} -- saved_bbox={saved_bs} -- "
+                f"saved conf={saved_cs}")
         if len(self.model_sequence) > 1:
             g.logger.debug(
                 2,
@@ -1561,7 +1569,7 @@ class DetectSequence:
             # TODO: should have logic to check if objects were removed by mpd, if so keep the old detection data
             # Write detections to the MPD buffer to be evaluated next time
             if filtered_extras:
-                if matched_b:
+                if matched_b and matched_b not in mpd_b:
                     mpd_b.extend(matched_b)
                     mpd_c.extend(matched_c)
                     mpd_l.extend(matched_l)
@@ -1570,7 +1578,7 @@ class DetectSequence:
                     mpd_stats = filtered_extras.get('mpd_stats')
                     # results = sorted(mpd_stats)
                     # g.logger.debug(f"{mpd_stats = } -- sorted mpd_stats = {results}")
-
+            # g.logger.debug(f"\nMPD_X>>> {mpd_b = } -- {mpd_l = } -- {mpd_c = } ")
             pkl("write", mpd_b, mpd_l, mpd_c, g.eid)
         self.media.stop()
         # if invoked again, we need to resize polys

@@ -366,7 +366,7 @@ class ZMLog:
         if self.buffer.buffer and len(self.buffer.buffer):
             self.buffer.buffer = sorted(self.buffer.buffer, key=lambda x: x['timestamp'], reverse=True)
             for _ in range(len(self.buffer)):
-                if self.buffer:
+                if self.buffer is not None:
                     # pop it just in case it somehow gets iterated again
                     line = self.buffer.pop()
                     if line:
