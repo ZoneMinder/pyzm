@@ -162,6 +162,9 @@ class ZMApi:
     def cred_dump(self):
         ret_val: Optional[dict] = None
         try:
+            # while not self.access_token_datetime:
+            #     sleep(0.1)
+            g.logger.debug(f"\nASKING FOR A CRED DUMP NOW!!\n")
             ret_val = {
                 "user": self.options.get('user'),
                 "password": self.options.get('password'),
@@ -366,6 +369,7 @@ class ZMApi:
                         self.refresh_token_expires = int(
                             rj.get("refresh_token_expires")
                         )
+
                         self.refresh_token_datetime = (
                                 datetime.datetime.now()
                                 + datetime.timedelta(seconds=self.refresh_token_expires)
