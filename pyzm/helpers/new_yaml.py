@@ -8,6 +8,7 @@ import time
 from ast import literal_eval
 from configparser import ConfigParser
 from copy import deepcopy
+from datetime import datetime
 from pathlib import Path
 from re import compile
 from shutil import which
@@ -726,7 +727,7 @@ class ConfigParse:
 
 
 
-def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False):
+def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False, new_=None):
     # Setup logger and API, baredebug means DEBUG level logging but do not output to console
     # this is handy if you are monitoring the log files with tail -F (or the provided es.log.<detect/base> or mlapi.log)
     # otherwise you get double output. mlapi and ZMES override their std.out and std.err in order to catch all errors
@@ -828,10 +829,15 @@ def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool
         log_name = 'zmes_external'
         if args.get('logname'):
             log_name = args.get('logname')
-    # print(f"DBG>> before intializing ZMLog -> pyzm_overrides = {config['pyzm_overrides']}")
+    # print(f"DBG>> before initializing ZMLog -> pyzm_overrides = {config['pyzm_overrides']}")
     if not isinstance(g.logger, ZMLog):
         g.logger = ZMLog(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
     # print(f"DBG>> AFTER {g.logger.get_config()}")
+    if new_ and isinstance(new_, datetime):
+        from pyzm.helpers.pyzm_utils import time_format
+        g.logger.debug(f"\n\nZONEMINDER: EventStartCommand was called -> {time_format(new_)}\n\n")
+        g.logger.log_close(exit=0)
+        exit(0)
 
 
 def process_config(
