@@ -21,6 +21,7 @@ from pathlib import Path
 
 import numpy as np
 import cv2
+
 # Pycharm hack for intellisense
 # from cv2 import cv2
 from pyzm.interface import GlobalConfig
@@ -60,29 +61,25 @@ class Timer:
         return self.get_ms()
 
 
-def createAnimation(
-        image=None,
-        options: dict = None,
-        perf=None
-):
+def createAnimation(image=None, options: dict = None, perf=None):
     import imageio
 
     def timestamp_it(img, ts_, ts_h, ts_w):
-        ts_format = ts_.get('date format', '%Y-%m-%d %h:%m:%s')
+        ts_format = ts_.get("date format", "%Y-%m-%d %h:%m:%s")
         try:
             grab_frame = int(fid) - 1
             ts_text = (
                 f"{datetime.datetime.strptime(g.Frame[grab_frame].get('TimeStamp'), ts_format)}"
-                if g.Frame and g.Frame[grab_frame].get('TimeStamp')
+                if g.Frame and g.Frame[grab_frame].get("TimeStamp")
                 else datetime.datetime.now().strftime(ts_format)
             )
         except IndexError:  # frame ID converted to index isn't there? make the timestamp now()
             ts_text = datetime.datetime.now().strftime(ts_format)
         else:
-            if str2bool(ts_.get('monitor id')):
+            if str2bool(ts_.get("monitor id")):
                 ts_text = f"{ts_text} - {mon_name} ({g.mid})"
-        ts_text_color = ts_.get('text color')
-        ts_bg_color = ts_.get('bg color')
+        ts_text_color = ts_.get("text color")
+        ts_bg_color = ts_.get("bg color")
         ts_bg = str2bool(ts_.get("background"))
         return write_text(
             img,
@@ -98,9 +95,8 @@ def createAnimation(
         )
 
     images = None  # so we only do the frame grabbing loop 1 time
-    g = options['conf globals']
-    fid = int(options['fid'])
-    file_name = options['file name']
+    fid = int(options["fid"])
+    file_name = options["file name"]
     ani_types = g.config.get("animation_types")
     log_prefix = "animation:create:"
     if isinstance(ani_types, str):
@@ -108,9 +104,7 @@ def createAnimation(
             ani_type = ani_type.lstrip(".").strip("'").lower()
             animation_file = Path(f"{file_name}.{ani_type}")
             does_exist = animation_file.exists()
-            if does_exist and not (
-                    str2bool(g.config.get("force_animation"))
-            ):
+            if does_exist and not (str2bool(g.config.get("force_animation"))):
                 g.logger.debug(
                     f"{log_prefix} {file_name}.{ani_type} already exists and 'force_animation' isn't "
                     f"configured, skipping..."
@@ -119,23 +113,26 @@ def createAnimation(
                 g.animation_seconds = (datetime.datetime.now() - start).total_seconds()
                 return
 
-            image_grab_url = f"{g.config.get('portal')}/index.php?view=image&eid={g.eid}"
+            image_grab_url = (
+                f"{g.config.get('portal')}/index.php?view=image&eid={g.eid}"
+            )
             animation_retries = int(g.config["animation_max_tries"])
             sleep_secs = g.config["animation_retry_sleep"]
             length, fps, last_tot_frame = 0, 0, 0
-            mon_name: str = ''
+            mon_name: str = ""
             fast_gif = str2bool(g.config.get("fast_gif"))
             buffer_seconds = 5
             target_fps = 2
             for x in range(animation_retries):
                 if (
-                        ((not g.api_event_response)
-                         and ((g.config.get("PAST_EVENT") and x == 0)
-                              or (not g.config.get("PAST_EVENT"))))
-                        or (not g.config.get("PAST_EVENT") and x > 0)
-                ):
+                    (not g.api_event_response)
+                    and (
+                        (g.config.get("PAST_EVENT") and x == 0)
+                        or (not g.config.get("PAST_EVENT"))
+                    )
+                ) or (not g.config.get("PAST_EVENT") and x > 0):
                     g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
-                mon_name = g.config.get('mon_name', g.Monitor["Name"])
+                mon_name = g.config.get("mon_name", g.Monitor["Name"])
                 if g.Frame is None or g.event_tot_frames < 1:
                     g.logger.debug(
                         f"{log_prefix} event: {g.eid} does not have any frames written into the frame buffer, "
@@ -160,7 +157,9 @@ def createAnimation(
                         f"{fid=} | {fps=} | {buffer_seconds=} | {total_time=} | {target_fps=}"
                     )
                     break
-                if not g.event_tot_frames >= fb_length_needed:  # Frame buffer needs to grow
+                if (
+                    not g.event_tot_frames >= fb_length_needed
+                ):  # Frame buffer needs to grow
                     over_by = fid + (fps * buffer_seconds) - g.event_tot_frames
                     # we know total frames wont change so reduce fid or buffer_seconds to make it work
                     if g.config.get("PAST_EVENT"):
@@ -213,7 +212,9 @@ def createAnimation(
                 f"Start Frame: {start_frame} - End Frame: {end_frame} - Skipping Every {skip} Frames -  FPS: {fps}"
             )
             vid_w = int(g.config.get("animation_width"))
-            if images is None:  # So we don't grab the frames over again if creating 2+ animations
+            if (
+                images is None
+            ):  # So we don't grab the frames over again if creating 2+ animations
                 g.logger.debug(
                     f"{log_prefix}:event: {g.eid} frame buffer ready to create {ani_type}, grabbing frames..."
                 )
@@ -224,7 +225,9 @@ def createAnimation(
                 dim = None
                 ts_font_type = cv2.FONT_HERSHEY_DUPLEX
 
-                if image is not None:  # sent objdetect.jpg; resize and timestamp if configured
+                if (
+                    image is not None
+                ):  # sent objdetect.jpg; resize and timestamp if configured
                     # Resize to configured animation_width
                     o_h, o_w = image.shape[:2]
                     image = resize_image(image, vid_w, quiet=True)
@@ -234,11 +237,8 @@ def createAnimation(
                         f" -> {o_h}*{o_w} -> resized image with width: {vid_w} to {h}*{w}"
                     )
                     # Timestamp each frame in the animation
-                    ts_ = g.config.get('animation_timestamp', {})
-                    if (
-                            ts_
-                            and str2bool(ts_.get('enabled'))
-                    ):
+                    ts_ = g.config.get("animation_timestamp", {})
+                    if ts_ and str2bool(ts_.get("enabled")):
                         image = timestamp_it(image, ts_, ts_h=h, ts_w=w)
                 # grab the frame ID (frametype will always be a str of a frameID -> '212')
                 elif image is None and ani_type == "mp4":
@@ -251,13 +251,14 @@ def createAnimation(
                         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                         img = resize_image(img, vid_w, quiet=True)
                     except Exception as ex:
-                        g.logger.error(f"{log_prefix} ERROR when building the first frame for {ani_type} -> {ex}")
+                        g.logger.error(
+                            f"{log_prefix} ERROR when building the first frame for {ani_type} -> {ex}"
+                        )
                     else:
                         ts_h, ts_w = img.shape[:2]
-                        ts_ = g.config.get('animation_timestamp', {})
-                        if ts_ and str2bool(ts_.get('enabled')):
+                        ts_ = g.config.get("animation_timestamp", {})
+                        if ts_ and str2bool(ts_.get("enabled")):
                             image = timestamp_it(img, ts_, ts_h=ts_h, ts_w=ts_w)
-
 
                 frame_loop = 0
                 for i in range(start_frame, end_frame + 1, skip):
@@ -277,8 +278,8 @@ def createAnimation(
                                 f"{log_prefix} resizing grabbed frames from {(h, w)} to 'animation_width' -> "
                                 f"{vid_w} turns into --> {img.shape[:2]}"
                             )
-                        ts_ = g.config.get('animation_timestamp', {})
-                        if ts_ and str2bool(ts_.get('enabled')):
+                        ts_ = g.config.get("animation_timestamp", {})
+                        if ts_ and str2bool(ts_.get("enabled")):
                             img = timestamp_it(img, ts_, ts_h=h, ts_w=w)
                         images.append(img)
                         all_grabbed_frames.append(i)
@@ -300,7 +301,9 @@ def createAnimation(
                     for i in range(4):
                         od_images.append(image)
                 od_images.extend(images)
-                imageio.mimwrite(f"{file_name}.mp4", od_images, format="mp4", fps=target_fps)
+                imageio.mimwrite(
+                    f"{file_name}.mp4", od_images, format="mp4", fps=target_fps
+                )
                 mp4_file = Path(f"{file_name}.mp4")
                 size = mp4_file.stat().st_size
                 g.logger.debug(
@@ -309,6 +312,7 @@ def createAnimation(
 
             elif ani_type == "gif":
                 from pygifsicle import optimize as opti
+
                 # Let's slice the right amount from images
                 # GIF uses a +- 2 second buffer
                 gif_buffer_seconds = 3
@@ -320,14 +324,16 @@ def createAnimation(
                     f"{log_prefix} {'fast ' if fast_gif else 'regular speed '}GIF requested...",
                 )
                 gif_start_frame = int(max(fid - (gif_buffer_seconds * fps), 1))
-                gif_end_frame = int(min(g.event_tot_frames, fid + (gif_buffer_seconds * fps)))
+                gif_end_frame = int(
+                    min(g.event_tot_frames, fid + (gif_buffer_seconds * fps))
+                )
                 s1 = round((gif_start_frame - start_frame) / skip)
                 s2 = round((end_frame - gif_end_frame) / skip)
                 if s1 >= 0 and s2 >= 0:
                     if fast_gif:
-                        gif_images = images[0 + s1: -s2: 2]
+                        gif_images = images[0 + s1 : -s2 : 2]
                     else:
-                        gif_images = images[0 + s1: -s2]
+                        gif_images = images[0 + s1 : -s2]
                     if image is not None:
                         num = 8 if fast_gif else 4
                         for i in range(num):
@@ -343,12 +349,16 @@ def createAnimation(
                     )
                     start_making_gif = datetime.datetime.now()
                     raw_gif = None
-                    imageio.mimwrite(f"{file_name}.gif", gif_images, format="gif", fps=target_fps)
+                    imageio.mimwrite(
+                        f"{file_name}.gif", gif_images, format="gif", fps=target_fps
+                    )
                     gif_file = Path(f"{file_name}.gif")
                     before_opt_size = gif_file.stat().st_size
                     opti(source=f"{file_name}.gif", colors=256)
                     size = gif_file.stat().st_size
-                    diff_write = round((datetime.datetime.now() - start_making_gif).total_seconds(), 2)
+                    diff_write = round(
+                        (datetime.datetime.now() - start_making_gif).total_seconds(), 2
+                    )
                     g.logger.debug(
                         f"perf:{log_prefix}{'fast ' if fast_gif is not None else ''}gif: {diff_write} sec to optimize "
                         f"and save {ani_type} to disk -> before: {before_opt_size / 1024 / 1024:.2f} MB --> "
@@ -359,13 +369,15 @@ def createAnimation(
                         f"{log_prefix}{'fast ' if fast_gif is not None else ''}gif: range is weird start: s1='{s1}' "
                         f"end offset: s2='-{s2}'"
                     )
-    g.animation_seconds = time.perf_counter()-perf
+    g.animation_seconds = time.perf_counter() - perf
 
 
 def resize_image(img: cv2, resize_w, quiet=None):
     lp = "resize:img:"
-    if resize_w == 'no':
-        g.logger.debug(f"{lp} 'resize' is set to 'no', not resizing image...") if not quiet else None
+    if resize_w == "no":
+        g.logger.debug(
+            f"{lp} 'resize' is set to 'no', not resizing image..."
+        ) if not quiet else None
     elif img is not None:
         (h, w) = img.shape[:2]
         try:
@@ -379,75 +391,33 @@ def resize_image(img: cv2, resize_w, quiet=None):
             asp = float(resize_w) / float(w)
             dim = (int(resize_w), int(h * asp))
             img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-            g.logger.debug(2, f"{lp} success using resize={resize_w} - original dimensions: {w}*{h}"
-                              f" - resized dimensions: {dim[1]}*{dim[0]}"
-                           ) if not quiet else None
+            g.logger.debug(
+                2,
+                f"{lp} success using resize={resize_w} - original dimensions: {w}*{h}"
+                f" - resized dimensions: {dim[1]}*{dim[0]}",
+            ) if not quiet else None
     else:
-        g.logger.debug(f"{lp} 'resize' called but no image supplied!") if not quiet else None
+        g.logger.debug(
+            f"{lp} 'resize' called but no image supplied!"
+        ) if not quiet else None
     return img
 
 
-class my_stderr:
-    def __init__(self):
-        self.tot_errmsg = []
-
-    def write(self, data, *args, **kwargs):
-        self.tot_errmsg.append(data)
-
-    def flush(self, *args, **kwargs):
-        idx = min(len(stack()), 1)
-        caller = getframeinfo(stack()[idx][0])
-        g.logger.error(
-            f"'std.err' --> {' '.join(self.tot_errmsg).rstrip()}", caller=caller
-        ) if len(self.tot_errmsg) else None
-        self.tot_errmsg = []
-        sys.__stderr__.flush()
-
-    @staticmethod
-    def close(*args, **kwargs):
-        g.logger.debug(f"STDERR CLOSE -> {args if args else None} {kwargs if kwargs else None}")
-        sys.__stderr__.close()
-
-
-class my_stdout:
-    def __init__(self):
-        self.tot_msg = []
-
-    @staticmethod
-    def write(data, *args, **kwargs):
-        idx = min(len(stack()), 1)
-        caller = getframeinfo(stack()[idx][0])
-        if data != "\n":
-            g.logger.debug(f"'std.out' --> {data}", caller=caller)
-
-    def flush(self, *args, **kwargs):
-        idx = min(len(stack()), 1)
-        caller = getframeinfo(stack()[idx][0])
-        g.logger.error(
-            f"'std.out' FLUSH --> {' '.join(self.tot_msg).rstrip()}", caller=caller
-        ) if len(self.tot_msg) else None
-        self.tot_msg = []
-        sys.__stdout__.flush()
-
-    @staticmethod
-    def close(*args, **kwargs):
-        sys.__stdout__.close()
-        g.logger.debug(f"STDOUT CLOSE -> {args if args else None} {kwargs if kwargs else None}")
-
-
-def pop_coco_names(file_name, globs):
-    global g
-    g = globs
+def pop_coco_names(file_name):
     ret_val = []
-    lp = 'coco names:'
+    lp = "coco names:"
     if Path(file_name).exists() and Path(file_name).is_file():
-        g.logger.debug(f"{lp} attempting to populate COCO names using file: '{file_name}'")
-        coco = open(file_name, 'r')
+        g.logger.debug(
+            f"{lp} attempting to populate COCO names using file: '{file_name}'"
+        )
+        coco = open(file_name, "r")
         for line in coco:
-            line = str(line).replace('\n', '')
+            line = str(line).replace("\n", "")
             ret_val.append(line)
         coco.close()
-        g.logger.debug(f"{lp} successfully populated {len(ret_val)} COCO labels from '{coco.name}'")
+        g.logger.debug(
+            f"{lp} successfully populated {len(ret_val)} COCO labels from '{coco.name}'"
+        )
     elif not Path(file_name).exists():
         pass
     elif not Path(file_name).is_file():
@@ -455,14 +425,14 @@ def pop_coco_names(file_name, globs):
     return ret_val
 
 
-def do_hass(hass_globals):
+def do_hass(*args):
     from urllib3.exceptions import InsecureRequestWarning, NewConnectionError
     from urllib3 import disable_warnings
     import requests
-    # turn off insecure warnings for self signed certificates
+
+    # turn off insecure warnings for self-signed certificates
     disable_warnings(InsecureRequestWarning)
 
-    g = hass_globals
     log_prefix = "hass add-on:"
     headers = {
         "Authorization": f"Bearer {g.config.get('hass_token')}",
@@ -499,14 +469,10 @@ def do_hass(hass_globals):
                     f"{log_prefix} 'push_cooldown' malformed, sending push..."
                 )
             else:
-                time_since_last_push = pkl_pushover(
-                    "load", mid=g.mid
-                )
+                time_since_last_push = pkl_pushover("load", mid=g.mid)
                 if time_since_last_push:
                     now = datetime.datetime.now()
-                    differ = (
-                            now - time_since_last_push
-                    ).total_seconds()
+                    differ = (now - time_since_last_push).total_seconds()
                     if differ < cooldown:
                         g.logger.debug(
                             f"{log_prefix} COOLDOWN elapsed-> {differ} / {cooldown} "
@@ -523,7 +489,6 @@ def do_hass(hass_globals):
     elif sensor:
         # Toggle Helper aka On/Off
         ha_sensor_url = ha_url + sensor
-        # todo attempt loop for hass -> better error handling for seem less pushover add-on
         try:
             resp = requests.get(
                 ha_sensor_url, headers=headers, verify=False
@@ -531,18 +496,15 @@ def do_hass(hass_globals):
         except NewConnectionError as n_ex:
             g.logger.error(
                 f"{log_prefix} failed to make a new connection to the HASS host '{ha_url}', "
-                f"sending push")
+                f"sending push"
+            )
             send_push = True
         except Exception as ex:
-            g.logger.error(
-                f"{log_prefix}err_msg-> {ex}"
-            )
-            g.logger.debug(
-                f"traceback -> {format_exc()}"
-            )
+            g.logger.error(f"{log_prefix}err_msg-> {ex}")
+            g.logger.debug(f"traceback -> {format_exc()}")
             send_push = True
         else:
-            if resp.get('message') == 'Entity not found.':
+            if resp.get("message") == "Entity not found.":
                 g.logger.error(
                     f"{log_prefix} the configured sensor -> '{sensor}' can not be found on the HASS host!"
                     f" check for spelling or formatting errors!"
@@ -550,28 +512,21 @@ def do_hass(hass_globals):
                 send_push = True
             else:
                 g.logger.debug(
-                    f"{log_prefix} the Toggle Helper sensor for monitor {g.mid} has returned -> '{resp.get('state')}'")
+                    f"{log_prefix} the Toggle Helper sensor for monitor {g.mid} has returned -> '{resp.get('state')}'"
+                )
                 # The sensor returns on or off, str2bool converts that to True/False Boolean
                 send_push = str2bool(resp.get("state"))
     else:
         send_push = True
 
     if cooldown and (
-            (
-                    sensor
-                    and (resp is not None and str2bool(resp.get("state")))
-            )
-            or (not sensor)
+        (sensor and (resp is not None and str2bool(resp.get("state")))) or (not sensor)
     ):
         try:
             ha_cooldown_url = f"{ha_url}{cooldown}"
-            cooldown_response = requests.get(
-                ha_cooldown_url, headers=headers
-            )
+            cooldown_response = requests.get(ha_cooldown_url, headers=headers)
         except Exception as ex:
-            g.logger.error(
-                f"{log_prefix}err_msg-> {ex}"
-            )
+            g.logger.error(f"{log_prefix}err_msg-> {ex}")
             send_push = True
         else:
             resp = cooldown_response.json()
@@ -583,7 +538,9 @@ def do_hass(hass_globals):
             time_since_last_push = pkl_pushover("load", mid=g.mid)
             if time_since_last_push:
 
-                differ = (datetime.datetime.now() - time_since_last_push).total_seconds()
+                differ = (
+                    datetime.datetime.now() - time_since_last_push
+                ).total_seconds()
                 if differ < int_val:
                     g.logger.debug(
                         f"{log_prefix} SKIPPING NOTIFICATION -> elapsed: {differ} "
@@ -615,7 +572,7 @@ def do_hass(hass_globals):
                 time_since_last_push = pkl_pushover("load", mid=g.mid)
                 if time_since_last_push:
                     differ = (
-                            datetime.datetime.now() - time_since_last_push
+                        datetime.datetime.now() - time_since_last_push
                     ).total_seconds()
                     if differ < cooldown:
                         g.logger.debug(
@@ -653,7 +610,11 @@ def de_dup(task, separator=None, return_str=False) -> list:
     ret_list = []
     append = None
     if isinstance(task, str):
-        [ret_list.append(x.strip()) for x in task.split(separator) if x.strip() not in ret_list]
+        [
+            ret_list.append(x.strip())
+            for x in task.split(separator)
+            if x.strip() not in ret_list
+        ]
     elif isinstance(task, list):
         [ret_list.append(x) for x in task if x not in ret_list]
 
@@ -664,29 +625,33 @@ def read_config(file: str, return_object=False) -> dict or ConfigParser:
     """Returns a ConfigParser object or a dict of the file without sections split up (doesnt decode and replace
     secrets though)
     """
-    config_file: ConfigParser = ConfigParser(interpolation=None, inline_comment_prefixes="#")
+    config_file: ConfigParser = ConfigParser(
+        interpolation=None, inline_comment_prefixes="#"
+    )
     with open(file) as f:
         config_file.read_file(f)
     if return_object:
         return config_file  # return whole ConfigParser object if requested
     config_file.optionxform = str  # converts to lowercase strings, so MQTT_PASSWORD is now mqtt_password, etc.
-    return config_file._sections  # return a dict object that removes sections and is strictly { option: value }
+    return (
+        config_file._sections
+    )  # return a dict object that removes sections and is strictly { option: value }
 
 
 def write_text(
-        frame=None,
-        text=None,
-        text_color: tuple = (0, 0, 0),
-        x=None,
-        y=None,
-        w=None,
-        h=None,
-        adjust: bool = False,
-        font: cv2 = None,
-        font_scale: float = None,
-        thickness: int = 1,
-        bg: bool = True,
-        bg_color: tuple = (255, 255, 255),
+    frame=None,
+    text=None,
+    text_color: tuple = (0, 0, 0),
+    x=None,
+    y=None,
+    w=None,
+    h=None,
+    adjust: bool = False,
+    font: cv2 = None,
+    font_scale: float = None,
+    thickness: int = 1,
+    bg: bool = True,
+    bg_color: tuple = (255, 255, 255),
 ):
     if frame is None:
         g.logger.error(f"write text: called without supplying an image")
@@ -698,16 +663,20 @@ def write_text(
         bg_color = literal_eval(bg_color)
     if isinstance(text_color, str):
         text_color = literal_eval(text_color)
-    text_size = cv2.getTextSize(text, font, fontScale=font_scale, thickness=thickness)[0]
+    text_size = cv2.getTextSize(text, font, fontScale=font_scale, thickness=thickness)[
+        0
+    ]
 
     tw, th = text_size[0], text_size[1]
     lp = "image:write text:"
     if adjust:
         if not w or not h:
             # TODO make it enlarge also if too small
-            g.logger.error(f"{lp} cannot auto adjust text as "
-                           f"{'W ' if not w else ''}{'and ' if not w and not h else ''}{'H ' if not h else ''}"
-                           f"not provided")
+            g.logger.error(
+                f"{lp} cannot auto adjust text as "
+                f"{'W ' if not w else ''}{'and ' if not w and not h else ''}{'H ' if not h else ''}"
+                f"not provided"
+            )
         else:
             if x + tw > w:
                 print(f"adjust needed, text would go out of frame width")
@@ -752,18 +721,18 @@ def write_text(
 
 
 def draw_bbox(
-        image=None,
-        boxes=None,
-        labels=None,
-        confidences=None,
-        polygons=None,
-        box_color=None,
-        poly_color=(255, 255, 255),
-        poly_thickness=1,
-        write_conf=True,
-        errors=None,
-        write_model=False,
-        models=None,
+    image=None,
+    boxes=None,
+    labels=None,
+    confidences=None,
+    polygons=None,
+    box_color=None,
+    poly_color=(255, 255, 255),
+    poly_thickness=1,
+    write_conf=True,
+    errors=None,
+    write_model=False,
+    models=None,
 ):
     # FIXME: need to add scaling dependant on image dimensions
     # print (1,"**************DRAW BBOX={} LAB={}".format(boxes,labels))
@@ -835,7 +804,9 @@ def draw_bbox(
         # draw bounding box around object
         # g.logger.debug(f"{lp} {boxes=} -------- {polygons=}")
         # print (f"{lp} DRAWING COLOR={box_color} RECT={boxes[i][0]},{boxes[i][1]} {boxes[i][2]},{boxes[i][3]}")
-        cv2.rectangle(image, (boxes[i][0], boxes[i][1]), (boxes[i][2], boxes[i][3]), box_color, 2)
+        cv2.rectangle(
+            image, (boxes[i][0], boxes[i][1]), (boxes[i][2], boxes[i][3]), box_color, 2
+        )
 
         # write text
         font_thickness = 1
@@ -948,16 +919,18 @@ def import_zm_zones(reason, conf_globals, existing_polygons):
     lp = "import zm zones:"
     if reason:
         match_reason = str2bool(g.config["only_triggered_zm_zones"])
-    g.logger.debug(2, f"{lp} only trigger on ZM zones: {match_reason}  reason for event: {reason}")
+    g.logger.debug(
+        2, f"{lp} only trigger on ZM zones: {match_reason}  reason for event: {reason}"
+    )
     url = f"{g.config['portal']}/api/zones/forMonitor/{g.mid}.json"
     j = g.api.make_request(url)
     # Now lets look at reason to see if we need to honor ZM motion zones
     for zone_ in j["zones"]:
         # print(f"{lp} ********* ITEM TYPE {zone_['Zone']['Type']}")
-        if str(zone_["Zone"]["Type"]).lower == 'inactive':
+        if str(zone_["Zone"]["Type"]).lower == "inactive":
             g.logger.debug(
                 2,
-                f"{lp} skipping '{zone_['Zone']['Name']}' as it is set to 'Inactive' in Zoneminder"
+                f"{lp} skipping '{zone_['Zone']['Name']}' as it is set to 'Inactive' in Zoneminder",
             )
             continue
         if match_reason:
@@ -967,7 +940,10 @@ def import_zm_zones(reason, conf_globals, existing_polygons):
                     f" -> '{reason}'"
                 )
                 continue
-        g.logger.debug(2, f"{lp} '{zone_['Zone']['Name']}' @ [{zone_['Zone']['Coords']}] is being added to polygons")
+        g.logger.debug(
+            2,
+            f"{lp} '{zone_['Zone']['Name']}' @ [{zone_['Zone']['Coords']}] is being added to polygons",
+        )
         existing_polygons.append(
             {
                 "name": zone_["Zone"]["Name"].replace(" ", "_").lower(),
@@ -982,7 +958,7 @@ def pkl_pushover(action: str = "load", time_since_sent=None, mid=None):
     from pickle import load as pickle_load, dump as pickle_dump
 
     pkl_path = (
-            f"{g.config.get('base_data_path')}/push" or "/var/lib/zmeventnotification/push"
+        f"{g.config.get('base_data_path')}/push" or "/var/lib/zmeventnotification/push"
     )
     mon_file = f"{pkl_path}/mon-{mid}-pushover.pkl"
     if action == "load":
@@ -1059,8 +1035,8 @@ def pkl(action, boxes=None, labels=None, confs=None, event=None):
         event = ""
     saved_bs, saved_ls, saved_cs, saved_event = None, None, None, None
     image_path = (
-            f"{g.config.get('base_data_path')}/images"
-            or "/var/lib/zmeventnotification/images"
+        f"{g.config.get('base_data_path')}/images"
+        or "/var/lib/zmeventnotification/images"
     )
     mon_file = f"{image_path}/monitor-{g.mid}-data.pkl"
     if action == "load":
@@ -1097,7 +1073,7 @@ def pkl(action, boxes=None, labels=None, confs=None, event=None):
                 g.logger.debug(
                     4,
                     f"pkl: saved_event:{event} saved boxes:{boxes} - labels:{labels} "
-                    f"- confs:{confs} to file: '{mon_file}'"
+                    f"- confs:{confs} to file: '{mon_file}'",
                 )
         except Exception as e:
             g.logger.error(
@@ -1138,7 +1114,6 @@ def get_www_user():
         webgrp = ["www-data"]
 
     return "".join(webuser), "".join(webgrp)
-
 
 
 class Pushover:
@@ -1285,9 +1260,7 @@ def pretty_print(matched_data, remote_sanitized):
                     first_tight_line += 1
                     xb = True if first_tight_line == 1 else None
                     # print(f"dval is list without a dict ... {first_tight_line=}")
-                    g.logger.debug(
-                        f"{dkey}->  {dval}  ", tight=True, nl=xb
-                    )
+                    g.logger.debug(f"{dkey}->  {dval}  ", tight=True, nl=xb)
             else:
                 first_tight_line += 1
                 xb = True if first_tight_line == 1 else None
@@ -1298,17 +1271,22 @@ def pretty_print(matched_data, remote_sanitized):
 class LogBuffer:
     @staticmethod
     def kwarg_parse(**kwargs):
-        caller, level, debug_level, message = None, 'DBG', 1, None
+        caller, level, debug_level, message = None, "DBG", 1, None
         for k, v in kwargs.items():
-            if k == 'caller':
+            if k == "caller":
                 caller = v
-            elif k == 'level':
+            elif k == "level":
                 level = v
-            elif k == 'message':
+            elif k == "message":
                 message = v
-            elif k == 'debug_level':
+            elif k == "debug_level":
                 debug_level = v
-        return {'message': message, 'caller': caller, 'level': level, 'debug_level': debug_level}
+        return {
+            "message": message,
+            "caller": caller,
+            "level": level,
+            "debug_level": debug_level,
+        }
 
     def __init__(self):
         self.buffer: Optional[list] = []
@@ -1329,36 +1307,36 @@ class LogBuffer:
             return len(self.buffer)
 
     def store(self, **kwargs):
-        caller, level, debug_level, message = None, 'DBG', 1, None
+        caller, level, debug_level, message = None, "DBG", 1, None
         # print(f"BUFFER>STORE>> kwargs before --> {kwargs}")
         kwargs = self.kwarg_parse(**kwargs)
         # print(f"BUFFER>STORE>> kwargs AFTER --> {kwargs}")
 
         dt = time_format(datetime.datetime.now())
         # print (len(stack()))
-        if kwargs['caller']:
-            caller = kwargs['caller']
+        if kwargs["caller"]:
+            caller = kwargs["caller"]
         else:
-            idx = min(len(stack()), 2)  # in the case of someone calls this directly
+            idx = min(len(stack()), 2)
             caller = getframeinfo(stack()[idx][0])
-        message = kwargs['message']
-        level = kwargs['level']
-        debug_level = kwargs['debug_level']
+        message = kwargs["message"]
+        level = kwargs["level"]
+        debug_level = kwargs["debug_level"]
         # print ('CALLER INFO --> FILE: {} LINE: {}'.format(caller.filename, caller.lineno))
         disp_level = level
-        if level == 'DBG':
-            disp_level = f'DBG{debug_level}'
+        if level == "DBG":
+            disp_level = f"DBG{debug_level}"
         data_structure = {
-            'timestamp': dt,
-            'display_level': disp_level,
-            'filename': Path(caller.filename).name,
-            'lineno': caller.lineno,
-            'message': message,
+            "timestamp": dt,
+            "display_level": disp_level,
+            "filename": Path(caller.filename).name,
+            "lineno": caller.lineno,
+            "message": message,
         }
         self.buffer.append(data_structure)
 
     def info(self, message, *args, **kwargs):
-        level = 'INF'
+        level = "INF"
         if message is not None:
             self.store(
                 level=level,
@@ -1366,7 +1344,7 @@ class LogBuffer:
             )
 
     def debug(self, *args, **kwargs):
-        level = 'DBG'
+        level = "DBG"
         debug_level = 1
         message = None
         if len(args) == 1:
@@ -1377,63 +1355,51 @@ class LogBuffer:
             message = args[1]
         if message is not None:
             # self.buffer.append(message)
-            self.store(
-                level=level,
-                debug_level=debug_level,
-                message=message
-            )
+            self.store(level=level, debug_level=debug_level, message=message)
 
     def warning(self, message, *args, **kwargs):
-        level = 'WAR'
+        level = "WAR"
         if message is not None:
             # self.buffer.append(message)
-            self.store(
-                level=level,
-                message=message
-            )
+            self.store(level=level, message=message)
 
     def error(self, message, *args, **kwargs):
-        level = 'ERR'
+        level = "ERR"
         if message is not None:
             # self.buffer.append(message)
-            self.store(
-                level=level,
-                message=message
-            )
+            self.store(level=level, message=message)
 
     def fatal(self, message, *args, **kwargs):
-        level = 'FAT'
+        level = "FAT"
         if message is not None:
             # self.buffer.append(message)
-            self.store(
-                level=level,
-                message=message
-            )
+            self.store(level=level, message=message)
         self.log_close(exit=-1)
 
     def panic(self, message, *args, **kwargs):
-        level = 'PNC'
+        level = "PNC"
         if message is not None:
             # self.buffer.append(message)
-            self.store(
-                level=level,
-                message=message
-            )
+            self.store(level=level, message=message)
         self.log_close(exit=-1)
 
     def log_close(self, *args, **kwargs):
         if self.buffer and len(self.buffer):
             # sort it by timestamp
-            self.buffer = sorted(self.buffer, key=lambda x: x['timestamp'], reverse=True)
+            self.buffer = sorted(
+                self.buffer, key=lambda x: x["timestamp"], reverse=True
+            )
             for _ in range(len(self.buffer)):
-                line = self.buffer.pop()
+                line = self.buffer.pop() if len(self.buffer) > 0 else None
                 if line:
                     fnfl = f"{line['filename']}:{line['lineno']}"
-                    print_log_string = (f"{line['timestamp']} LOG_BUFFER[{os.getpid()}] {line['display_level']} " 
-                                       f"{fnfl}->[{line['message']}]")
+                    print_log_string = (
+                        f"{line['timestamp']} LOG_BUFFER[{os.getpid()}] {line['display_level']} "
+                        f"{fnfl}->[{line['message']}]"
+                    )
                     print(print_log_string)
-        if kwargs.get('exit') is not None:
-            exit(kwargs['exit'])
+        if kwargs.get("exit") is not None:
+            exit(kwargs["exit"])
         return
 
 
@@ -1442,17 +1408,18 @@ def time_format(dt_form):
         micro_sec = str(float(f"{dt_form.microsecond / 1e6}")).split(".")[1]
     else:
         micro_sec = str(float(f"{dt_form.microsecond / 1e6}")).split(".")[0]
-    # pad the microseconds with zeros
+    # pad the microseconds with appended zeros
     while len(micro_sec) < 6:
-        micro_sec = f"0{micro_sec}"
+        micro_sec = f"{micro_sec}0"
     return f"{dt_form.strftime('%m/%d/%y %H:%M:%S')}.{micro_sec}"
 
 
-def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, globs):
+def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, *args_):
     from pyzm.helpers.mqtt import Mqtt
+
     log_prefix = "mqtt add-on:"
     try:
-        mqtt_topic = g.config.get("mqtt", {}).get("mqtt_topic", "zmes")
+        mqtt_topic = g.config.get("mqtt_topic", "zmes")
         g.logger.debug(f"{log_prefix} is enabled, initialising...")
         mqtt_conf = {
             "mqtt_enable": g.config.get("mqtt_enable"),
@@ -1461,7 +1428,7 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
             "mqtt_user": g.config.get("mqtt_user"),
             "mqtt_pass": g.config.get("mqtt_pass"),
             "mqtt_port": g.config.get("mqtt_port"),
-            "mqtt_topic": g.config.get("mqtt_topic"),
+            "mqtt_topic": mqtt_topic,
             "mqtt_retain": g.config.get("mqtt_retain"),
             "mqtt_qos": g.config.get("mqtt_qos"),
             "mqtt_tls_allow_self_signed": g.config.get("mqtt_tls_allow_self_signed"),
@@ -1474,11 +1441,14 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
         mqtt_obj.connect()
     except Exception as e:
         g.logger.error(f"{log_prefix} constructing err_msg-> {e}")
-        print(format_exc())
+        g.logger.debug(format_exc())
     else:
-        if not args.get('file'):
+        if not args.get("file"):
             mqtt_obj.create_ml_image(args.get("eventpath"), pred)
-            mqtt_obj.publish(topic=f"{mqtt_topic}/picture/{g.mid}", retain=g.config.get("mqtt_retain"))
+            mqtt_obj.publish(
+                topic=f"{mqtt_topic}/picture/{g.mid}",
+                retain=g.config.get("mqtt_retain"),
+            )
             detection_info = json.dumps(
                 {
                     "eid": args.get("eventid"),
@@ -1499,35 +1469,43 @@ def do_mqtt(args, et, pred, pred_out, notes_zone, matched_data, push_image, glob
             )
             det_data = json.dumps(
                 {
-                    "labels": matched_data.get('labels'),
-                    "conf": matched_data.get('confidences'),
-                    "bbox": matched_data.get('boxes'),
-                    "models": matched_data.get('model_names'),
+                    "labels": matched_data.get("labels"),
+                    "conf": matched_data.get("confidences"),
+                    "bbox": matched_data.get("boxes"),
+                    "models": matched_data.get("model_names"),
                 }
             )
             mqtt_obj.publish(
-                topic=f"{mqtt_topic}/rdata/{g.mid}", message=det_data, retain=g.config.get("mqtt_retain")
+                topic=f"{mqtt_topic}/rdata/{g.mid}",
+                message=det_data,
+                retain=g.config.get("mqtt_retain"),
             )
 
         else:
             # convert image to a byte array
             # cv2.imencode('.jpg', frame)[1].tobytes()
             # push_image = cv2.cvtColor(push_image, cv2.COLOR_BGR2RGB)
-            push_image = cv2.imencode('.jpg', push_image)[1].tobytes()
-            mqtt_obj.publish(topic=f"{mqtt_topic}/picture/file", message=push_image, retain=g.config.get("mqtt_retain"),)
+            push_image = cv2.imencode(".jpg", push_image)[1].tobytes()
+            mqtt_obj.publish(
+                topic=f"{mqtt_topic}/picture/file",
+                message=push_image,
+                retain=g.config.get("mqtt_retain"),
+            )
             # build this with info for the FILE
             detection_info = json.dumps(
                 {
                     "file_name": args.get("file"),
-                    "labels": matched_data.get('labels'),
-                    "conf": matched_data.get('confidences'),
-                    "bbox": matched_data.get('boxes'),
-                    "models": matched_data.get('model_names'),
-                    "detection_type": matched_data.get('type'),
+                    "labels": matched_data.get("labels"),
+                    "conf": matched_data.get("confidences"),
+                    "bbox": matched_data.get("boxes"),
+                    "models": matched_data.get("model_names"),
+                    "detection_type": matched_data.get("type"),
                 }
             )
             mqtt_obj.publish(
-                topic=f"{mqtt_topic}/data/file", message=detection_info, retain=g.config.get("mqtt_retain"),
+                topic=f"{mqtt_topic}/data/file",
+                message=detection_info,
+                retain=g.config.get("mqtt_retain"),
             )
         mqtt_obj.close()
 
@@ -1544,7 +1522,7 @@ def mlapi_import_zones(conf_globals=None, config_obj=None):
             mid = zone.monitorid()
             name = zone.name()
             coords = zone.coords()
-            if type_ == 'inactive':
+            if type_ == "inactive":
                 g.logger.debug(
                     f"{lp} skipping {name} as it is not a zone which we are expecting activity, "
                     f"type: {type_}"
@@ -1554,23 +1532,20 @@ def mlapi_import_zones(conf_globals=None, config_obj=None):
             if mid not in c.polygons:
                 c.polygons[mid] = []
 
-            name = name.replace(' ', '_').lower()
-            g.logger.debug(2,
-                           f"{lp} IMPORTING '{name}' @ [{coords}] from monitor '{mid}'")
-            c.polygons[mid].append({
-                'name': name,
-                'value': str2tuple(coords),
-                'pattern': None
-            })
+            name = name.replace(" ", "_").lower()
+            g.logger.debug(
+                2, f"{lp} IMPORTING '{name}' @ [{coords}] from monitor '{mid}'"
+            )
+            c.polygons[mid].append(
+                {"name": name, "value": str2tuple(coords), "pattern": None}
+            )
         # iterate polygons and apply matching detection patterns by zone name
         for poly in c.polygons[mid]:
             if poly["name"] in c.detection_patterns:
-                poly["pattern"] = c.detection_patterns[poly['name']]
+                poly["pattern"] = c.detection_patterns[poly["name"]]
                 g.logger.debug(
                     2,
                     f"{lp} overriding match pattern for zone/polygon '{poly['name']}' with: "
-                    f"{c.detection_patterns[poly['name']]}"
+                    f"{c.detection_patterns[poly['name']]}",
                 )
     return c
-
-

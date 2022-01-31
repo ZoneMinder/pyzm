@@ -15,6 +15,7 @@ class Singleton(type):
 @dataclass()
 class GlobalConfig(metaclass=Singleton):
     """dataclass that holds some global objects"""
+
     eid: Optional[Union[str, int]] = None  # global Event ID or the name of the input file/video
 
     DEFAULT_CONFIG: dict = field(default_factory=dict)

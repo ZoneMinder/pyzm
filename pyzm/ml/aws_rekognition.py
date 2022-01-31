@@ -15,35 +15,35 @@ lp: str
 class AwsRekognition(Object):
     def __init__(self, *args, **kwargs):
         global g, lp
-        self.lp = lp = 'aws rek:'
+        self.lp = lp = "aws rek:"
         g = GlobalConfig()
-        self.options = kwargs['options']
+        self.options = kwargs["options"]
         if self.options is None:
-            raise ValueError(f'{lp} options must be provided')
-        kwargs['globs'] = g
+            raise ValueError(f"{lp} options must be provided")
+        kwargs["globs"] = g
         super().__init__(*args, **kwargs)
 
-        self.sequence_name: str = ''
-        self.lock_name: str = ''
+        self.sequence_name: str = ""
+        self.lock_name: str = ""
         self.lock_timeout: int = 0
         self.is_locked: bool = False
         self.disable_locks: bool = False
         self.lock = None
-        self.min_confidence = self.options.get('object_min_confidence', 0.7)
+        self.min_confidence = self.options.get("object_min_confidence", 0.7)
         if self.min_confidence < 1:  # Rekognition wants the confidence as 0% ~ 100%, not 0.00 ~ 1.00
             self.min_confidence *= 100
 
         # Extract AWS config values from options
-        boto3_args = ('aws_region', 'aws_access_key_id', 'aws_secret_access_key')
+        boto3_args = ("aws_region", "aws_access_key_id", "aws_secret_access_key")
         boto3_kwargs = {}
         for arg in boto3_args:
             if self.options.get(arg):
                 boto3_kwargs[arg] = self.options.get(arg)
-        if 'aws_region' in boto3_kwargs:
-            boto3_kwargs['region_name'] = boto3_kwargs['aws_region']
-            del boto3_kwargs['aws_region']
+        if "aws_region" in boto3_kwargs:
+            boto3_kwargs["region_name"] = boto3_kwargs["aws_region"]
+            del boto3_kwargs["aws_region"]
 
-        self._rekognition = boto3.client('rekognition', **boto3_kwargs)
+        self._rekognition = boto3.client("rekognition", **boto3_kwargs)
         g.logger.debug(2, f"{lp} AWS Rekognition initialised (min confidence: {self.min_confidence}%)")
 
     def detect(self, input_image=None):
@@ -54,15 +54,12 @@ class AwsRekognition(Object):
 
         is_success, _buff = cv2.imencode(".jpg", input_image)
         if not is_success:
-            g.logger.warning(f'{lp} unable to convert the image from numpy array / CV2 to JPG')
+            g.logger.warning(f"{lp} unable to convert the image from numpy array / CV2 to JPG")
             return [], [], [], []
         image_jpg = _buff.tobytes()
 
         # Call AWS Rekognition
-        response = self._rekognition.detect_labels(
-            Image={'Bytes': image_jpg},
-            MinConfidence=self.min_confidence
-        )
+        response = self._rekognition.detect_labels(Image={"Bytes": image_jpg}, MinConfidence=self.min_confidence)
         diff_time = t.stop_and_get_ms()
         g.logger.debug(2, f"perf:{lp} took {diff_time} -> detection response -> {response}")
 
@@ -71,19 +68,19 @@ class AwsRekognition(Object):
         labels = []
         confs = []
 
-        for item in response['Labels']:
-            if 'Instances' not in item:
+        for item in response["Labels"]:
+            if "Instances" not in item:
                 continue
-            for instance in item['Instances']:
-                if 'BoundingBox' not in instance or 'Confidence' not in instance:
+            for instance in item["Instances"]:
+                if "BoundingBox" not in instance or "Confidence" not in instance:
                     continue
-                label = item['Name'].lower()
-                conf = instance['Confidence'] / 100
+                label = item["Name"].lower()
+                conf = instance["Confidence"] / 100
                 bbox = (
-                    round(width * instance['BoundingBox']['Left']),
-                    round(height * instance['BoundingBox']['Top']),
-                    round(width * (instance['BoundingBox']['Left'] + instance['BoundingBox']['Width'])),
-                    round(height * (instance['BoundingBox']['Top'] + instance['BoundingBox']['Height']))
+                    round(width * instance["BoundingBox"]["Left"]),
+                    round(height * instance["BoundingBox"]["Top"]),
+                    round(width * (instance["BoundingBox"]["Left"] + instance["BoundingBox"]["Width"])),
+                    round(height * (instance["BoundingBox"]["Top"] + instance["BoundingBox"]["Height"])),
                 )
                 bboxes.append(bbox)
                 labels.append(label)
@@ -93,7 +90,7 @@ class AwsRekognition(Object):
             g.logger.debug(3, f"{lp} returning {labels} - {confs} - {bboxes}")
         else:
             g.logger.debug(f"{lp} no detections to return!")
-        return bboxes, labels, confs, ['aws'] * len(labels)
+        return bboxes, labels, confs, ["aws"] * len(labels)
 
     def acquire_lock(self):
         # AWS Rekognition doesn't need locking
@@ -104,7 +101,7 @@ class AwsRekognition(Object):
         pass
 
     def get_model_name(self) -> str:
-        return 'AWS Rek'
+        return "AWS Rek"
 
     def get_sequence_name(self) -> str:
         return self.sequence_name
@@ -116,10 +113,12 @@ class AwsRekognition(Object):
             return self.options.get(key)
 
     def load_model(self, *args, **kwargs):
-        opts = kwargs['options']
-        self.sequence_name = opts.get('name')
-        g.logger.debug(f"{lp} Rekognition does not require a model to be loaded, setting sequence name to: "
-                       f"{self.sequence_name}...")
+        opts = kwargs["options"]
+        self.sequence_name = opts.get("name")
+        g.logger.debug(
+            f"{lp} Rekognition does not require a model to be loaded, setting sequence name to: "
+            f"{self.sequence_name}..."
+        )
 
     def get_classes(self):
         return
