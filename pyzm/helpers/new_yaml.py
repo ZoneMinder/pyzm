@@ -23,30 +23,30 @@ from pyzm.interface import GlobalConfig
 from pyzm.api import ZMApi
 from pyzm.ZMLog import ZMLog
 
-ZM_INSTALLED: Optional[str] = which('zmdc.pl')
+ZM_INSTALLED: Optional[str] = which("zmdc.pl")
 lp: str = "config:"
 g: GlobalConfig
 
 SECRETS_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({\[\s*(\w.*)\s*\]})\"?|\'?"
 SUBVAR_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({{\s*(\w.*)\s*}})\"?|\'?"
 objconf = (
-'general',
-'remote_detection',
-'hass',
-'push_notifications',
-'mqtt',
-'animation',
-'ml_models',
-'monitors',
-'sequences',
-'zmes_dev',
+    "general",
+    "remote_detection",
+    "hass",
+    "push_notifications",
+    "mqtt",
+    "animation",
+    "ml_models",
+    "monitors",
+    "sequences",
+    "zmes_dev",
 )
 mlapiconf = (
-'general',
-'ml_models',
-'monitors',
-'sequences',
-'mlapi_dev',
+    "general",
+    "ml_models",
+    "monitors",
+    "sequences",
+    "mlapi_dev",
 )
 
 
@@ -62,11 +62,14 @@ class ConfigParse:
 
 
     """
+
     config_hash: Optional[str] = None
     secrets_hash: Optional[str] = None
 
     @staticmethod
-    def compute_file_checksum(path: str, read_chunk_size: int = 65536, algorithm: str = 'sha256'):
+    def compute_file_checksum(
+        path: str, read_chunk_size: int = 65536, algorithm: str = "sha256"
+    ):
         """Compute checksum of a file's contents.
 
         :param path: Path to the file
@@ -79,9 +82,10 @@ class ConfigParse:
 
         """
         from hashlib import new
+
         checksum = new(algorithm)  # Raises appropriate exceptions.
-        with open(path, 'rb') as f:
-            for chunk in iter(lambda: f.read(read_chunk_size), b''):
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(read_chunk_size), b""):
                 checksum.update(chunk)
         return checksum.hexdigest()
 
@@ -89,26 +93,33 @@ class ConfigParse:
         """hash the config or secrets file based on **filetype**.
         :param filetype: (str) one of config or secret
         """
+
         def _compute(name):
             if name and Path(name).exists() and Path(name).is_file():
                 try:
                     hash_obj = self.compute_file_checksum(name)
                 except Exception as exc:
-                    print(f"{lp}hash: ERROR while SHA-256 hashing '{Path(name).name}' -> {exc}")
+                    print(
+                        f"{lp}hash: ERROR while SHA-256 hashing '{Path(name).name}' -> {exc}"
+                    )
                 else:
-                    g.logger.debug(f"{lp}hash: the SHA-256 hex digest for file '{name}' -> {hash_obj}")
+                    g.logger.debug(
+                        f"{lp}hash: the SHA-256 hex digest for file '{name}' -> {hash_obj}"
+                    )
                     return hash_obj
 
-        if filetype == 'config':
+        if filetype == "config":
             self.config_hash = _compute(self.config_file_name)
-        elif filetype == 'secret':
+        elif filetype == "secret":
             self.secrets_hash = _compute(self.secret_file_name)
         else:
             print(
-                f"{lp}hash: incorrect parameter 'filetype' -> '{filetype}', it can only be 'config' or 'secret'")
+                f"{lp}hash: incorrect parameter 'filetype' -> '{filetype}', it can only be 'config' or 'secret'"
+            )
 
     def hash_compare(self, filetype: str) -> bool:
         """Compares a cached hash to a new hash of the supplied *filetype*"""
+
         def _compare(filename, cached_hash):
             if filename and Path(filename).exists() and Path(filename).is_file():
                 current_file_hash = self.compute_file_checksum(filename)
@@ -118,16 +129,20 @@ class ConfigParse:
                 # )
                 return cached_hash == current_file_hash
 
-        if filetype == 'config':
+        if filetype == "config":
             if self.config_hash:
                 return _compare(self.config_file_name, self.config_hash)
             else:
-                print(f"{lp}{self.type}:hash: there is no cached hash for a configuration file")
-        elif filetype == 'secret':
+                print(
+                    f"{lp}{self.type}:hash: there is no cached hash for a configuration file"
+                )
+        elif filetype == "secret":
             if self.secrets_hash:
                 return _compare(self.secret_file_name, self.secrets_hash)
             else:
-                print(f"{lp}{self.type}:hash: there is no cached hash for a secrets file")
+                print(
+                    f"{lp}{self.type}:hash: there is no cached hash for a secrets file"
+                )
         else:
             print(
                 f"{lp}{self.type}:hash: incorrect parameter 'filetype' -> '{filetype}', allowed "
@@ -141,22 +156,31 @@ class ConfigParse:
             # Example: tpu_object_weights_mobiledet =
             # {{base_data_path}}/models/coral_edgetpu/ssdlite_mobiledet_coco_qat_postprocess_edgetpu.tflite
             # If the base keys don't have the vars replaced then the un-subbed vars will follow along.
-            g.logger.debug(f"{lp}{self.type}:proc: substituting '{{{{variables}}}}' for the 'base' config keys")
+            g.logger.debug(
+                f"{lp}{self.type}:proc: substituting '{{{{variables}}}}' for the 'base' config keys"
+            )
             base_vars_replaced = []
             base_vars_not_replaced = []
-            skip_sections = {'stream_sequence', 'ml_sequence', 'monitors', 'ml_routes', 'zmes_keys'}
+            skip_sections = {
+                "stream_sequence",
+                "ml_sequence",
+                "monitors",
+                "ml_routes",
+                "zmes_keys",
+            }
             for def_key, def_value in self.config.items():
                 if def_key in skip_sections:
                     continue
                 else:
                     new_val = str(def_value)
-                    _vars = compile(r'{{(\w*)}}').findall(new_val)
+                    _vars = compile(r"{{(\w*)}}").findall(new_val)
                     if _vars:
                         for var in _vars:
                             if var and var in self.config:
                                 base_vars_replaced.append(var)
-                                new_val = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(self.config[var]),
-                                                                                              new_val)
+                                new_val = compile(
+                                    r"(\{{\{{{key}\}}\}})".format(key=var)
+                                ).sub(str(self.config[var]), new_val)
                                 self.config[def_key] = new_val
                             else:
                                 base_vars_not_replaced.append(var)
@@ -181,7 +205,7 @@ class ConfigParse:
         # iterate the keys in the built-in default values: if the default config file does not have a key that is in
         # the defaults, copy over the default key: value.
         def_keys_added = []
-        if dc.get('ZMES') == 1 or dc.get('MLAPI') == 1:
+        if dc.get("ZMES") == 1 or dc.get("MLAPI") == 1:
             sections = tmp_dft_cfg.keys()
             self.config = {}
             for section in sections:
@@ -202,7 +226,9 @@ class ConfigParse:
             exit(1)
         # default values
         for default_key, default_value in self.builtin_default_config.items():
-            if default_key not in self.config or (self.config.get(default_key) and not self.config[default_key]):
+            if default_key not in self.config or (
+                self.config.get(default_key) and not self.config[default_key]
+            ):
                 def_keys_added.append(default_key)
                 self.config[default_key] = default_value
         if def_keys_added:
@@ -213,8 +239,10 @@ class ConfigParse:
         # The base keys need to have their {{vars}} replaced, this way secrets could have a {{var}} in its path
         _base_key_prep()
         # Substitute {[secrets]}
-        self.secret_file_name = self.config.get('secrets')
-        self.config = self.parse_secrets(config=self.config, filename=self.secret_file_name)
+        self.secret_file_name = self.config.get("secrets")
+        self.config = self.parse_secrets(
+            config=self.config, filename=self.secret_file_name
+        )
         # Building Base Config - {{VARS}} replacement
         self._parse_conf()
         g.logger.debug(
@@ -225,13 +253,20 @@ class ConfigParse:
     def _parse_conf(self):
         self.config = self.parse_vars()
         # todo make configurable? so users can add complex data structures and have them safely evaluated
-        eval_sections = {'pyzm_overrides', 'platerec_regions', 'poly_color', 'hass_people', }
+        eval_sections = {
+            "pyzm_overrides",
+            "platerec_regions",
+            "poly_color",
+            "hass_people",
+        }
         for e_sec in eval_sections:
             # convert specific keys into python structures
             if self.config.get(e_sec) and isinstance(self.config[e_sec], str):
                 self.config[e_sec] = literal_eval(self.config[e_sec])
 
-    def __init__(self, config_file_name: str, default: dict, type_: Optional[str] = None):
+    def __init__(
+        self, config_file_name: str, default: dict, type_: Optional[str] = None
+    ):
         # custom detection patterns per monitor
         self.detection_patterns: dict = {}
         # Polygon coords per monitor
@@ -262,7 +297,7 @@ class ConfigParse:
         # You can instead only build 1 extra config that has been overrode if it is a ZMES run.
         # mlapi can hash the config file to see if anything has changed since the last detection and rebuild if so
         # same for secrets, if secrets hash has changed then rebuild the config.
-        self.type = type_ if type_ else 'UNKNOWN'
+        self.type = type_ if type_ else "UNKNOWN"
         self.stream_seq = None
         self.ml_seq = None
         self.ml_routes = None
@@ -272,24 +307,28 @@ class ConfigParse:
         # alias
         cfn: str = self.config_file_name
         # Figure out the type based on some of the default keys if it is not known
-        if not self.type or self.type == 'UNKNOWN':
+        if not self.type or self.type == "UNKNOWN":
             bdc = self.builtin_default_config
-            if bdc.get('mlapi_secret_key'):
-                self.type = 'mlapi'
-            elif bdc.get('create_animation') is not None:
-                self.type = 'zmes'
+            if bdc.get("mlapi_secret_key"):
+                self.type = "mlapi"
+            elif bdc.get("create_animation") is not None:
+                self.type = "zmes"
         # Validate path and file
         if Path(cfn).is_file():
-            g.logger.debug(f"{lp}init: the supplied config file exists -> '{config_file_name}'")
-            if self.type == 'mlapi':
+            g.logger.debug(
+                f"{lp}init: the supplied config file exists -> '{config_file_name}'"
+            )
+            if self.type == "mlapi":
                 # SHA-256 checksum the config file and cache the result
-                self.hash('config')
+                self.hash("config")
             try:
                 # Read the supplied config file into a python dict using a safe loader
-                with open(config_file_name, 'r') as stream:
+                with open(config_file_name, "r") as stream:
                     self.default_config = load(stream, Loader=SafeLoader)
             except TypeError as e:
-                g.logger.error(f"{lp}init: the supplied config file is not valid YAML -> '{config_file_name}'")
+                g.logger.error(
+                    f"{lp}init: the supplied config file is not valid YAML -> '{config_file_name}'"
+                )
                 raise e
             except Exception as exc:
                 # print as the logger is just a buffer until we initialize ZMLog
@@ -297,7 +336,7 @@ class ConfigParse:
                 print(exc)
             else:
                 dc: dict = self.default_config
-                self.monitors = dc.get('monitors')
+                self.monitors = dc.get("monitors")
                 g.logger.debug(
                     f"{lp}init: default configuration built (no secrets or substitution vars replaced, yet!)"
                 )
@@ -306,7 +345,9 @@ class ConfigParse:
             print(f"{lp}init: the configuration file '{cfn}' does not exist!")
             return
         elif not Path(cfn).is_file():
-            print(f"{lp}init: the configuration file '{cfn}' exists but it is not a file!")
+            print(
+                f"{lp}init: the configuration file '{cfn}' exists but it is not a file!"
+            )
             return
 
     def parse_secrets(self, config=None, filename=None):
@@ -319,18 +360,23 @@ class ConfigParse:
             sfn = filename
             if Path(sfn).exists() and Path(sfn).is_file():
                 g.logger.debug(
-                    f"{lp}{self.type}: the configured secrets file exists and is a file -> '{sfn}'")
+                    f"{lp}{self.type}: the configured secrets file exists and is a file -> '{sfn}'"
+                )
                 if sfn:
-                    if self.type == 'mlapi':
+                    if self.type == "mlapi":
                         # SHA-256 checksum the config file and cache result
-                        self.hash('secret')
-                    g.logger.debug(f"{lp}{self.type}: starting '{{[secrets]}}' substitution")
+                        self.hash("secret")
+                    g.logger.debug(
+                        f"{lp}{self.type}: starting '{{[secrets]}}' substitution"
+                    )
                     try:
                         # Load secrets file into a python dict
-                        with open(sfn, 'r') as stream:
+                        with open(sfn, "r") as stream:
                             secrets_pool = load(stream, Loader=SafeLoader)
                     except Exception as exc:
-                        print(f"{lp} an exception occurred while trying to load YAML from '{sfn}'")
+                        print(
+                            f"{lp} an exception occurred while trying to load YAML from '{sfn}'"
+                        )
                         print(exc)
                         return
                     else:
@@ -338,7 +384,7 @@ class ConfigParse:
                         # this allows {[secrets]} and {{vars}} to be repplaced no matter where
                         # in the config file they are!
                         new_config = str(config)
-                        secrets_regex = compile(r'\{\[(\w*)\]\}')
+                        secrets_regex = compile(r"\{\[(\w*)\]\}")
                         # remove duplicates by converting to a set that can be iterated / hashed
                         all_secs = set(secrets_regex.findall(new_config))
                         for sec in all_secs:
@@ -347,20 +393,23 @@ class ConfigParse:
                                 # the secret in the config file has a configured key: value in the secrets file
                                 secrets_replaced.append(sec)
                                 # create a pattern to replace the secret, has to be list for the index tracking
-                                pattern = [r'\{\[', r'{}'.format(sec), r'\]\}']
-                                pattern = r''.join(pattern)
+                                pattern = [r"\{\[", r"{}".format(sec), r"\]\}"]
+                                pattern = r"".join(pattern)
                                 # Replace the secret everywhere in the entire config
-                                new_config = compile(pattern=pattern).sub(secrets_pool[sec], new_config)
+                                new_config = compile(pattern=pattern).sub(
+                                    secrets_pool[sec], new_config
+                                )
 
                             else:
                                 # The secret does not have a key: value configured in the secrets file
                                 secrets_not_replaced.append(sec)
                         # Debug output
                         if secrets_replaced:
-                            g.logger.debug(f"{lp}{self.type}: successfully replaced {len(secrets_replaced)} secret"
-                                           f"{'' if len(secrets_replaced) == 1 else 's'} in the base config -> "
-                                           f"{secrets_replaced}"
-                                           )
+                            g.logger.debug(
+                                f"{lp}{self.type}: successfully replaced {len(secrets_replaced)} secret"
+                                f"{'' if len(secrets_replaced) == 1 else 's'} in the base config -> "
+                                f"{secrets_replaced}"
+                            )
                         if secrets_not_replaced:
                             g.logger.debug(
                                 f"{lp}{self.type}: there {'is' if len(secrets_not_replaced) == 1 else 'are'} "
@@ -382,10 +431,13 @@ class ConfigParse:
                             )
                             return
             elif not Path(sfn).exists():
-                print(f"{lp}{self.type}: the configured secrets file does not exist -> '{sfn}'")
+                print(
+                    f"{lp}{self.type}: the configured secrets file does not exist -> '{sfn}'"
+                )
             elif not Path(sfn).is_file():
                 print(
-                    f"{lp}{self.type}: the configured secrets file exists but it is not a file! -> '{sfn}'")
+                    f"{lp}{self.type}: the configured secrets file exists but it is not a file! -> '{sfn}'"
+                )
         else:
             g.logger.debug(f"{lp}{self.type}: no secrets file configured")
 
@@ -393,7 +445,7 @@ class ConfigParse:
         g.logger.debug(f"{lp}{self.type}: starting '{{{{variable}}}}' substitution")
         new_config = str(self.config)
         # This pattern finds the secret and returns the key inside of the {[ ]}
-        vars_regex = compile(r'{{(\w*)}}')
+        vars_regex = compile(r"{{(\w*)}}")
         all_vars = set(vars_regex.findall(new_config))
         vars_replaced = []
         vars_not_replaced = []
@@ -402,18 +454,21 @@ class ConfigParse:
                 # The replacement variable has a key: value in the base config
                 vars_replaced.append(var)
                 # Compile and sub 1 liner to replace all occurrences of {{variable}} with the keys value
-                test = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(self.config[var]), new_config)
+                test = compile(r"(\{{\{{{key}\}}\}})".format(key=var)).sub(
+                    str(self.config[var]), new_config
+                )
                 if test == new_config:
-                    g.logger.debug(f'There is no change after SUBSTITUTING VARS!')
+                    g.logger.debug(f"There is no change after SUBSTITUTING VARS!")
                 else:
                     new_config = test
             else:
                 # There is a {{variable}} but there is no configured key: value for it
                 vars_not_replaced.append(var)
         if vars_replaced:
-            g.logger.debug(f"{lp}{self.type}: successfully replaced {len(vars_replaced)} sub var"
-                           f"{'' if len(vars_replaced) == 1 else 's'} in the base config -> {vars_replaced}"
-                           )
+            g.logger.debug(
+                f"{lp}{self.type}: successfully replaced {len(vars_replaced)} sub var"
+                f"{'' if len(vars_replaced) == 1 else 's'} in the base config -> {vars_replaced}"
+            )
         if vars_not_replaced:
             g.logger.debug(
                 f"{lp}{self.type}: there {'was' if len(vars_not_replaced) == 1 else 'were'} "
@@ -440,20 +495,21 @@ class ConfigParse:
             )
         else:
             illegal_keys = {
-                'base_data_path',
-                'mlapi_secret_key',
-                'port',
-                'processes',
-                'db_path',
-                'secrets',
-                'config',
-                'debug',
-                'baredebug',
-                'version',
-                'bareversion'
+                "base_data_path",
+                "mlapi_secret_key",
+                "port",
+                "processes",
+                "db_path",
+                "secrets",
+                "config",
+                "debug",
+                "baredebug",
+                "version",
+                "bareversion",
             }
             g.logger.debug(
-                f"{lp}{self.type}:{mid}: attempting to build an overrode config from monitor '{mid}' overrides")
+                f"{lp}{self.type}:{mid}: attempting to build an overrode config from monitor '{mid}' overrides"
+            )
             # first replace secrets if there are any but when replacing grab the values from the monitor
             # overrides first. If the monitors overrides don't have the key, grab it from the current config.
             # same thing for {{vars}} and then create the overrode config property
@@ -463,7 +519,9 @@ class ConfigParse:
                 # Convert python dict to a str to run regex replacements on it
                 replacement_overrides = str(dmo[mid])
                 if self.monitor_overrides is not None:
-                    self.override_config = self.monitor_overrides[mid] = deepcopy(self.config)
+                    self.override_config = self.monitor_overrides[mid] = deepcopy(
+                        self.config
+                    )
                 secrets_replaced_by_overrides = []
                 secrets_replaced_by_config = []
                 secrets_not_replaced = []
@@ -471,22 +529,26 @@ class ConfigParse:
                     f"{lp}{self.type}:{mid}: monitor '{mid}' overrides, starting '{{[secrets]}}' "
                     f"substitution"
                 )
-                secrets_regex = compile(r'\{\[(\w*)\]\}')
+                secrets_regex = compile(r"\{\[(\w*)\]\}")
                 all_secs = set(secrets_regex.findall(replacement_overrides))
                 for sec in all_secs:
                     # g.logger.Debug(f"{type(sec)} --- {sec}")
                     if sec in dmo[mid]:
                         # First check if the secret has a key: value in the per monitor overrides
                         secrets_replaced_by_overrides.append(sec)
-                        pattern = [r'\{\[', r'{}'.format(sec), r'\]\}']
-                        pattern = r''.join(pattern)
-                        replacement_overrides = compile(pattern=pattern).sub(dmo[mid][sec], replacement_overrides)
+                        pattern = [r"\{\[", r"{}".format(sec), r"\]\}"]
+                        pattern = r"".join(pattern)
+                        replacement_overrides = compile(pattern=pattern).sub(
+                            dmo[mid][sec], replacement_overrides
+                        )
                     elif sec in self.config:
                         # If not check if the config has a key: value for the secret
                         secrets_replaced_by_config.append(sec)
-                        pattern = [r'\{\[', r'{}'.format(sec), r'\]\}']
-                        pattern = r''.join(pattern)
-                        replacement_overrides = compile(pattern=pattern).sub(self.config[sec], replacement_overrides)
+                        pattern = [r"\{\[", r"{}".format(sec), r"\]\}"]
+                        pattern = r"".join(pattern)
+                        replacement_overrides = compile(pattern=pattern).sub(
+                            self.config[sec], replacement_overrides
+                        )
                     else:
                         secrets_not_replaced.append(sec)
                 if secrets_replaced_by_overrides:
@@ -507,35 +569,45 @@ class ConfigParse:
                         f"{len(secrets_not_replaced)} secret{'' if len(secrets_not_replaced) == 1 else 's'}"
                         f"  configured that have no substitution in the base config -> {secrets_not_replaced}"
                     )
-                if not secrets_replaced_by_overrides and not secrets_replaced_by_config and not secrets_not_replaced:
-                    g.logger.debug(f"{lp}{self.type}:{mid}: no secrets were replaced during overrode config build")
+                if (
+                    not secrets_replaced_by_overrides
+                    and not secrets_replaced_by_config
+                    and not secrets_not_replaced
+                ):
+                    g.logger.debug(
+                        f"{lp}{self.type}:{mid}: no secrets were replaced during overrode config build"
+                    )
                 # {{VARS}}
-                vars_regex = compile(r'{{(\w*)}}')
+                vars_regex = compile(r"{{(\w*)}}")
                 all_vars = set(vars_regex.findall(replacement_overrides))
                 vars_replaced_by_overrides = []
                 vars_replaced_by_config = []
                 vars_not_replaced = []
                 for k, v in dmo[mid].items():
-                    if (
-                            (v is not None and v != 'zones')
-                            and k not in self.config
-                    ):
-                        g.logger.debug(f"{lp}{self.type}:{mid}: this monitor has a key defined that is not in the "
-                                       f"BASE config?! adding '{k}'={v} to the BASE config")
+                    if (v is not None and v != "zones") and k not in self.config:
+                        g.logger.debug(
+                            f"{lp}{self.type}:{mid}: this monitor has a key defined that is not in the "
+                            f"BASE config?! adding '{k}'={v} to the BASE config"
+                        )
                         self.config[k] = v
                 new_config = str(self.config)
                 for var in all_vars:
                     if var in dmo:
                         vars_replaced_by_overrides.append(var)
-                        new_config = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(dmo[var]), new_config)
+                        new_config = compile(
+                            r"(\{{\{{{key}\}}\}})".format(key=var)
+                        ).sub(str(dmo[var]), new_config)
 
                     if var in self.config:
-                        if var == 'car_past_det_max_diff_area':
-                            g.logger.debug(f"GLOBAL>>> FOUND REPLACEMENT of SUBVAR '{var}' declared inside of monitor "
-                                           f"#{mid} per-monitor config")
+                        if var == "car_past_det_max_diff_area":
+                            g.logger.debug(
+                                f"GLOBAL>>> FOUND REPLACEMENT of SUBVAR '{var}' declared inside of monitor "
+                                f"#{mid} per-monitor config"
+                            )
                         vars_replaced_by_config.append(var)
-                        new_config = compile(r'(\{{\{{{key}\}}\}})'.format(key=var)).sub(str(self.config[var]),
-                                                                                         new_config)
+                        new_config = compile(
+                            r"(\{{\{{{key}\}}\}})".format(key=var)
+                        ).sub(str(self.config[var]), new_config)
                     else:
                         vars_not_replaced.append(var)
                 if vars_replaced_by_overrides:
@@ -557,8 +629,14 @@ class ConfigParse:
                         f"  configured that {'has' if len(vars_not_replaced) == 1 else 'have'} no substitution in the "
                         f"base config -> {vars_not_replaced}"
                     )
-                if not vars_replaced_by_overrides and not vars_replaced_by_config and not vars_not_replaced:
-                    g.logger.debug(f"{lp}{self.type}:{mid}: no vars were replace during overrode config build")
+                if (
+                    not vars_replaced_by_overrides
+                    and not vars_replaced_by_config
+                    and not vars_not_replaced
+                ):
+                    g.logger.debug(
+                        f"{lp}{self.type}:{mid}: no vars were replace during overrode config build"
+                    )
                 try:
                     replacement_overrides = literal_eval(replacement_overrides)
                 except ValueError:
@@ -571,32 +649,41 @@ class ConfigParse:
                     new_ = []
                     # convert coords to something Polygon can consume
                     from pyzm.helpers.pyzm_utils import str2tuple
+
                     # use Polygon to confirm proper coords
                     from shapely.geometry import Polygon
+
                     reparse = False
                     for overrode_key, overrode_val in replacement_overrides.items():
                         # Check for fuc*ery
                         if overrode_key in illegal_keys:
                             g.logger.debug(
                                 f"{lp}{self.type}:{mid}: can not override '{overrode_key}' in monitor '{mid}' config, "
-                                f"this may cause unexpected behavior and is off limits for per monitor overrides")
+                                f"this may cause unexpected behavior and is off limits for per monitor overrides"
+                            )
                             continue
-                        if overrode_key == 'zones':
-                            g.logger.debug(f"{lp}{self.type}:{mid}: pre-defined 'zones' found, parsing...")
+                        if overrode_key == "zones":
+                            g.logger.debug(
+                                f"{lp}{self.type}:{mid}: pre-defined 'zones' found, parsing..."
+                            )
                             zones: dict = overrode_val
                             for zone_name, zone_items in zones.items():
-                                zone_coords = zone_items.get('coords')
-                                zone_pattern = zone_items.get('pattern')
-                                zone_contains = zone_items.get('contains')
-                                zone_max_size = zone_items.get('max_size')
-                                zone_min_conf = zone_items.get('min_conf')
+                                zone_coords = zone_items.get("coords")
+                                zone_pattern = zone_items.get("pattern")
+                                zone_contains = zone_items.get("contains")
+                                zone_max_size = zone_items.get("max_size")
+                                zone_min_conf = zone_items.get("min_conf")
                                 if not zone_coords:
-                                    print(f"{lp}{self.type}:{mid}: no coords for zone {zone_name}, 'coords' is "
-                                          f"REQUIRED! skipping...")
+                                    print(
+                                        f"{lp}{self.type}:{mid}: no coords for zone {zone_name}, 'coords' is "
+                                        f"REQUIRED! skipping..."
+                                    )
                                     continue
 
-                                g.logger.debug(f"{lp}{self.type}:{mid}: polygon specified -> '{zone_name}', "
-                                               f"validating polygon shape...")
+                                g.logger.debug(
+                                    f"{lp}{self.type}:{mid}: polygon specified -> '{zone_name}', "
+                                    f"validating polygon shape..."
+                                )
                                 try:
                                     coords = str2tuple(zone_coords)
                                     test = Polygon(coords)
@@ -614,24 +701,26 @@ class ConfigParse:
                                         )
                                         self.polygons[mid].append(
                                             {
-                                                'name': zone_name,
-                                                'value': coords,
-                                                'pattern': zone_pattern,
-                                                'contains': zone_contains,
-                                                'max_size': zone_max_size,
-                                                'min_conf': zone_min_conf
+                                                "name": zone_name,
+                                                "value": coords,
+                                                "pattern": zone_pattern,
+                                                "contains": zone_contains,
+                                                "max_size": zone_max_size,
+                                                "min_conf": zone_min_conf,
                                             }
                                         )
                                     else:
-                                        g.logger.debug(f"{lp}{self.type}:{mid}: creating new entry in polygons!")
+                                        g.logger.debug(
+                                            f"{lp}{self.type}:{mid}: creating new entry in polygons!"
+                                        )
                                         self.polygons[mid] = [
                                             {
-                                                'name': zone_name,
-                                                'value': coords,
-                                                'pattern': zone_pattern,
-                                                'contains': zone_contains,
-                                                'max_size': zone_max_size,
-                                                'min_conf': zone_min_conf
+                                                "name": zone_name,
+                                                "value": coords,
+                                                "pattern": zone_pattern,
+                                                "contains": zone_contains,
+                                                "max_size": zone_max_size,
+                                                "min_conf": zone_min_conf,
                                             }
                                         ]
                                     g.logger.debug(
@@ -640,20 +729,27 @@ class ConfigParse:
                                     )
 
                         # custom detection patterns for zones
-                        elif overrode_key.endswith('_zone_detection_pattern'):
-                            name = overrode_key.split('_zone_detection_pattern')[0]
+                        elif overrode_key.endswith("_zone_detection_pattern"):
+                            name = overrode_key.split("_zone_detection_pattern")[0]
                             self.detection_patterns[name] = overrode_val
                             if mid in self.polygons:
                                 for idx, p in enumerate(self.polygons[mid]):
-                                    if p['name'] == name:
-                                        self.polygons[mid][idx]['pattern'] = overrode_val
-                            g.logger.debug(f"{lp}{self.type}:{mid}: detection pattern for monitor '{mid}' defined "
-                                           f"zone '{name}' -> {overrode_val}"
-                                           )
+                                    if p["name"] == name:
+                                        self.polygons[mid][idx][
+                                            "pattern"
+                                        ] = overrode_val
+                            g.logger.debug(
+                                f"{lp}{self.type}:{mid}: detection pattern for monitor '{mid}' defined "
+                                f"zone '{name}' -> {overrode_val}"
+                            )
                         # Custom defined Polygon / Zone
-                        elif overrode_key.endswith('_polygon_zone') or overrode_key.endswith('_polygonzone'):
-                            g.logger.debug(f"{lp}{self.type}:{mid}: polygon specified -> '{overrode_key}' for"
-                                           f" monitor {mid}, validating polygon shape...")
+                        elif overrode_key.endswith(
+                            "_polygon_zone"
+                        ) or overrode_key.endswith("_polygonzone"):
+                            g.logger.debug(
+                                f"{lp}{self.type}:{mid}: polygon specified -> '{overrode_key}' for"
+                                f" monitor {mid}, validating polygon shape..."
+                            )
                             try:
                                 coords = str2tuple(overrode_val)
                                 test = Polygon(coords)
@@ -665,8 +761,12 @@ class ConfigParse:
                                 exit()
                             else:
                                 # works for _polygon_zone and _polygonzone
-                                name = overrode_key.split('_polygon')[0]
-                                pattern = self.detection_patterns[name] if name in self.detection_patterns else None
+                                name = overrode_key.split("_polygon")[0]
+                                pattern = (
+                                    self.detection_patterns[name]
+                                    if name in self.detection_patterns
+                                    else None
+                                )
                                 if mid in self.polygons:
                                     g.logger.debug(
                                         f"{lp}{self.type}:{mid}: appending to the existing entry in "
@@ -674,18 +774,20 @@ class ConfigParse:
                                     )
                                     self.polygons[mid].append(
                                         {
-                                            'name': name,
-                                            'value': coords,
-                                            'pattern': pattern
+                                            "name": name,
+                                            "value": coords,
+                                            "pattern": pattern,
                                         }
                                     )
                                 else:
-                                    g.logger.debug(f"{lp}{self.type}:{mid}: creating new entry in polygons!")
+                                    g.logger.debug(
+                                        f"{lp}{self.type}:{mid}: creating new entry in polygons!"
+                                    )
                                     self.polygons[mid] = [
                                         {
-                                            'name': name,
-                                            'value': coords,
-                                            'pattern': pattern
+                                            "name": name,
+                                            "value": coords,
+                                            "pattern": pattern,
                                         }
                                     ]
                                 g.logger.debug(
@@ -698,7 +800,7 @@ class ConfigParse:
                         else:
                             # there is not a key to override so a new key will be created
                             new_.append(overrode_key)
-                            if overrode_key != 'zones':
+                            if overrode_key != "zones":
                                 self.config[overrode_key] = overrode_val
                                 reparse = True
                         self.override_config[overrode_key] = overrode_val
@@ -718,158 +820,174 @@ class ConfigParse:
                     if reparse:
                         g.logger.debug(f"{lp}{self.type}:{mid}: re-parsing SUB VARS...")
                         self._parse_conf()
-                        g.logger.debug(f"{self.config.get('ml_sequence', {}).get('general') = }")
+                        g.logger.debug(
+                            f"{self.config.get('ml_sequence', {}).get('general') = }"
+                        )
                         for mon in self.monitor_overrides:
                             if self.monitor_overrides[mon] != self.config:
-                                g.logger.debug(f"{lp}{self.type}:{mon}: overwriting old per monitor global "
-                                               f"config as new data is available!")
+                                g.logger.debug(
+                                    f"{lp}{self.type}:{mon}: overwriting old per monitor global "
+                                    f"config as new data is available!"
+                                )
                                 self.monitor_overrides[mon] = deepcopy(self.config)
 
 
-
-def start_logs(config: dict, args: dict, type_: str = 'unknown', no_signal: bool = False, new_=None):
+def start_logs(
+    config: dict, args: dict, type_: str = "unknown", no_signal: bool = False, new_=None
+):
     # Setup logger and API, baredebug means DEBUG level logging but do not output to console
     # this is handy if you are monitoring the log files with tail -F (or the provided es.log.<detect/base> or mlapi.log)
     # otherwise you get double output. mlapi and ZMES override their std.out and std.err in order to catch all errors
     # and log them
-    if args.get('debug') and args.get('baredebug'):
-        g.logger.warning(f"{lp} both debug flags enabled! --debug takes precedence over --baredebug")
-        args.pop('baredebug')
+    if args.get("debug") and args.get("baredebug"):
+        g.logger.warning(
+            f"{lp} both debug flags enabled! --debug takes precedence over --baredebug"
+        )
+        args.pop("baredebug")
 
-    if args.get('debug'):
-        config['pyzm_overrides']['dump_console'] = True
+    if args.get("debug"):
+        config["pyzm_overrides"]["dump_console"] = True
 
-    if args.get('debug') or args.get('baredebug'):
-        config['pyzm_overrides']['log_debug'] = True
-        if not config['pyzm_overrides'].get('log_level_syslog'):
-            config['pyzm_overrides']['log_level_syslog'] = 5
-        if not config['pyzm_overrides'].get('log_level_file'):
-            config['pyzm_overrides']['log_level_file'] = 5
-        if not config['pyzm_overrides'].get('log_level_debug'):
-            config['pyzm_overrides']['log_level_debug'] = 5
-        if not config['pyzm_overrides'].get('log_debug_file'):
+    if args.get("debug") or args.get("baredebug"):
+        config["pyzm_overrides"]["log_debug"] = True
+        if not config["pyzm_overrides"].get("log_level_syslog"):
+            config["pyzm_overrides"]["log_level_syslog"] = 5
+        if not config["pyzm_overrides"].get("log_level_file"):
+            config["pyzm_overrides"]["log_level_file"] = 5
+        if not config["pyzm_overrides"].get("log_level_debug"):
+            config["pyzm_overrides"]["log_level_debug"] = 5
+        if not config["pyzm_overrides"].get("log_debug_file"):
             # log levels -> 1 dbg/print/blank 0 info, -1 warn, -2 err, -3 fatal, -4 panic, -5 off
-            config['pyzm_overrides']['log_debug_file'] = 1
+            config["pyzm_overrides"]["log_debug_file"] = 1
 
     if not ZM_INSTALLED:
         # Turn DB logging off if ZM is not installed
-        config['pyzm_overrides']['log_level_db'] = -5
+        config["pyzm_overrides"]["log_level_db"] = -5
 
-    if type_ == 'mlapi':
-        log_path: str = ''
-        log_name = 'zm_mlapi.log'
+    if type_ == "mlapi":
+        log_path: str = ""
+        log_name = "zm_mlapi.log"
         if not ZM_INSTALLED:
-            g.logger.debug(f"{lp}init:log: Zoneminder is not installed, configuring mlapi logger")
-            if config.get('log_user'):
-                log_user = config['log_user']
-            if config.get('log_group'):
-                log_group = config['log_group']
-            elif not config.get('log_group') and config.get('log_user'):
+            g.logger.debug(
+                f"{lp}init:log: Zoneminder is not installed, configuring mlapi logger"
+            )
+            if config.get("log_user"):
+                log_user = config["log_user"]
+            if config.get("log_group"):
+                log_group = config["log_group"]
+            elif not config.get("log_group") and config.get("log_user"):
                 # use log user as log group as well
-                log_group = config['log_user']
+                log_group = config["log_user"]
             log_path = f"{config['base_data_path']}/logs"
             # create the log dir in base_data_path, if it exists do not throw an exception
             Path(log_path).mkdir(exist_ok=True)
 
         elif ZM_INSTALLED:
-            g.logger.debug(f"{lp}init:log: Zoneminder is installed, configuring mlapi logger")
+            g.logger.debug(
+                f"{lp}init:log: Zoneminder is installed, configuring mlapi logger"
+            )
             # get the system's apache user (www-data, apache, etc.....)
             from pyzm.helpers.pyzm_utils import get_www_user
+
             log_user, log_group = get_www_user()
             # fixme: what if system logs are elsewhere?
             if Path("/var/log/zm").is_dir():
-                print(f"TESTING! mlapi is on same host as ZM, using '/var/log/zm' as logging path")
+                print(
+                    f"TESTING! mlapi is on same host as ZM, using '/var/log/zm' as logging path"
+                )
                 log_path = "/var/log/zm"
             else:
-                print(f"TESTING! mlapi is on the same host as ZM but '/var/log/zm' is not created or inaccessible, "
-                      f"using the configured (possibly default) log path '{config['base_data_path']}/logs'")
+                print(
+                    f"TESTING! mlapi is on the same host as ZM but '/var/log/zm' is not created or inaccessible, "
+                    f"using the configured (possibly default) log path '{config['base_data_path']}/logs'"
+                )
                 log_path = f"{config['base_data_path']}/logs"
                 # create the log dir in base_data_path, if it exists do not throw an exception
                 Path(log_path).mkdir(exist_ok=True)
 
         else:
-            print(f"It seems there is no user to log with, there will only be console output, if anything"
-                  f" at all. Configure log_user and log_group in your config file -> '{args.get('config')}'")
+            print(
+                f"It seems there is no user to log with, there will only be console output, if anything"
+                f" at all. Configure log_user and log_group in your config file -> '{args.get('config')}'"
+            )
             log_user = None
             log_group = None
 
-        log_name = config.get('log_name', log_name)
+        log_name = config.get("log_name", log_name)
         # Validate log path if supplied in args
-        if args.get('log_path'):
-            if args.get('log_path_force'):
+        if args.get("log_path"):
+            if args.get("log_path_force"):
                 g.logger.debug(f"{lp}init: 'force_log_path' is enabled!")
-                Path(args.get('log_path')).mkdir(exist_ok=True)
+                Path(args.get("log_path")).mkdir(exist_ok=True)
             else:
-                log_p = Path(args.get('log_path'))
+                log_p = Path(args.get("log_path"))
                 if log_p.is_dir():
-                    log_path = args.get('log_path')
+                    log_path = args.get("log_path")
                 elif log_p.exists() and not log_p.is_dir():
                     print(
                         f"{lp}init: the specified 'log_path' ({log_p.name}) exists BUT it is not a directory! using "
-                        f"'{log_path}'.")
+                        f"'{log_path}'."
+                    )
                 elif not log_p.exists():
                     print(
-                        f"{lp}init: the specified 'log_path' ({log_p.name}) does not exist! using '{log_path}'.")
+                        f"{lp}init: the specified 'log_path' ({log_p.name}) does not exist! using '{log_path}'."
+                    )
 
-        config['pyzm_overrides']['logpath'] = log_path
-        config['pyzm_overrides']['webuser'] = log_user
-        config['pyzm_overrides']['webgroup'] = log_group
+        config["pyzm_overrides"]["logpath"] = log_path
+        config["pyzm_overrides"]["webuser"] = log_user
+        config["pyzm_overrides"]["webgroup"] = log_group
 
-    elif type_ == 'zmes':
-        log_name = 'zmesdetect.log'
-        if args.get('monitor_id'):
+    elif type_ == "zmes":
+        log_name = "zmesdetect.log"
+        if args.get("monitor_id"):
             log_name = f"zmesdetect_m{args.get('monitor_id')}"
-        elif args.get('file'):
+        elif args.get("file"):
             log_name = "zmesdetect_file"
         elif g.mid:
             log_name = f"zmesdetect_m{g.mid}"
-        elif args.get('from_face_train'):
+        elif args.get("from_face_train"):
             log_name = "zmes_train_face"
     else:
-        log_name = 'zmes_external'
-        if args.get('logname'):
-            log_name = args.get('logname')
+        log_name = "zmes_external"
+        if args.get("logname"):
+            log_name = args.get("logname")
     # print(f"DBG>> before initializing ZMLog -> pyzm_overrides = {config['pyzm_overrides']}")
     if not isinstance(g.logger, ZMLog):
-        g.logger = ZMLog(name=log_name, override=config['pyzm_overrides'], globs=g, no_signal=no_signal)
-    # print(f"DBG>> AFTER {g.logger.get_config()}")
-    if new_ and isinstance(new_, datetime):
-        from pyzm.helpers.pyzm_utils import time_format
-        g.logger.debug(f"\n\nZONEMINDER: EventStartCommand was called -> {time_format(new_)}\n\n")
-        g.logger.log_close(exit=0)
-        exit(0)
+        g.logger = ZMLog(
+            name=log_name,
+            override=config["pyzm_overrides"],
+            globs=g,
+            no_signal=no_signal,
+        )
 
 
-def process_config(
-        args: dict,
-        type_: str
-):
+def process_config(args: dict, type_: str):
     # Singleton dataclass should already be instantiated.
     global g
     g = GlobalConfig()
-    if args.get('from_docker') or args.get('docker'):
-        g.config['DOCKER'] = True
-    g.config['sanitize_str'] = '<sanitized>'
+    if args.get("from_docker") or args.get("docker"):
+        g.config["DOCKER"] = True
+    g.config["sanitize_str"] = "<sanitized>"
     # build default config, pass filename
     defaults = g.DEFAULT_CONFIG
-    config_obj = ConfigParse(args['config'], defaults)
+    config_obj = ConfigParse(args["config"], defaults)
     config_obj.process_config()
     # config_obj.COCO = pop_coco_names(config_obj.config['yolo4_object_labels']
     g.config = config_obj.config
-    if type_ == 'mlapi':
+    if type_ == "mlapi":
         # Need to build defined per monitors config
         for mon, _ in config_obj.monitors.items():
             if _ is not None:
                 config_obj.monitor_override(mon)
         # Ensure setting resize in mlapi config file will not have any effect
         # stream options will override this if resize is set in the zmes config
-        if config_obj.config.get('resize') is not None:
-            config_obj.config.pop('resize')
+        if config_obj.config.get("resize") is not None:
+            config_obj.config.pop("resize")
     return config_obj, g
 
 
 def create_api(args: dict):
-    lp = 'zmes:api create:'
+    lp = "zmes:api create:"
     g.logger.debug(f"{lp} building ZM API Session")
     # get the api going
     api_options = {
@@ -892,24 +1010,28 @@ def create_api(args: dict):
         # get and set the monitor id, name, eventpath
         if args.get("eventid"):
             # set event id globally first before calling api event data
-            g.config['eid'] = g.eid = int(args['eventid'])
+            g.config["eid"] = g.eid = int(args["eventid"])
             # api call for event data
             try:
                 g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
             except ValueError as err:
-                if str(err) == 'Invalid Event':
-                    g.logger.error(f"{lp} there seems to be an error while grabbing event data, EXITING!")
+                if str(err) == "Invalid Event":
+                    g.logger.error(
+                        f"{lp} there seems to be an error while grabbing event data, EXITING!"
+                    )
                     exit(1)
                 else:
                     g.logger.debug(f"{lp} there is a ValueError exception >>> {err}")
             else:
                 g.config["mon_name"] = g.Monitor.get("Name")
                 g.config["api_cause"] = g.Event.get("Cause")
-                if not args.get('reason'):
-                    args['reason'] = g.Event.get("Notes")
-                g.config['mid'] = g.mid = args["monitor_id"] = int(g.Monitor.get("Id"))
+                if not args.get("reason"):
+                    args["reason"] = g.Event.get("Notes")
+                g.config["mid"] = g.mid = args["monitor_id"] = int(g.Monitor.get("Id"))
                 if args.get("eventpath", "") == "":
-                    g.config["eventpath"] = args["eventpath"] = g.Event.get("FileSystemPath")
+                    g.config["eventpath"] = args["eventpath"] = g.Event.get(
+                        "FileSystemPath"
+                    )
                 else:
                     g.config["eventpath"] = args["eventpath"] = args.get("eventpath")
         g.logger.debug(f"{lp} ZM API created")
