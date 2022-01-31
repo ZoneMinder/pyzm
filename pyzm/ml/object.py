@@ -10,6 +10,7 @@ g: GlobalConfig
 
 class Object:
     """'Object' is a BASE class to wrap other model Classes for detections using OpenCV 4.2+/CUDA/cuDNN"""
+
     def __init__(self, *args, **kwargs):
         global g
         g = GlobalConfig()
@@ -17,15 +18,12 @@ class Object:
 
     def create_lock(self):
         if not str2bool(self.disable_locks):
-            g.logger.debug(2,
-                           f"{self.lp}portalock: [name: {self.lock_name}] [max: {self.lock_maximum}] - "
-                           f"[timeout: {self.lock_timeout}]"
-                           )
-            self.lock = BoundedSemaphore(
-                maximum=self.lock_maximum,
-                name=self.lock_name,
-                timeout=self.lock_timeout
+            g.logger.debug(
+                2,
+                f"{self.lp}portalock: [name: {self.lock_name}] [max: {self.lock_maximum}] - "
+                f"[timeout: {self.lock_timeout}]",
             )
+            self.lock = BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name, timeout=self.lock_timeout)
         else:
             self.lock = None
 
@@ -44,11 +42,9 @@ class Object:
 
         except AlreadyLocked:
             g.logger.error(
-                f"{self.lp}portalock: timeout waiting for '{self.lock_name}'  for {self.lock_timeout}"
-                f" seconds"
+                f"{self.lp}portalock: timeout waiting for '{self.lock_name}'  for {self.lock_timeout}" f" seconds"
             )
-            raise ValueError(
-                f'Timeout waiting for {self.lock_name} portalock for {self.lock_timeout} seconds')
+            raise ValueError(f"Timeout waiting for {self.lock_name} portalock for {self.lock_timeout} seconds")
 
     def release_lock(self):
         if str2bool(self.disable_locks):
@@ -71,14 +67,7 @@ class Object:
         return bbox
 
     @staticmethod
-    def indice_process(
-            boxes,
-            indices,
-            confidences,
-            classes,
-            class_ids,
-            scalar_fix: bool = False
-    ):
+    def indice_process(boxes, indices, confidences, classes, class_ids, scalar_fix: bool = False):
         box = None
         bbox, label, conf = [], [], []
         for i in indices:
@@ -90,12 +79,7 @@ class Object:
             y = box[1]
             w_ = box[2]
             h_ = box[3]
-            bbox.append([
-                int(round(x)),
-                int(round(y)),
-                int(round(x + w_)),
-                int(round(y + h_))
-            ])
+            bbox.append([int(round(x)), int(round(y)), int(round(x + w_)), int(round(y + h_))])
             label.append(str(classes[class_ids[i]]))
             conf.append(confidences[i])
         return label, bbox, conf, box

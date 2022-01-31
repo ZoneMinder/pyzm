@@ -5,6 +5,7 @@ from typing import Optional
 
 import cv2
 import numpy as np
+
 # Pycharm hack for intellisense
 # from cv2 import cv2
 
@@ -12,33 +13,29 @@ from pyzm.helpers.pyzm_utils import Timer, str2bool
 from pyzm.interface import GlobalConfig
 from pyzm.ml.object import Object
 
-lp: Optional[str] = 'yolo:'
+lp: Optional[str] = "yolo:"
 g: GlobalConfig
 
+
 class YoloException(Exception):
-    def __init__(self, message='My default message', *args, **kwargs):
+    def __init__(self, message="My default message", *args, **kwargs):
         print(f"inside custom YoloException init args={args}")
         print(f"kwargs={kwargs}")
         # g.logger.error(message)
         super().__init__(message, *args, **kwargs)
 
 
-
 class Yolo(Object):
     # The actual CNN object detection code
     # opencv DNN code credit: https://github.com/arunponnusamy/cvlib
-    def __init__(
-            self,
-            *args,
-            **kwargs
-    ):
-        self.lp = lp = 'yolo:'
+    def __init__(self, *args, **kwargs):
+        self.lp = lp = "yolo:"
         global g
         g = GlobalConfig()
-        self.options: dict = kwargs.get('options', {})
+        self.options: dict = kwargs.get("options", {})
         if self.options is None:
             raise YoloException(f"YOLO no options passed!")
-        kwargs['globs'] = g
+        kwargs["globs"] = g
         super().__init__(*args, **kwargs)
 
         self.original_image: Optional[cv2] = None
@@ -48,26 +45,26 @@ class Yolo(Object):
         self.net = None
         self.classes = None
         self.is_locked: bool = False
-        self.sequence_name: str = ''
+        self.sequence_name: str = ""
         g.logger.debug(4, f"{lp} initialization params: {self.options}")
 
-        self.processor: str = self.options.get('object_processor', 'cpu')
-        self.lock_maximum: int = int(self.options.get(self.processor + '_max_processes', 1))
-        self.lock_timeout: int = int(self.options.get(self.processor + '_max_lock_wait', 120))
+        self.processor: str = self.options.get("object_processor", "cpu")
+        self.lock_maximum: int = int(self.options.get(self.processor + "_max_processes", 1))
+        self.lock_timeout: int = int(self.options.get(self.processor + "_max_lock_wait", 120))
         self.lock_name = f"pyzm_uid{getuid()}_{self.processor.upper()}_lock"
-        self.disable_locks = self.options.get('disable_locks', 'no')
+        self.disable_locks = self.options.get("disable_locks", "no")
         # method from superclass to reduce duplicate code
         self.create_lock()
         # yolo needs to scale the bounding boxes based on the w/h of the image
-        self.model_height = self.options.get('model_height', 416)
-        self.model_width = self.options.get('model_width', 416)
+        self.model_height = self.options.get("model_height", 416)
+        self.model_width = self.options.get("model_width", 416)
 
     def get_model_name(self) -> str:
         return f"yolo-{self.processor}"
 
     @staticmethod
     def view_image(v_img):
-        cv2.imwait('image.jpg', v_img)
+        cv2.imwait("image.jpg", v_img)
         cv2.waitKey(0)
 
     def get_sequence_name(self) -> str:
@@ -83,25 +80,27 @@ class Yolo(Object):
         return self.classes
 
     def populate_class_labels(self):
-        if self.options.get('object_labels'):
-            labels_file = Path(self.options.get('object_labels'))
+        if self.options.get("object_labels"):
+            labels_file = Path(self.options.get("object_labels"))
             if labels_file.is_file():
-                with labels_file.open('r') as f:
+                with labels_file.open("r") as f:
                     self.classes = [line.strip() for line in f.readlines()]
             else:
                 g.logger.error(
                     f"{lp} the specified labels file '{labels_file.name}' does not exist/is not a file! "
                     f"Can not populate labels"
                 )
-                raise YoloException(f"The specified labels file does not exist or is not a file! "
-                                    f"({self.options.get('object_labels')})")
+                raise YoloException(
+                    f"The specified labels file does not exist or is not a file! "
+                    f"({self.options.get('object_labels')})"
+                )
 
     def load_model(self):
-        self.sequence_name = self.options.get('name')
+        self.sequence_name = self.options.get("name")
         g.logger.debug(f"{lp} loading model data from sequence '{self.sequence_name}'")
         t = Timer()
-        _weights = self.options.get('object_weights')
-        _config = self.options.get('object_config')
+        _weights = self.options.get("object_weights")
+        _config = self.options.get("object_config")
         if not Path(_weights).is_file() or not Path(_config).is_file():
             raise YoloException(f"The weights or config file does not exist or is not a file!")
         self.net = cv2.dnn.readNet(_weights, _config)
@@ -110,8 +109,8 @@ class Yolo(Object):
             f"perf:{lp} '{self.sequence_name}' initialization -> loading "
             f"'{Path(_weights).name}' took: {t.stop_and_get_ms()}"
         )
-        if self.processor == 'gpu':
-            (maj, minor, patch) = cv2.__version__.split('.')
+        if self.processor == "gpu":
+            (maj, minor, patch) = cv2.__version__.split(".")
             min_ver = int(maj + minor)
             patch = patch if patch.isnumeric() else 0
             patch_ver = int(maj + minor + patch)
@@ -119,23 +118,27 @@ class Yolo(Object):
             # see https://github.com/ZoneMinder/mlapi/issues/44)
             # @baudneo linked issue -> https://github.com/baudneo/pyzm/issues/3
             if patch_ver >= 454:
-                g.logger.info(f"{lp} OpenCV (4.5.4+) fix for getUnconnectedOutLayers() API (Non nested structure - "
-                              f"Thanks @pliablepixels !)")
+                g.logger.info(
+                    f"{lp} OpenCV (4.5.4+) fix for getUnconnectedOutLayers() API (Non nested structure - "
+                    f"Thanks @pliablepixels !)"
+                )
                 self.new_cv_scalar_fix = True
 
             if min_ver < 42:
                 g.logger.error(
-                    f'You are using OpenCV version {cv2.__version__} which does not support CUDA for DNNs. A minimum'
-                    f' of 4.2 is required. See https://medium.com/@baudneo/install-zoneminder-1-36-x-6dfab7d7afe7'
-                    f' on how to compile and install openCV 4.5.4 with CUDA')
-                self.processor = 'cpu'
+                    f"You are using OpenCV version {cv2.__version__} which does not support CUDA for DNNs. A minimum"
+                    f" of 4.2 is required. See https://medium.com/@baudneo/install-zoneminder-1-36-x-6dfab7d7afe7"
+                    f" on how to compile and install openCV 4.5.4 with CUDA"
+                )
+                self.processor = "cpu"
             else:  # Passed opencv version check, using GPU
                 self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-                if str2bool(self.options.get('fp16_target')):
+                if str2bool(self.options.get("fp16_target")):
                     self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
                     g.logger.debug(
                         f"{lp} half precision floating point (FP16) cuDNN target enabled (turn this off if it"
-                        f" makes yolo slower, you will notice if it does!)")
+                        f" makes yolo slower, you will notice if it does!)"
+                    )
                 else:
                     self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
 
@@ -145,11 +148,7 @@ class Yolo(Object):
         )
         self.populate_class_labels()
 
-    def detect(
-            self,
-            input_image: Optional[np.ndarray] = None,
-            retry: bool = False
-    ):
+    def detect(self, input_image: Optional[np.ndarray] = None, retry: bool = False):
         if input_image is None:
             g.logger.error(f"{lp} no image passed!?!")
             raise YoloException("NO_IMAGE")
@@ -165,7 +164,7 @@ class Yolo(Object):
         upsize_y_factor = None
 
         h, w = input_image.shape[:2]
-        max_size = self.options.get('max_size')
+        max_size = self.options.get("max_size")
         max_size = w if not max_size else max_size
         if not isinstance(max_size, str) or (isinstance(max_size, str) and max_size.isnumeric()):
             try:
@@ -175,14 +174,14 @@ class Yolo(Object):
                 max_size = w
             except Exception as all_ex:
                 g.logger.error(
-                    f"{lp} ALL EXCEPTION!!! 'max_size' can only be an integer -> 123 not "
-                    f"123.xx -> {all_ex}"
+                    f"{lp} ALL EXCEPTION!!! 'max_size' can only be an integer -> 123 not " f"123.xx -> {all_ex}"
                 )
                 max_size = w
             else:
                 if w > max_size:
                     downscaled = True
                     from pyzm.helpers.pyzm_utils import resize_image
+
                     g.logger.debug(2, f"{lp} scaling image down to max (width) size: {max_size}")
                     input_image = resize_image(input_image, max_size)
                     new_height, new_width = input_image.shape[:2]
@@ -191,7 +190,7 @@ class Yolo(Object):
 
         h, w = input_image.shape[:2]
         try:
-            if self.options.get('auto_lock', True):
+            if self.options.get("auto_lock", True):
                 self.acquire_lock()
             if not self.net or (self.net and retry):
                 # model has not been loaded or this is a retry detection so we want to rebuild
@@ -199,7 +198,8 @@ class Yolo(Object):
                 self.load_model()
             g.logger.debug(
                 f"{lp} '{self.sequence_name}' ({self.processor.upper()}) - input image {w}*{h} - resized by "
-                f" model_width/height to: {self.model_width}*{self.model_height}")
+                f" model_width/height to: {self.model_width}*{self.model_height}"
+            )
             scale = 0.00392  # 1/255, really. Normalize inputs.
             t = Timer()
             ln = self.net.getLayerNames()
@@ -216,10 +216,7 @@ class Yolo(Object):
             else:
                 ln = [ln[i - 1] for i in self.net.getUnconnectedOutLayers()]
             blob = cv2.dnn.blobFromImage(
-                input_image,
-                scale, (self.model_width, self.model_height), (0, 0, 0),
-                True,
-                crop=False
+                input_image, scale, (self.model_width, self.model_height), (0, 0, 0), True, crop=False
             )
 
             self.net.setInput(blob)
@@ -227,18 +224,22 @@ class Yolo(Object):
         except Exception as all_ex:
             err_msg = repr(all_ex)
             if (
-                    err_msg.find('-217:Gpu') > 0
-                    and err_msg.find("'make_policy'") > 0
-                    and self.options['object_processor'] == 'gpu'
+                err_msg.find("-217:Gpu") > 0
+                and err_msg.find("'make_policy'") > 0
+                and self.options["object_processor"] == "gpu"
             ):
-                g.logger.error(f"{lp} (-217:Gpu # API call) invalid device function in function 'make_policy' - "
-                               f"This happens when OpenCV is compiled with the incorrect Compute Capability "
-                               f"(CUDA_ARCH_BIN). There is a high probability that you need to recompile OpenCV with "
-                               f"the correct CUDA_ARCH_BIN before GPU detections will work properly!")
+                g.logger.error(
+                    f"{lp} (-217:Gpu # API call) invalid device function in function 'make_policy' - "
+                    f"This happens when OpenCV is compiled with the incorrect Compute Capability "
+                    f"(CUDA_ARCH_BIN). There is a high probability that you need to recompile OpenCV with "
+                    f"the correct CUDA_ARCH_BIN before GPU detections will work properly!"
+                )
                 # set arch to cpu and retry?
-                self.options['object_processor'] = 'cpu'
-                g.logger.info(f"{lp} GPU detection failed due to probable incorrect CUDA_ARCH_BIN (Compute Capability)."
-                              f" Switching to CPU and retrying detection!")
+                self.options["object_processor"] = "cpu"
+                g.logger.info(
+                    f"{lp} GPU detection failed due to probable incorrect CUDA_ARCH_BIN (Compute Capability)."
+                    f" Switching to CPU and retrying detection!"
+                )
                 self.detect(self.original_image, retry=True)
             g.logger.error(f"{lp} exception during blobFromImage -> {all_ex}")
 
@@ -247,14 +248,14 @@ class Yolo(Object):
             raise YoloException(f"blobFromImage")
 
         finally:
-            if self.options.get('auto_lock', True):
+            if self.options.get("auto_lock", True):
                 self.release_lock()
 
         class_ids, confidences, boxes = [], [], []
         nms_threshold, conf_threshold = 0.4, 0.2
         # Non Max Suppressive
-        if float(self.options.get('object_min_confidence')) < conf_threshold:
-            conf_threshold = float(self.options.get('object_min_confidence'))
+        if float(self.options.get("object_min_confidence")) < conf_threshold:
+            conf_threshold = float(self.options.get("object_min_confidence"))
         try:
             """
             FP16 testing for dnn CUDA_TARGET_FP16
@@ -282,7 +283,7 @@ class Yolo(Object):
                     confidences.append(float(confidence))
                     boxes.append([x, y, wid, hei])
         except OverflowError as ex:
-            if self.processor == 'gpu':
+            if self.processor == "gpu":
                 g.logger.debug(
                     f"GPU needs to be reset? try re downloading YOLO models first, if that doesn't work "
                     f"try -> sudo nvidia-smi -r <- to reset the gpu and restart. "
@@ -294,7 +295,7 @@ class Yolo(Object):
             raise ex
         except YoloException as v_exc:
             if repr(v_exc) == "cannot convert float NaN to integer":
-                if str2bool(self.options.get('fp16_target')):
+                if str2bool(self.options.get("fp16_target")):
                     g.logger.error(
                         f"{lp} '{repr(v_exc)}' FP_16 CUDA TARGET is configured. Setting CUDA TARGET to FP_32 and "
                         f"re running detection!"
@@ -312,8 +313,9 @@ class Yolo(Object):
         diff_time = t.stop_and_get_ms()
         g.logger.debug(2, f"perf:{lp}{self.processor.upper()}: '{self.sequence_name}' detection took: {diff_time}")
 
-        label, bbox, conf, box = self.indice_process(boxes, indices, confidences, self.classes, class_ids,
-                                                     self.new_cv_scalar_fix)
+        label, bbox, conf, box = self.indice_process(
+            boxes, indices, confidences, self.classes, class_ids, self.new_cv_scalar_fix
+        )
 
         if downscaled:
             g.logger.debug(2, f"{lp} scaling bounding boxes back up using  x={upsize_x_factor} y={upsize_y_factor}")
@@ -323,9 +325,4 @@ class Yolo(Object):
         else:
             g.logger.debug(f"{lp} no detections to return!")
         self.original_image = None
-        return (
-            bbox,
-            label,
-            conf,
-            [f"yolo[{self.processor.upper()}]"] * len(label)
-        )
+        return (bbox, label, conf, [f"yolo[{self.processor.upper()}]"] * len(label))

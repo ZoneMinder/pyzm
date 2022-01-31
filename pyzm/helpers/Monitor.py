@@ -7,60 +7,60 @@ If you don't see a specific getter, just use the generic get function to get
 the full object
 """
 from typing import Optional
+from pyzm.interface import GlobalConfig
 
-g = None
+g: GlobalConfig
 
 
 class Monitor:
-    def __init__(self, monitor=None, globs=None):
+    def __init__(self, monitor=None):
         global g
-        g = globs
+        g = GlobalConfig()
         self.monitor = monitor
-        self.api = g.api
 
     def __str__(self):
         if self.monitor:
             return f"<Monitor #{self.monitor['Monitor']['Id']} name: {self.monitor['Monitor']['Name']}>"
-    
+
     def get(self):
         """Returns monitor object
-        
+
         Returns:
             :class:`pyzm.helpers.Monitor`: Monitor object
         """
-        return self.monitor['Monitor']
+        return self.monitor["Monitor"]
 
     def enabled(self):
         """True if monitor is enabled
-        
+
         Returns:
             bool: Enabled or not
         """
-        return self.monitor['Monitor']['Enabled'] == '1'
+        return self.monitor["Monitor"]["Enabled"] == "1"
 
     def function(self):
         """returns monitor function
-        
+
         Returns:
             string: monitor function
         """
-        return self.monitor['Monitor']['Function']
-    
+        return self.monitor["Monitor"]["Function"]
+
     def name(self):
         """Returns monitor name
-        
+
         Returns:
             string: monitor name
         """
-        return self.monitor['Monitor']['Name']
-    
+        return self.monitor["Monitor"]["Name"]
+
     def id(self):
         """Returns monitor Id
-        
+
         Returns:
             int: Monitor Id
         """
-        return int(self.monitor['Monitor']['Id'])
+        return int(self.monitor["Monitor"]["Id"])
 
     def linked(self):
         """Returns monitor Id
@@ -68,19 +68,19 @@ class Monitor:
         Returns:
             int: Monitor Id
         """
-        return self.monitor['Monitor']['LinkedMonitors']
+        return self.monitor["Monitor"]["LinkedMonitors"]
 
     def type(self):
         """Returns monitor type
-        
+
         Returns:
             string: Monitor type
         """
-        return self.monitor['Monitor']['Type']
-    
+        return self.monitor["Monitor"]["Type"]
+
     def dimensions(self):
         """Returns width and height of monitor
-        
+
         Returns:
             dict: as below::
 
@@ -89,52 +89,55 @@ class Monitor:
                 'height': int
             }
         """
-        return { 'width':int(self.monitor['Monitor']['Width']), 
-                 'height':int(self.monitor['Monitor']['Height'])
+        return {
+            "width": int(self.monitor["Monitor"]["Width"]),
+            "height": int(self.monitor["Monitor"]["Height"]),
         }
-    
-    def events(self, options={}):
+
+    def events(self, options=None):
         """Returns events associated to the monitor, subject to filters in options
-        
+
         Args:
             options (dict, optional): Same as options for :class:`pyzm.helpers.Event`. Defaults to {}.
-        
+
         Returns:
            :class:`pyzm.helpers.Events`
         """
-        options['mid'] = self.id()
-        return self.api.events(options=options)
+        if options is None:
+            options = {}
+        options["mid"] = self.id()
+        return g.api.events(options=options)
 
-    def eventcount(self, options={}):
+    def eventcount(self, options: Optional[dict] = None):
         """Returns count of events for monitor
-        
+
         Args:
             options (dict, optional): Same as options for :class:`pyzm.helpers.Event`. Defaults to {}.
-        
+
         Returns:
             int: count
         """
         # regular events API is more powerful than
         # console events as it allows us flexible timings
         # making limit=1 keeps the processing limited
-        options['mid'] = self.id()
-        options['max_events'] = 1
-        return self.api.events(options=options).count()
-        #print (s)
-    
+        if options is None:
+            options = {}
+        options["mid"] = self.id()
+        options["max_events"] = 1
+        return g.api.events(options=options).count()
+
     def delete(self):
         """Deletes monitor
-        
+
         Returns:
             json: API response
         """
-        url = self.api.api_url+'/monitors/{}.json'.format(self.id())
-        return self.api.make_request(url=url, type_action='delete')
-
+        url = f"{g.api.api_url}/monitors/{self.id()}.json"
+        return g.api.make_request(url=url, type_action="delete")
 
     def set_parameter(self, options={}):
         """Changes monitor parameters
-        
+
         Args:
             options (dict, optional): As below. Defaults to {}::
 
@@ -149,56 +152,54 @@ class Monitor:
                     }
 
                 }
-    
-        
+
+
         Returns:
             json: API Response
         """
-        url = self.api.api_url+'/monitors/{}.json'.format(self.id())
+        url = f"{g.api.api_url}/monitors/{self.id()}.json"
         payload = {}
-        if options.get('function'):
-            payload['Monitor[Function]'] = options.get('function')
-        if options.get('name'):
-            payload['Monitor[Name]'] = options.get('name')
-        if options.get('enabled') != None:
-            enabled = '1' if options.get('enabled') else '0'
-            payload['Monitor[Enabled]'] = enabled
+        if options.get("function"):
+            payload["Monitor[Function]"] = options.get("function")
+        if options.get("name"):
+            payload["Monitor[Name]"] = options.get("name")
+        if options.get("enabled") is not None:
+            enabled = "1" if options.get("enabled") else "0"
+            payload["Monitor[Enabled]"] = enabled
 
-        if options.get('raw'):
-            for k in options.get('raw'):
-                payload[k] = options.get('raw')[k]
-               
+        if options.get("raw"):
+            for k in options.get("raw"):
+                payload[k] = options.get("raw")[k]
+
         if payload:
-            return self.api.make_request(url=url, payload=payload, type_action='post')
+            return g.api.make_request(url=url, payload=payload, type_action="post")
 
     def arm(self):
         """Arms monitor (forces alarm)
-        
+
         Returns:
             json: API response
         """
-        return self._set_alarm(type='on')
+        return self._set_alarm(type="on")
 
     def disarm(self):
         """Disarm monito (removes alarm)
-        
+
         Returns:
             json: API response
         """
-        return self._set_alarm(type='off')
+        return self._set_alarm(type="off")
 
-    def _set_alarm(self,type='on'):
-        url = self.api.api_url+'/monitors/alarm/id:{}/command:{}.json'.format(self.id(), type)
-        return self.api.make_request(url=url)
-
-
+    def _set_alarm(self, type="on"):
+        url = f"{g.api.api_url}/monitors/alarm/id:{self.id()}/command:{type}.json"
+        return g.api.make_request(url=url)
 
     def status(self):
         """Returns status of monitor, as reported by zmdc
             TBD: crappy return, need to normalize
-        
+
         Returns:
             json: API response
         """
-        url = self.api.api_url+'/monitors/daemonStatus/id:{}/daemon:zmc.json'.format(self.id())
-        return self.api.make_request(url=url)
+        url = f"{g.api.api_url}/monitors/daemonStatus/id:{self.id()}/daemon:zmc.json"
+        return g.api.make_request(url=url)
