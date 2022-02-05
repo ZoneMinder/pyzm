@@ -14,7 +14,7 @@ import requests
 from imutils.video import FileVideoStream as FVStream
 
 from pyzm.api import ZMApi
-from pyzm.helpers.pyzm_utils import grab_frameid, str2bool, resize_image
+from pyzm.helpers.pyzm_utils import grab_frame_id, str2bool, resize_image
 from pyzm.interface import GlobalConfig
 
 # log prefix to add onto
@@ -69,9 +69,9 @@ class MediaStream:
                 g.logger.error(f"media: the configured delay is malformed! can only be a number (x or x.xx)")
                 g.logger.debug(t_exc)
             else:
-                if delay:
+                if delay and not g.config.get("PAST_EVENT"):
                     g.logger.debug(
-                        f"{lp} Delay is configured, this only applies one time - waiting for {options.get('delay')} "
+                        f"{lp} a delay is configured, this only applies one time - waiting for {options['delay']} "
                         f"seconds"
                     )
                     sleep(float(options.get("delay")))
@@ -510,9 +510,9 @@ class MediaStream:
                 f_fps = None
 
             # Check if we have already processed this frame ID before
-            comp_fid = grab_frameid(current_frame)
+            comp_fid = grab_frame_id(current_frame)
             for x in self.fids_processed:
-                x = grab_frameid(str(x))  # convert a-xx or s-xx to xx if needed
+                x = grab_frame_id(str(x))  # convert a-xx or s-xx to xx if needed
                 if x == comp_fid:
                     g.logger.debug(
                         f"{lp} skipping frame ID: '{current_frame}' as it has already been"
@@ -528,9 +528,9 @@ class MediaStream:
                 oob_frame_id = self.val_type(
                     int,
                     "out of bounds frame ID",
-                    grab_frameid(current_frame),
+                    grab_frame_id(current_frame),
                     f"{lp} 'out of bounds frame ID' there seems to be a formatting error "
-                    f"while converting {grab_frameid(current_frame)} to an int ",
+                    f"while converting {grab_frame_id(current_frame)} to an int ",
                 )
                 if (oob_frame_id >= g.event_tot_frames) and not skip_all:
                     # if frame buffer is growing and the difference between the out of bound fid and current end

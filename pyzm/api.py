@@ -23,16 +23,15 @@ Important:
 """
 
 import datetime
+from inspect import getframeinfo, stack, Traceback
 from traceback import format_exc
+from typing import Optional, Dict, List, Union
 
 import requests
 from requests import Session, Response
-from requests.packages.urllib3 import disable_warnings
 from requests.exceptions import HTTPError
+from requests.packages.urllib3 import disable_warnings
 from urllib3.exceptions import InsecureRequestWarning
-
-from inspect import getframeinfo, stack, Traceback
-from typing import Optional, Dict, List, AnyStr, Union
 
 from pyzm.helpers.Configs import Configs
 from pyzm.helpers.Events import Events
@@ -43,7 +42,7 @@ from pyzm.interface import GlobalConfig
 
 g: GlobalConfig
 GRACE: int = 60 * 5  # 5 mins
-lp: str = "zm_api:"
+lp: str = "ZM API:"
 
 
 class ZMApi:
@@ -76,6 +75,7 @@ class ZMApi:
         """
         global g
         g = GlobalConfig()
+        lp: str = "ZM API:init:"
         idx: int = min(len(stack()), 1)
         caller: Union[str, Traceback] = getframeinfo(stack()[idx][0])
         if options is None:
@@ -118,7 +118,7 @@ class ZMApi:
             self.session.verify = False
             g.logger.debug(
                 2,
-                f"{lp} SSL certificate verification disabled (encryption enabled, vulnerable to MITM attacks)",
+                f"{lp}init: SSL certificate verification disabled (encryption enabled, vulnerable to MITM attacks)",
                 caller=caller,
             )
             disable_warnings(category=InsecureRequestWarning)
@@ -195,11 +195,11 @@ class ZMApi:
                 ret_val["zm_version"] = self.zm_version
             except Exception as e:
                 g.logger.error(f"{lp} ERROR while attempting to dump current credentials")
-                g.logger.debug(f"CRED DUMP DEBUG>>>  exception as str -> {e}")
+                g.logger.debug(f"{lp} CRED DUMP DEBUG>>>  exception as str -> {e}")
                 g.logger.debug(format_exc())
         elif not self.auth_enabled:
             g.logger.debug(
-                f"{lp}login: Authentication is not enabled, no credentials will be passed to " f"mlapi only portal data"
+                f"{lp} Authentication is not enabled, no credentials will be passed to mlapi only portal data"
             )
             ret_val["allow_self_signed"] = self.options.get("disable_ssl_cert_check")
             ret_val["api_version"] = self.api_version
@@ -230,12 +230,9 @@ class ZMApi:
                 zm_version: string # if status is 'ok'
             }
         """
-        # versions don't require to be authenticated from API, no need for that check here
-        return {
-            "status": "ok",
-            "api_version": self.api_version,
-            "zm_version": self.zm_version,
-        }
+        if not self.authenticated:
+            return {"status": "error", "reason": "not authenticated"}
+        return {"status": "ok", "api_version": self.api_version, "zm_version": self.zm_version}
 
     def tz(self, force=False):
         """Returns timezone of ZoneMinder server
@@ -257,6 +254,7 @@ class ZMApi:
                     f"{lp} timezone API not found, relative timezones will be local time",
                     caller=caller,
                 )
+                g.logger.debug(f"{lp} EXCEPTION>>> {err}")
             else:
                 self.zm_tz = r.get("tz")
 
@@ -296,7 +294,8 @@ class ZMApi:
             if time_remaining >= GRACE:  # 5 mins grace
                 g.logger.debug(
                     2,
-                    f"{lp} using refresh token to get a new auth, as refresh still has {time_remaining / 60} minutes remaining",
+                    f"{lp} using refresh token to get a new auth, as refresh still has {time_remaining / 60} "
+                    f"minutes remaining",
                     caller=caller,
                 )
                 self.options["token"] = self.refresh_token
@@ -314,44 +313,44 @@ class ZMApi:
         Raises:
             err: reason for failure
         """
+        lp: str = "ZM API:login:"
         idx: int = min(len(stack()), 2)
         caller: Traceback = getframeinfo(stack()[idx][0])
         login_data: dict = {}
         if self.api_url:
             url = f"{self.api_url}/host/login.json"
         else:
-            raise ValueError(f"{lp}login: api_url not set!")
+            raise ValueError(f"{lp} api_url not set!")
         if self.options.get("token"):
-            if self.sanitize:
-                show_token = f"{self.options['token'][:10]}...{g.config.get('sanitize_str')}"
-            else:
-                show_token = self.options["token"]
+            show_token = (
+                f"{self.options['token'][:10]}...{g.config.get('sanitize_str')}"
+                if self.sanitize
+                else self.options["token"]
+            )
             g.logger.debug(
-                f"{lp}login: token was found, using for login -> [{show_token}]",
+                f"{lp} token was found, using for login -> [{show_token}]",
                 caller=caller,
             )
             login_data = {"token": self.options["token"]}
         # token was not passed, check if user/password are supplied
         elif self.options.get("user") and self.options.get("password"):
-            g.logger.debug(
-                f"{lp}login: no token found, user/pass has been supplied, trying credentials...", caller=caller
-            )
+            g.logger.debug(f"{lp} no token found, user/pass has been supplied, trying credentials...", caller=caller)
             login_data = {
                 "user": self.options.get("user"),
                 "pass": self.options.get("password"),
             }
         elif self.options.get("password") and not self.options.get("user"):
-            g.logger.error(f"{lp}login: password was supplied but no user supplied, cannot login", caller=caller)
+            g.logger.error(f"{lp} password was supplied but no user supplied, cannot login", caller=caller)
         elif self.options.get("user") and not self.options.get("password"):
-            g.logger.error(f"{lp}login: user was supplied but no password supplied, cannot login", caller=caller)
+            g.logger.error(f"{lp} user was supplied but no password supplied, cannot login", caller=caller)
         else:
-            g.logger.debug(f"{lp}login: not using auth (no user/password was supplied)", caller=caller)
+            g.logger.debug(f"{lp} not using auth (no user/password was supplied)", caller=caller)
             url = f"{self.api_url}/host/getVersion.json"
         try:
             r = self.session.post(url, data=login_data)
             if r.status_code == 401 and self.options.get("token"):
                 g.logger.debug(
-                    f"{lp}login: token auth failed. Likely revoked, trying user/password login",
+                    f"{lp} token auth failed. Likely revoked, trying user/password login",
                     caller=caller,
                 )
                 self.options["token"] = None
@@ -367,23 +366,25 @@ class ZMApi:
             self.zm_version = rj.get("version")
             if rj and rj.get("access_token"):
                 # there is a JSON response and there is data in the access_token field
-                # g.logger.debug(f"{lp} there is a JSON response from login attempt and an access_token has been supplied")
+                g.logger.debug(
+                    f"{lp} there is a JSON response from login attempt and an access_token " f"has been supplied"
+                )
                 self.auth_enabled = True
             elif rj and not rj.get("access_token"):
                 if rj.get("credentials") and len(rj["credentials"]):
                     self.auth_enabled = True
                     self.auth_type = "legacy"
-                    g.logger.warning(f"{lp}login: the API did not return a JWT but there are legacy credentials?")
+                    g.logger.warning(f"{lp} the API did not return a JWT but there are legacy credentials?")
                     self.legacy_credentials = rj["credentials"]
                     if rj.get("append_password") == "1":
                         g.logger.debug(
-                            f"{lp}login: legacy credentials were returned and append_password is active, "
+                            f"{lp} legacy credentials were returned and append_password is active, "
                             f"appending password to legacy credentials"
                         )
                         self.legacy_credentials = f"{self.legacy_credentials}&{self.options.get('password')}"
             elif not rj:
                 g.logger.error(
-                    f"{lp}login: there is not a response in JSON format after attempting a login" f", raising an error"
+                    f"{lp} there is not a response in JSON format after attempting a login" f", raising an error"
                 )
                 raise ValueError(f"{lp} No JSON response from login")
 
@@ -391,7 +392,7 @@ class ZMApi:
                 if self._version_tuple(self.api_version) >= self._version_tuple("2.0"):
                     g.logger.debug(
                         2,
-                        f"{lp}login: detected API ver 2.0+, using token system",
+                        f"{lp} detected API ver 2.0+, using token system",
                         caller=caller,
                     )
                     self.auth_type = "token"
@@ -403,7 +404,7 @@ class ZMApi:
                             seconds=self.access_token_expires
                         )
                         g.logger.debug(
-                            f"{lp}login: access token expires on: {self.access_token_datetime} "
+                            f"{lp} access token expires on: {self.access_token_datetime} "
                             f"({self.access_token_expires}s)",
                             caller=caller,
                         )
@@ -413,26 +414,26 @@ class ZMApi:
                             seconds=self.refresh_token_expires
                         )
                         g.logger.debug(
-                            f"{lp}login: refresh token expires on: {self.refresh_token_datetime} "
+                            f"{lp} refresh token expires on: {self.refresh_token_datetime} "
                             f"({self.refresh_token_expires}s)",
                             caller=caller,
                         )
                 else:
                     g.logger.warning(
-                        f"{lp}login: using LEGACY API. Recommended you upgrade to token API (ver 2.0+)",
+                        f"{lp} using LEGACY API. Recommended you upgrade to token API (ver 2.0+)",
                         caller=caller,
                     )
-                    g.logger.debug(f"{lp}login: API version is below '2.0' -> RESPONSE IN JSON -> {rj}")
+                    g.logger.debug(f"{lp} API version is below '2.0' -> RESPONSE IN JSON -> {rj}")
                     self.auth_type = "legacy"
                     self.legacy_credentials = rj.get("credentials")
                     if rj.get("append_password") == "1":
                         self.legacy_credentials = f"{self.legacy_credentials}&{self.options.get('password')}"
             else:
-                g.logger.debug(f"{lp}login: It is assumed 'OPT_USE_AUTH' is disabled!")
+                g.logger.debug(f"{lp} it is assumed 'OPT_USE_AUTH' is disabled!")
             self.authenticated = True
 
         except HTTPError as err:
-            g.logger.error(f"{lp}login: got API login error: {err}", caller=caller)
+            g.logger.error(f"{lp} got API login error: {err}", caller=caller)
             self.authenticated = False
             raise err
 
@@ -450,7 +451,7 @@ class ZMApi:
         else:
             return self.legacy_credentials
 
-    def get_all_event_data(self, event_id=None, update_frame_buffer_length=True):
+    def get_all_event_data(self, event_id: int = None, update_frame_buffer_length: bool = True):
         """Returns the data from an 'Event' API call. If you do not supply it an event_id it will use the global event id.
             ZoneMinder returns 3 structures in the JSON response.
         - Monitor data - A dict containing data about the event' monitor.
@@ -462,29 +463,25 @@ class ZMApi:
 
         if not event_id:
             event_id = g.eid
-        Event: Optional[Dict] = None
-        Monitor: Optional[Dict] = None
-        Frame: Optional[List] = None
+        event: Optional[Dict] = None
+        monitor: Optional[Dict] = None
+        frame: Optional[List] = None
         events_url = f"{self.api_url}/events/{event_id}.json"
         try:
             g.api_event_response = self.make_request(url=events_url, quiet=True)
         except Exception as e:
             g.logger.error(f"{lp} Error during Event data retrieval: {str(e)}")
-            raise e
+            g.logger.debug(f"{lp} EXCEPTION>>> {e}")
         else:
-            Event = g.api_event_response.get("event", {}).get("Event")
-            Monitor = g.api_event_response.get("event", {}).get("Monitor")
-            Frame = g.api_event_response.get("event", {}).get("Frame")
-            g.config["mon_name"] = Monitor.get("Name")
-            g.config["api_cause"] = Event.get("Cause")
-            g.config["eventpath"] = Event.get("FileSystemPath")
-            if update_frame_buffer_length:
-                g.event_tot_frames = len(Frame)
-            # g.logger.Debug(f"{Event}")
-            # g.logger.Debug(f"{Monitor}")
-            # g.logger.Debug(f'{Frame}')
-            # g.logger.Debug(f"{type(g.api_event_response.get('event', {}).get('Frame'))=} -- {g.api_event_response.get('event', {}).get('Frame')=}")
-            return Event, Monitor, Frame
+            event = g.api_event_response.get("event", {}).get("Event")
+            monitor = g.api_event_response.get("event", {}).get("Monitor")
+            frame = g.api_event_response.get("event", {}).get("Frame")
+            g.config["mon_name"] = monitor.get("Name")
+            g.config["api_cause"] = event.get("Cause")
+            g.config["eventpath"] = event.get("FileSystemPath")
+            if frame and update_frame_buffer_length:
+                g.event_tot_frames = len(frame)
+            return event, monitor, frame
 
     def make_request(
         self,
@@ -492,13 +489,13 @@ class ZMApi:
         query: Optional[Dict] = None,
         payload: Optional[Dict] = None,
         type_action: str = "get",
-        reauth: bool = True,
+        re_auth: bool = True,
         quiet: bool = False,
     ) -> Union[Dict, Response]:
         """
-        :rtype: dict
+        :rtype: dict|Response
         """
-
+        lp: str = "ZM API:make_req:"
         idx: int = min(len(stack()), 1)
         caller: Traceback = getframeinfo(stack()[idx][0])
         if payload is None:
@@ -533,7 +530,7 @@ class ZMApi:
                 show_payload = f" payload={payload}"
             g.logger.debug(
                 2,
-                f"{lp}make_req: '{type_action}'->{show_url}{show_payload} query={show_query}",
+                f"{lp} '{type_action}'->{show_url}{show_payload} query={show_query}",
                 caller=caller,
             ) if not quiet else None
             if type_action == "get":
@@ -545,7 +542,7 @@ class ZMApi:
             elif type_action == "delete":
                 r = self.session.delete(url, data=payload, params=query)
             else:
-                g.logger.error(f"{lp}make_req: unsupported request type: {type_action}", caller=caller)
+                g.logger.error(f"{lp} unsupported request type: {type_action}", caller=caller)
                 raise ValueError(f"Unsupported request type: {type_action}")
             r.raise_for_status()
             # Empty response, e.g. to DELETE requests, can't be parsed to json
@@ -556,9 +553,11 @@ class ZMApi:
             elif r.headers.get("content-type").startswith("image/"):
                 return r
             else:
+                r: requests.Response
                 # A non 0 byte response will usually mean it's an image eid request that needs re-login
                 if r.headers.get("content-length") != "0":
                     g.logger.debug(4, f"{lp} raising RELOGIN ValueError", caller=caller)
+                    g.logger.debug(f"{lp} DEBUG>>> {r.text = }")
                     raise ValueError("RELOGIN")
                 else:
                     # ZM returns 0 byte body if index not found (no frame ID or out of bounds)
@@ -571,8 +570,8 @@ class ZMApi:
                 # return r.text
 
         except HTTPError as err:
-            err.response: requests.Response
-            if err.response.status_code == 401 and reauth:
+            # err.response: requests.Response
+            if err.response.status_code == 401 and re_auth:
                 g.logger.debug(
                     f"{lp} Got 401 (Unauthorized) - retrying auth login once -> {err.response.json()}",
                     caller=caller,
@@ -580,7 +579,7 @@ class ZMApi:
                 self._re_login()
                 g.logger.debug(f"{lp} Retrying failed request again...", caller=caller)
                 # recursion with a blocker
-                return self.make_request(url, query, payload, type_action, reauth=False)
+                return self.make_request(url, query, payload, type_action, re_auth=False)
             elif err.response.status_code == 404:
                 err_json: Optional[dict] = err.response.json()
                 if err_json:
@@ -609,9 +608,9 @@ class ZMApi:
                 )
                 g.logger.debug(f"{lp} HTTP error: {err_msg}", caller=caller)
         except ValueError as err:
-            err_msg = f"{err}"
+            err_msg = f"{lp} EXCEPTION>>> {err}"
             if err_msg == "RELOGIN":
-                if reauth:
+                if re_auth:
                     g.logger.debug(
                         f"{lp} got ValueError access error: {err}",
                         caller=caller,
@@ -619,11 +618,11 @@ class ZMApi:
                     g.logger.debug(f"{lp} retrying login once", caller=caller)
                     self._re_login()
                     g.logger.debug(f"{lp} retrying failed request again...", caller=caller)
-                    return self.make_request(url, query, payload, type_action, reauth=False)
+                    return self.make_request(url, query, payload, type_action, re_auth=False)
             else:
                 raise err
 
-    def zones(self, options=None):
+    def zones(self, options: Optional[dict] = None):
         """Returns list of zones. Given zones are fairly static, maintains a cache and returns from cache on subsequent calls.
 
             Args:
@@ -694,19 +693,15 @@ class ZMApi:
         self.Events = Events(options=options)
         return self.Events
 
-    def states(self, options=None):
+    def states(self):
         """Returns configured states
 
         Args:
-            options (dict, optional): Not used. Defaults to {}.
 
         Returns:
             list of  :class:`pyzm.helpers.State`: list of states
         """
-
-        if options is None:
-            options = {}
-        self.States = States(globs=g)
+        self.States = States()
         return self.States
 
     def restart(self):
@@ -733,7 +728,7 @@ class ZMApi:
         """
         return self.set_state(state="start")
 
-    def set_state(self, state):
+    def set_state(self, state: str):
         """Sets Zoneminder state to specific state
 
         Args:

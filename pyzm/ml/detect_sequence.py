@@ -1,13 +1,3 @@
-"""
-DetectSequence
-=====================
-Primary entry point to invoke machine learning classes in pyzm
-It is recommended you only use DetectSequence methods and not
-lower level interfaces as they may change drastically.
-"""
-# modified from source, original author @pliablepixels see: https://github.com/pliablepixels
-
-
 import re
 from ast import literal_eval
 from traceback import format_exc
@@ -34,21 +24,19 @@ lp: str = "detect:"
 g: GlobalConfig
 
 
-def _is_unconverted(expr: Any) -> bool:
+def _is_unconverted(expr: str) -> bool:
     """Evaluate a string to see if it is an unconverted secret or substitution variable. If the string begins with
     `{{` or `{[` then it is an unconverted secret or substitution variable.
 
-    Example:
-        >>> _is_unconverted('var/string')
+    >>> _is_unconverted('string')
     """
-    if isinstance(expr, str):
-        expr = expr.strip()
-        if expr.startswith("{{"):
-            g.logger.debug(f"{expr} seems to be an unconverted substitution variable!")
-        elif expr.startswith("{["):
-            g.logger.debug(f"{expr} seems to be an unconverted secret!")
-        else:
-            return True
+    expr = expr.strip()
+    if expr.startswith("{{"):
+        g.logger.debug(f"{expr} seems to be an unconverted substitution variable!")
+    elif expr.startswith("{["):
+        g.logger.debug(f"{expr} seems to be an unconverted secret!")
+    else:
+        return True
     return False
 
 
@@ -65,7 +53,7 @@ class DetectSequence:
                         'general': {
                             # sequence of models you want to run for every specified frame
                             'model_sequence': 'object,face,alpr' ,
-                            # If 'yes', will not use portalocks
+                            # If 'yes', will not use a BoundedSemaphore lock
                             'disable_locks':'no',
 
                         },
@@ -177,10 +165,10 @@ class DetectSequence:
         """Use this to change ml options later. Note that models will not be reloaded
         unless you add force_reload=True
         """
-
+        lp: str = "detect:set ml opts:"
         if force_reload:
             if self.models:
-                g.logger.debug(f"{lp}set ml opts: resetting the loaded models!")
+                g.logger.debug(f"{lp} resetting the loaded models!")
             self.models = {}
         if not options:
             return
@@ -214,8 +202,9 @@ class DetectSequence:
                     f"(pycoral) and aws_rekognition supported as of now"
                 )
 
+        lp: str = "detect:load models:"
         if not isinstance(models, list):
-            g.logger.error(f"{lp} models must be a list of models (object, face, alpr)")
+            g.logger.error(f"{lp} models supplied must be a list of models (object, face, alpr)")
         if not models:
             # convert model_sequence to a list if it is a string
             if self.model_sequence and isinstance(self.model_sequence, str):
@@ -261,7 +250,7 @@ class DetectSequence:
                                 f"{lp} error while trying to construct '{model}' sequence "
                                 f"pipeline for '{seq_name}', skipping..."
                             )
-                            g.logger.error(f"{lp} {exc}")
+                            g.logger.error(f"{lp} EXCEPTION>>>> {exc}")
                             g.logger.debug(format_exc())
                 else:
                     g.logger.warning(
@@ -363,7 +352,7 @@ class DetectSequence:
         min_conf_found: str = ""
         ioa_found: str = ""
         moa_found: str = ""
-        per_keys_ = (
+        per_keys_: tuple = (
             "object_min_confidence",
             "max_detection_size",
             "contained_area",
@@ -516,11 +505,11 @@ class DetectSequence:
             mda_found: str = ""
             for p in polygons:
                 # defined 'zones'
-                p_ioa = p.get("contains", {})
-                p_moa = p.get("max_size", {})
-                p_min_conf = p.get("min_conf", {})
-                p_mpd = p.get("past_area_diff", {})
-                p_conf_upper = p.get("conf_upper", {})
+                p_ioa: Optional[dict] = p.get("contains", {})
+                p_moa: Optional[dict] = p.get("max_size", {})
+                p_min_conf: Optional[dict] = p.get("min_conf", {})
+                p_mpd: Optional[dict] = p.get("past_area_diff", {})
+                p_conf_upper: Optional[dict] = p.get("conf_upper", {})
 
                 p_ioa = {} if p_ioa is None else p_ioa
                 p_moa = {} if p_moa is None else p_moa
@@ -1106,6 +1095,7 @@ class DetectSequence:
             polygons = list(polygons)
         # todo: mpd as part of ml_overrides?
         mpd: Optional[Union[str, bool]] = self.ml_options.get("general", {}).get("match_past_detections")
+        g.logger.debug(f"mpd:DBG>>> {self.ml_options.get('general', {}).get('match_past_detections') = } -- {mpd = }")
         mpd = str2bool(mpd)
         # Loops across all frames
         # match past detections is here, so we don't try and load/dump while still detecting
@@ -1139,7 +1129,7 @@ class DetectSequence:
                 "mpd_l": mpd_l,
             }
             g.logger.debug(
-                f"{lp}mpd: last_event={saved_event} -- saved labels={saved_ls} -- saved_bbox={saved_bs} -- "
+                f"mpd: last_event={saved_event} -- saved labels={saved_ls} -- saved_bbox={saved_bs} -- "
                 f"saved conf={saved_cs}"
             )
         if len(self.model_sequence) > 1:

@@ -85,7 +85,6 @@ setup(name=NAME,
           'pyzm.helpers.globals',
           'pyzm.helpers.mqtt',
           'pyzm.helpers.pyzm_utils',
-          'pyzm.helpers.new_yaml',
           'pyzm.helpers.mlapi_db',
 
           # Base ZMES

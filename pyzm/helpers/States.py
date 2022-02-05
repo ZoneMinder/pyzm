@@ -3,20 +3,22 @@ States
 =======
 Holds a list of States for a ZM configuration
 Given states are fairly static, maintains a cache of states
-which can be overriden 
+which can be overridden 
 """
+import requests
+
 from pyzm.helpers.State import State
 from typing import Optional
 from pyzm.interface import GlobalConfig
 
-g: GlobalConfig = GlobalConfig()
+g: GlobalConfig
 
 
 class States:
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         global g
         g = GlobalConfig()
-        self.states = []
+        self.states: list = []
         self._load()
 
     def __iter__(self):
@@ -25,10 +27,11 @@ class States:
                 yield state
 
     def _load(self):
-        g.logger.debug(2, "Retrieving states via API")
-        url = f"{g.api.api_url}/states.json"
-        r = g.api.make_request(url=url)
-        states = r.get("states")
+        lp: str = "states:"
+        g.logger.debug(2, "{lp} retrieving states via API")
+        url: str = f"{g.api.api_url}/states.json"
+        r: requests.Response = g.api.make_request(url=url)
+        states: Optional[dict] = r.get("states")
         for state in states:
             self.states.append(State(state=state))
 
@@ -44,7 +47,7 @@ class States:
         """Return a state object that matches either and id or a name.
 
         Args:
-            id_ (int, optional): Id of state. Defaults to None.
+            id_ (int, optional): ID of state. Defaults to None.
             name (string, optional): name of state. Defaults to None.
 
         Returns:
@@ -52,7 +55,7 @@ class States:
         """
         if not id_ and not name:
             return None
-        match = None
+        match: Optional[str] = None
         if id_:
             key = "Id"
         else:
