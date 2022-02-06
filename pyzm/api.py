@@ -45,6 +45,11 @@ GRACE: int = 60 * 5  # 5 mins
 lp: str = "ZM API:"
 
 
+def version_tuple(version_str: str) -> tuple:
+    # https://stackoverflow.com/a/11887825/1361529
+    return tuple(map(int, (version_str.split("."))))
+
+
 class ZMApi:
     def __init__(self, options: Optional[dict] = None, kickstart: Optional[dict] = None):
         """
@@ -210,11 +215,6 @@ class ZMApi:
             g.logger.error(f"API AUTH TYPE or AUTH ENABLED WEIRDNESS - {self.auth_enabled = } - {self.auth_type = }")
         return ret_val
 
-    @staticmethod
-    def _version_tuple(v):
-        # https://stackoverflow.com/a/11887825/1361529
-        return tuple(map(int, (v.split("."))))
-
     def get_session(self):
         return self.session
 
@@ -288,7 +288,7 @@ class ZMApi:
         idx = min(len(stack()), 2)
         caller = getframeinfo(stack()[idx][0])
         # global GRACE
-        if self._version_tuple(self.api_version) >= self._version_tuple("2.0"):
+        if version_tuple(self.api_version) >= version_tuple("2.0"):
             # use tokens
             time_remaining = (self.refresh_token_datetime - datetime.datetime.now()).total_seconds()
             if time_remaining >= GRACE:  # 5 mins grace
@@ -389,7 +389,7 @@ class ZMApi:
                 raise ValueError(f"{lp} No JSON response from login")
 
             if self.auth_enabled:
-                if self._version_tuple(self.api_version) >= self._version_tuple("2.0"):
+                if version_tuple(self.api_version) >= version_tuple("2.0"):
                     g.logger.debug(
                         2,
                         f"{lp} detected API ver 2.0+, using token system",
@@ -446,7 +446,7 @@ class ZMApi:
     def get_auth(self):
         if not self.auth_enabled or not self.api_version:
             return ""
-        if self._version_tuple(self.api_version) >= self._version_tuple("2.0"):
+        if version_tuple(self.api_version) >= version_tuple("2.0"):
             return f"token={self.access_token}"
         else:
             return self.legacy_credentials
@@ -505,7 +505,7 @@ class ZMApi:
         self._refresh_tokens_if_needed()
         type_action = type_action.lower()
         if self.auth_enabled:
-            if self._version_tuple(self.api_version) >= self._version_tuple("2.0"):
+            if version_tuple(self.api_version) >= version_tuple("2.0"):
                 query["token"] = self.access_token
             else:
                 # credentials are already query formatted

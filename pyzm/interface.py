@@ -11,7 +11,6 @@ from yaml import safe_load
 
 SECRETS_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({\[\s*(\w.*)\s*\]})\"?|\'?"
 SUBVAR_REGEX = r"^\b|\s*(\w.*):\s*\"?|\'?({{\s*(\w.*)\s*}})\"?|\'?"
-# todo: allow importing a file as a default config
 ZMES_DEFAULT_CONFIG: dict = safe_load(
     """
     custom_push: no
@@ -108,6 +107,10 @@ ZMES_DEFAULT_CONFIG: dict = safe_load(
     push_emerg_time_start: '00:00'
     push_emerg_time_end: '23:59'
     push_emerg_force: no
+    
+    goti_enable: no
+    goti_host: ''
+    goti_token: ''
 
     mqtt_enable: no
     mqtt_force: no
