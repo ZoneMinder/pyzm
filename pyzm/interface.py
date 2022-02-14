@@ -531,7 +531,7 @@ class ZMESConfig:
         comparative_hash: Optional[str] = None,
         read_chunk_size: int = 65536,
         algorithm: str = "sha256",
-    ) -> tuple[str, Optional[bool]]:
+    ):
         """Hash a file using hashlib library.
 
         If an ``input_file`` is passed, that file will be read and hashed into a string. If a ``input_hash`` is supplied
