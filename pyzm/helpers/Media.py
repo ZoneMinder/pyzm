@@ -212,11 +212,12 @@ class MediaStream:
         last_frame = None
         if self.fids_global:
             last_frame = self.fids_global[-1]
-        if last_frame == self.frame_set[self.frame_set_index]:
-            last_frame = ""
+        if self.frame_set_index < self.frame_set_len:
+            if last_frame == self.frame_set[self.frame_set_index]:
+                last_frame = ""
         return str(last_frame)
 
-    def val_type(self, cls, k, v, msg=None) -> Any:
+    def convert_val(self, cls, k, v, msg=None) -> Any:
         """return *v* converted to class type *cls* object, msg is the ValueError message to display
         if v cannot be converted to cls"""
 
@@ -231,26 +232,33 @@ class MediaStream:
         else:
             return ret_val
 
-    def _increment_read_frame(self, image=None, append_fid=None, l_frame_id=None):
+    def _increment_read_frame(self, image=None, append_fid=None, l_frame_id=None, skip_fid: bool = False):
         """Increment frame set index and frames processed. Both frame set and not frame set compatible"""
         if self.frame_set:
             self.last_frame_id_read = l_frame_id if l_frame_id else self.frame_set[self.frame_set_index]
+
             self.frame_set_index += 1
-            if self.frame_set_index < self.frame_set_len:
+            if self.frame_set_index <= self.frame_set_len:
                 self.frames_processed += 1
                 if image is None:
                     return self.read()
                 else:
-                    self.fids_processed.append(append_fid)
                     self.fids_global.append(append_fid)
+                    if skip_fid:
+                        self.fids_skipped.append(l_frame_id)
+                    else:
+                        self.fids_processed.append(append_fid)
             else:
                 self.more_images_to_read = False
                 self.next_frame_id_to_read = 0
                 if image is None:
                     return None
                 else:
-                    self.fids_processed.append(append_fid)
                     self.fids_global.append(append_fid)
+                    if skip_fid:
+                        self.fids_skipped.append(l_frame_id)
+                    else:
+                        self.fids_processed.append(append_fid)
         elif not self.frame_set:
             self.last_frame_id_read = self.next_frame_id_to_read
             self.next_frame_id_to_read += self.frame_skip
@@ -278,6 +286,7 @@ class MediaStream:
 
         response: Optional[requests.Response] = None
         past_event: Optional[str] = g.config.get("PAST_EVENT")
+        new_event_handler: bool = g.new
         frame: Optional[np.ndarray] = None
         # image from file
         # 'delay_between_frames' - probably not
@@ -379,7 +388,7 @@ class MediaStream:
             comp_fid: Optional[str] = None
             skip_all: bool = False
             f_difference: int = 0
-            delay_frames = self.val_type(
+            delay_frames = self.convert_val(
                 float,
                 "delay_between_frames",
                 self.options.get("delay_between_frames"),
@@ -394,7 +403,7 @@ class MediaStream:
                 # All frames are already written to disk
                 g.logger.debug(
                     4,
-                    f"{lp} 'delay_between_frames' sleeping {delay_frames} seconds " f"before reading next frame",
+                    f"{lp} 'delay_between_frames' sleeping {delay_frames} seconds before reading next frame",
                 )
                 delayed = True
                 sleep(delay_frames)
@@ -404,9 +413,9 @@ class MediaStream:
             current_frame: str = str(self.frame_set[self.frame_set_index]).strip()
             # delay_between_snapshot, this frame and the last frame must be snapshot for the delay to activate
             if (
-                current_frame.startswith("sn")
-                and self.get_last_frame().startswith("s")
-                and self.options.get("delay_between_snapshots")
+                    current_frame.startswith("sn")
+                    and self.get_last_frame().startswith("s")
+                    and self.options.get("delay_between_snapshots")
             ) and not delayed:
                 g.logger.debug(
                     2,
@@ -414,7 +423,7 @@ class MediaStream:
                     f"reading concurrent snapshot frame ('delay_between_snapshots'), last frame was a snapshot and so "
                     f"is this frame request",
                 )
-                snapshot_sleep = self.val_type(
+                snapshot_sleep = self.convert_val(
                     float,
                     "delay_between_snapshots",
                     self.options.get("delay_between_snapshots"),
@@ -453,7 +462,7 @@ class MediaStream:
             ####################################################
             #       CONVERT SNAPSHOT / ALARM TO FRAME ID
             ####################################################
-            if current_frame.startswith("a"):
+            if current_frame.startswith("a") and g.Event.get("AlarmFrameId"):
                 current_frame = self.frame_set[self.frame_set_index] = f"a-{g.Event.get('AlarmFrameId')}"
                 g.logger.debug(
                     2,
@@ -481,20 +490,24 @@ class MediaStream:
                         f" instead of being reduced to the last available frame buffer ID"
                     )
                     skip_all = True
-            elif (g.event_tot_frames and fb_length_before_api_call < g.event_tot_frames) and not past_event:
+            elif (
+                    (g.event_tot_frames and fb_length_before_api_call < g.event_tot_frames)
+                    and not past_event
+                    and (skip_all or self.skip_all_count)
+            ):
                 g.logger.debug(
-                    f"DEBUG>>> The frame buffer has grown, resetting skip_all_count and skip_all, "
+                    f"{lp} The frame buffer has grown, resetting skip_all_count and skip_all, "
                     f"All out of bound frame ID's will be evaluated."
                 )
                 self.skip_all_count = 0
                 skip_all = False
-            total_time = self.val_type(
+            total_time = self.convert_val(
                 float,
                 "total event time",
                 g.Frame[-1]["Delta"],
                 f"{lp} error converting 'total event time' to a float",
             )
-            f_fps = self.val_type(
+            f_fps = self.convert_val(
                 float,
                 "frame rate",
                 g.event_tot_frames,
@@ -515,17 +528,17 @@ class MediaStream:
                 x = grab_frame_id(str(x))  # convert a-xx or s-xx to xx if needed
                 if x == comp_fid:
                     g.logger.debug(
-                        f"{lp} skipping frame ID: '{current_frame}' as it has already been"
-                        f" processed for event {g.eid} -> processed Frame IDs: {self.fids_processed}"
+                        f"{lp} skipping Frame ID: '{current_frame}' as it has already been"
+                        f" processed for event {g.eid}. Frame IDs -> Processed: {self.fids_processed} - Skipped {self.fids_skipped}"
                     )
                     return self.skip_frame(current_frame)
 
-            if self.frames_processed > 0 or self.frames_skipped > 0 and f_fps is not None:
+            if not past_event and (self.frames_processed > 0 or self.frames_skipped > 0 and f_fps is not None):
                 # out of bounds logic
                 # todo rework to make frame_set realize if there are a good amount of frames left on disk and so far
                 #  there is no detection, grab more frames at a calculated increment. Will need a way to ask
                 #   detect_stream about its current detections
-                oob_frame_id = self.val_type(
+                oob_frame_id = self.convert_val(
                     int,
                     "out of bounds frame ID",
                     grab_frame_id(current_frame),
@@ -536,32 +549,31 @@ class MediaStream:
                     # if frame buffer is growing and the difference between the out of bound fid and current end
                     # fid is within a reasonable distance, let the attempts happen.
                     f_difference = oob_frame_id - g.event_tot_frames
-                    f_difference = self.val_type(
+                    f_difference = self.convert_val(
                         float,
                         "frames over by",
                         f_difference,
                         f"{lp} error while converting the frames over by into a float",
                     )
                     fps_thresh = self.options.get("smart_fps_thresh", 5)
-                    fps_thresh = self.val_type(
+                    fps_thresh = self.convert_val(
                         float,
                         "smart_fps_thresh",
                         fps_thresh,
                         f"{lp} error while converting 'smart_fps_thresh' to a float",
                     )
                     thresh_frames = f_fps * fps_thresh
-                    thresh_sec = round(thresh_frames / f_fps, 2)
-
+                    thresh_sec = f_difference / f_fps
                     g.logger.debug(
                         f"{lp} monitor {g.mid}-> '{g.config.get('mon_name')}' is running at {f_fps} FPS - "
                         f"the configured 'smart_fps_thresh' of {fps_thresh} converts to {thresh_frames} frames. "
                         f"Overage of {f_difference} frames = {thresh_sec} seconds"
                     )
-                    if f_difference <= (f_fps * fps_thresh) and not past_event:
+                    if f_difference <= thresh_frames:
                         self.allowed_attempts = 3  # make configurable?
-                        smart_val = fps_thresh / self.allowed_attempts
-                        smart_val = smart_val + (0.11 * self.allowed_attempts)
-                        smart_sleep = self.val_type(float, "smart sleep", smart_val)
+                        smart_val = (fps_thresh / self.allowed_attempts) * 2
+                        # smart_val = smart_val + (0.11 * self.allowed_attempts)
+                        smart_sleep = self.convert_val(float, "smart sleep", smart_val)
 
                         g.logger.debug(
                             f"{lp} Based on a 'smart_fps_thresh' of {fps_thresh} seconds and {f_fps} fps. "
@@ -575,9 +587,13 @@ class MediaStream:
                             g.logger.error(f"{lp} error grabbing event data from API -> {e}")
                             raise e
                         else:
-                            g.logger.debug(f"{lp} grabbed event data from ZM API")
+                            g.logger.debug(
+                                f"{lp} grabbed event data from ZM API after sleeping to wait for an Out Of Bound frame ID"
+                            )
 
                     else:
+                        # todo: The API isnt updated in real time for frame buffer length, it should try to grab
+                        #  the frame anyways
                         g.logger.debug(
                             f"{lp} Based on a 'smart_fps_thresh' of {fps_thresh} seconds and {f_fps} fps. "
                             f"The requested frame ID {current_frame} is outside of the 'smart_fps_thresh'. Decreasing "
@@ -594,7 +610,7 @@ class MediaStream:
                         f"'{current_frame}' as event '{g.eid}' has not written "
                         f"anymore frames to disk since the last time the frame buffer was checked"
                     )
-                    return self._increment_read_frame(l_frame_id=oob_frame_id)
+                    return self.skip_frame(current_frame=oob_frame_id)
 
             fid_url = f"{self.stream}&fid={comp_fid}"
 
@@ -602,13 +618,13 @@ class MediaStream:
             try:
                 fid_grab_attempts = 0
                 # make sure correct types
-                max_attempts = self.val_type(
+                max_attempts = self.convert_val(
                     int,
                     "max_attempts",
                     self.options.get("max_attempts", 3),
                     f"{lp} error while converting 'max_attempts' to an int",
                 )
-                sleep_time = self.val_type(
+                sleep_time = self.convert_val(
                     float,
                     "delay_between_attempts",
                     self.options.get("delay_between_attempts", 3.0),

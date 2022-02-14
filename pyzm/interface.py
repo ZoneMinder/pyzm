@@ -430,6 +430,8 @@ class GlobalConfig(metaclass=Singleton):
     Monitor: Optional[dict] = None  # Hold the events 'Monitor' data structure
     Event: Optional[dict] = None  # Hold the events 'Event' data structure
 
+    new: bool = False  # The new Event<START/END>Command
+    event_type: str = ""  # The type of event (START/END)
     extras: dict = field(default_factory=dict)  # Extras
 
 
@@ -461,11 +463,11 @@ class ZMESConfig:
     config: dict
 
     def __init__(
-        self,
-        config_file_path: str,
-        hardcoded_config: Optional[dict] = None,
-        config_type: Optional[str] = None,
-        no_auto_parse: bool = False,
+            self,
+            config_file_path: str,
+            hardcoded_config: Optional[dict] = None,
+            config_type: Optional[str] = None,
+            no_auto_parse: bool = False,
     ):
         """A class to parse YAML syntax config and secrets files into a structure for ZMES or MLAPI.
 
@@ -525,13 +527,13 @@ class ZMESConfig:
             self.parse()
 
     def hash(
-        self,
-        input_file: Optional[Union[Path, str]] = None,
-        input_hash: Optional[str] = None,
-        comparative_hash: Optional[str] = None,
-        read_chunk_size: int = 65536,
-        algorithm: str = "sha256",
-    ):
+            self,
+            input_file: Optional[Union[Path, str]] = None,
+            input_hash: Optional[str] = None,
+            comparative_hash: Optional[str] = None,
+            read_chunk_size: int = 65536,
+            algorithm: str = "sha256",
+    ) -> tuple[str, Optional[bool]]:
         """Hash a file using hashlib library.
 
         If an ``input_file`` is passed, that file will be read and hashed into a string. If a ``input_hash`` is supplied
@@ -655,12 +657,16 @@ class ZMESConfig:
                         )
 
                 # Automated logic to build per-monitor overridden configurations
-                if g.mid and self.config_type == "zmes":
-                    g.logger.debug(
-                        f"{lp}mid {g.mid}: '{self.config_type}' copying current supplied build config to monitor "
-                        f"{g.mid} overridden config as a template"
-                    )
-                    self.built_per_mon_configs[g.mid] = dict(self.config)
+                if self.config_type == "zmes":
+                    if g.mid:
+                        g.logger.debug(
+                            f"{lp}mid {g.mid}: '{self.config_type}' copying current supplied build config to monitor "
+                            f"{g.mid} overridden config as a template"
+                        )
+                        self.built_per_mon_configs[g.mid] = dict(self.config)
+                    else:
+                        g.logger.warning(f"{lp} config file is type '{self.config_type}' but g.mid is not set?!?!?! "
+                                         f" {g.mid = }")
                 elif self.config_type == "mlapi":
                     if self.monitors is not None and isinstance(self.monitors, dict):
                         for mon_id in self.monitors.keys():
@@ -715,10 +721,10 @@ class ZMESConfig:
             g.logger.error(f"{lp} config file {cfn} not found. Check permissions?")
 
     def _parse_secrets(
-        self,
-        config: Optional[dict] = None,
-        secrets_path: Optional[str] = None,
-        secrets_pool: Optional[dict] = None,
+            self,
+            config: Optional[dict] = None,
+            secrets_path: Optional[str] = None,
+            secrets_pool: Optional[dict] = None,
     ) -> dict:
         """
         :param dict config: (Optional) The configuration to search and replace {[secrets]} in
@@ -809,11 +815,11 @@ class ZMESConfig:
         return return_config
 
     def _parse_conf(
-        self,
-        config: Optional[dict] = None,
-        config_pool: Optional[dict] = None,
-        alternate_pool: Optional[dict] = None,
-        eval_sections: Optional[set] = None,
+            self,
+            config: Optional[dict] = None,
+            config_pool: Optional[dict] = None,
+            alternate_pool: Optional[dict] = None,
+            eval_sections: Optional[set] = None,
     ) -> dict:
         """A wrapper around ``_parse_vars`` that will also literal_eval ``eval_sections`` keys found in the ``config``.
 
@@ -849,10 +855,10 @@ class ZMESConfig:
         return config
 
     def _parse_vars(
-        self,
-        config: Optional[dict] = None,
-        config_pool: Optional[dict] = None,
-        alternate_pool: Optional[dict] = None,
+            self,
+            config: Optional[dict] = None,
+            config_pool: Optional[dict] = None,
+            alternate_pool: Optional[dict] = None,
     ) -> dict:
         """Method to substitute {{vars}} in the supplied config.
 

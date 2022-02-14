@@ -28,8 +28,302 @@ from pyzm.ZMLog import ZMLog
 from pyzm.api import ZMApi
 from pyzm.interface import GlobalConfig
 
+# from pyfcm import FCMNotification
+
 g: GlobalConfig = GlobalConfig()
 ZM_INSTALLED: Optional[str] = which("zmdc.pl")
+
+
+class FCMsend:
+    """Send an FCM push notification to the zmninja App (native push notification)"""
+
+    default_fcm_per_month: int = 8000
+    default_fcm_v1_key = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW5lcmF0b3IiOiJwbGlhYmxlIHBpeGVscyIsImlhdCI6" \
+                         "MTYwMTIwOTUyNSwiY2xpZW50Ijoiem1uaW5qYSJ9.mYgsZ84i3aUkYNv8j8iDsZVVOUIJmOWmiZSYf15O0zc"
+    default_fcm_v1_url = "https://us-central1-ninja-1105.cloudfunctions.net/send_push"
+    tokens_file = "/var/lib/zmeventnotification/push/tokens.txt"
+    # Perl localtime[4] corresponds to a month between 0-11
+    int_to_month = {
+        0: "January",
+        1: "February",
+        2: "March",
+        3: "April",
+        4: "May",
+        5: "June",
+        6: "July",
+        7: "August",
+        8: "September",
+        9: "October",
+        10: "November",
+        11: "December",
+        # reversed
+        "January": 0,
+        "February": 1,
+        "March": 2,
+        "April": 3,
+        "May": 4,
+        "June": 5,
+        "July": 6,
+        "August": 7,
+        "September": 8,
+        "October": 9,
+        "November": 10,
+        "December": 11,
+    }
+
+    def get_tokens(self):
+        lp: str = "fcm:read tokens:"
+        try:
+            with open(self.tokens_file, "r") as f:
+                fcm_tokens = f.read()
+            fcm_tokens = json.loads(fcm_tokens)
+        except Exception as fcm_load_exc:
+            g.logger.error(f"{lp} failed to load tokens.txt into valid JSON: {fcm_load_exc}")
+            return None
+        else:
+            return fcm_tokens
+
+    def __init__(
+            self,
+            event_cause: str,
+            tokens_file: Optional[str] = None,
+            max_fcm: Optional[int] = None,
+            fcm_key: Optional[str] = None,
+            fcm_url: Optional[str] = None,
+    ):
+        """
+        Initialize the FCM object
+
+        :param event_cause: The cause of the event, will be the BODY of the notification
+        :param tokens_file: Absolute path to tokens.txt
+        :param max_fcm: Maximum amount of FCM invocations per month per token
+        :param fcm_key: Key for FCM V1
+        :param fcm_url: URL to send request to
+        """
+
+        def _check_same_month(month_: str, set_month_: str):
+            return month_ != set_month_
+
+        self.tokens_used = []
+        self.event_cause = event_cause
+        lp: str = "fcm:init:"
+        if max_fcm:
+            g.logger.debug(f"{lp} FCM max invocations set to the supplied value: {max_fcm}")
+            self.default_fcm_per_month = max_fcm
+        if fcm_key:
+            g.logger.debug(f"{lp} FCM key set to the supplied value: {fcm_key}")
+            self.default_fcm_v1_key = fcm_key
+        if fcm_url:
+            g.logger.debug(f"{lp} FCM url set to the supplied value: {fcm_url}")
+            self.default_fcm_v1_url = fcm_url
+        if tokens_file:
+            g.logger.debug(f"{lp} FCM tokens file set to the supplied value: {tokens_file}")
+            self.tokens_file = tokens_file
+
+        if Path(self.tokens_file).exists() and Path(self.tokens_file).is_file():
+            g.logger.debug(f"{lp} reading tokens.txt")
+            fcm_tokens = self.get_tokens()
+            monlist: Union[str, list] = ""
+            intlist: Union[str, list] = ""
+            mon_int: tuple
+            zip_int_mon: zip
+            send_fcm: bool = False
+            total_sent: int = 0
+            token_data_copy: dict = dict(fcm_tokens)
+            if fcm_tokens and len(fcm_tokens["tokens"]):
+                fcm_tokens = fcm_tokens["tokens"]
+                for token in fcm_tokens:
+                    g.logger.debug(f"DEBUG>>> STARTING TOKEN LOOP <<<DEBUG")
+                    if token and token not in self.tokens_used:
+                        self.tokens_used.append(token)
+                        monlist = [int(mon) for mon in fcm_tokens[token]["monlist"].split(",")]
+                        intlist = [int(c_down) for c_down in fcm_tokens[token]["intlist"].split(",")]
+                        fcm_month = fcm_tokens[token]["invocations"]["at"]
+                        fcm_month = self.int_to_month[int(fcm_month)]
+                        curr_month = datetime.datetime.now().strftime("%B")
+                        total_sent = int(fcm_tokens[token]["invocations"]["count"])
+                        platform = fcm_tokens[token]["platform"]
+                        self.app_version = fcm_tokens[token]["appversion"]
+                        fcm_pkl_path = Path(f"{g.config.get('base_data_path')}/push/FCM-{token}.pkl")
+                        if str2bool(fcm_tokens[token]["pushstate"]):
+                            # pushstate is enabled, now check if the monitor is in the monlist
+                            if g.mid in monlist:
+                                # check the intlist for 'cool down'
+                                zip_int_mon = zip(monlist, intlist)
+                                for mon_int in zip_int_mon:
+                                    g.logger.debug(
+                                        f"DEBUG>>>> STARTING ITERATION THROUGH MON_INT LIST {mon_int=} <<<<DEBUG")
+                                    # (mid, cooldown)
+                                    if g.mid != mon_int[0]:
+                                        continue
+                                    g.logger.debug(
+                                        f"DEBUG>>> MADE IT THROUGH THE MID CHECKER {g.mid=} - {mon_int[0]=} <<<DEBUG")
+                                    if mon_int[1] == 0:
+                                        # cool down is disabled, check if we are over the count for this token
+                                        if _check_same_month(curr_month, fcm_month):
+                                            g.logger.info(
+                                                f"{lp} resetting FCM count as month has changed from {fcm_month} "
+                                                f"to {curr_month}"
+                                            )
+                                            total_sent = 0
+                                            fcm_month = curr_month
+                                        else:
+                                            if self._check_invocations(total_sent):
+                                                # todo write the data out to tokens.txt
+                                                send_fcm = True
+                                                total_sent += 1
+                                                continue
+                                            else:
+                                                g.logger.error(
+                                                    f"{lp} token {token[:-10]} has exceeded the max FCM invocations per "
+                                                    f"month ({self.default_fcm_per_month}, not sending FCM"
+                                                )
+                                    else:
+                                        g.logger.debug(
+                                            f"{lp} token {token[:-10]} has a cooldown of {mon_int[1]}, checking..."
+                                        )
+                                        # cool down is enabled, read pickled data and compare datetimes
+                                        fcm_pkl: Optional[datetime] = None
+                                        if fcm_pkl_path.exists():
+                                            with fcm_pkl_path.open("rb") as f:
+                                                fcm_pkl = pickle_load(f)
+                                        if fcm_pkl:
+                                            cooldown_ = (datetime.datetime.now() - fcm_pkl).total_seconds()
+                                            if cooldown_ > mon_int[1]:
+                                                g.logger.debug(
+                                                    f'{lp} token {token[:-10]} has exceeded the cooldown wait '
+                                                    f'({mon_int[1]}), sending FCM - ELAPSED: {cooldown_}')
+                                                # cool down has expired,
+                                                send_fcm = True
+                                                continue
+                                            else:
+                                                g.logger.debug(
+                                                    f"{lp} token {token[:-10]} has not exceeded the cooldown of "
+                                                    f"{mon_int[1]}, not sending FCM - ELAPSED: {cooldown_}")
+                                if send_fcm:
+                                    send_fcm = False
+                                    self.send_fcm(token=token, platform=platform, pkl_path=fcm_pkl_path)
+
+                            else:
+                                g.logger.debug(f"{lp} monitor {g.mid} is not in the monlist for token {token[:-10]}")
+                        else:
+                            g.logger.info(f"{lp} token {token[:-10]} pushstate is disabled, not sending FCM")
+                # todo: write tokens.txt with updated values
+                # g.logger.debug(f"{lp} updating token data for count and month if necessary")
+                # old_data['tokens'][token]['invocations']['count'] = count
+                # ret_month = self.int_to_month(month)
+                # old_data['tokens'][token]['invocations']['at'] = ret_month
+            else:
+                g.logger.error(f"{lp} no tokens.txt found, not sending FCM")
+
+    def send_fcm(self, token: str, platform: str, pkl_path: Path) -> None:
+        """
+        Send a FCM message to specified tokens
+        :param pkl_path: Path to pickle file
+        :param platform: android or ios
+        :param token: The token to send the notification to
+        :return: None
+        """
+        lp: str = 'fcm:send:'
+        g.logger.info(f"{lp} sending FCM to token {token[:-30]}")
+        title: str = f"{g.config.get('mon_name')} Alarm ({g.eid}) {'Ended:' if g.event_type == 'end' else ''}"
+        date_fmt: str = g.config.get('fcm_date_format', ' %H:%M, %d-%b')
+        body: str = f"{self.event_cause} {'ended' if g.event_type == 'end' else 'started'} at " \
+                    f"{datetime.datetime.now().strftime(date_fmt)}"
+        # https://portal/zm/index.php?view=image&eid=EVENTID&fid=objdetect_jpg&width=600
+        image_url = f"{g.config.get('portal')}/index.php?view=image&eid={g.eid}&fid=objdetect&width=600"
+        if image_url and g.config.get('user') and g.config.get('password'):
+            import urllib.parse
+            image_url = f"{image_url}&username={g.config.get('user')}&password=" \
+                        f"{urllib.parse.quote(g.config.get('password'), safe='')}"
+        fcm_log_message_id = g.config.get('fcm_log_message_id')
+        fcm_log_ = str2bool(g.config.get('fcm_log_raw_message'))
+
+        message = {
+            'token': token,
+            'title': title,
+            'body': body,
+            # 'image_url': self.image_url,
+            'sound': 'default',
+            # 'badge': int(self.badge),
+            'log_message_id': fcm_log_message_id,
+            'data': {
+                'mid': g.mid,
+                'eid': g.eid,
+                'notification_foreground': 'true'
+            }
+        }
+        replace_push_messages = str2bool(g.config.get('fcm_replace_push_messages'))
+        android_ttl = g.config.get('fcm_android_ttl')
+        android_priority = g.config.get('fcm_android_priority', 'high')
+        if image_url:
+            message['image_url'] = image_url
+            g.logger.debug(f"DEBUG>>>> IMAGE URL = {image_url} <<<<DEBUG")
+        if platform == 'android':
+            message['android'] = {
+                'icon': 'ic_stat_notification',
+                'priority': android_priority,
+            }
+            if android_ttl:
+                message['android']['ttl'] = android_ttl
+            if replace_push_messages:
+                message['android']['tag'] = 'zmninjapush'
+            if self.app_version and self.app_version != 'unknown':
+                g.logger.debug(f"{lp} setting channel to zmninja")
+                message['android']['channel'] = 'zmninja'
+            else:
+                g.logger.debug(f"{lp} legacy client, NOT setting channel to zmninja")
+        elif platform == 'ios':
+            message['ios'] = {
+                'thread_id': 'zmninja_alarm',
+                'headers': {
+                    'apns-priority': '10',
+                    'apns-push-type': 'alert',
+                    # 'apns-expiration': '0'
+                }
+            }
+            if replace_push_messages:
+                message['ios']['headers']['apns-collapse-id'] = 'zmninjapush'
+        else:
+            g.logger.error(f"{lp} platform {platform} is not supported!")
+            return
+        if fcm_log_:
+            message['log_raw_message'] = 'yes'
+            g.logger.debug(
+                f"{lp} The server cloud function at {self.default_fcm_v1_url} will log your full message. "
+                f"Please ONLY USE THIS FOR DEBUGGING and turn off later")
+
+        # send the message with header auth
+        headers = {
+            'content-type': 'application/json',
+            'Authorization': self.default_fcm_v1_key,
+        }
+        from requests import post
+        response_ = post(self.default_fcm_v1_url, data=json.dumps(message), headers=headers)
+        if response_ and response_.status_code == 200:
+            g.logger.debug(f"{lp} FCM sent successfully to token {token[:-10]} - response message: {response_.text}")
+            if pkl_path:
+                g.logger.debug(f"{lp} serializing datetime object to {pkl_path}")
+                try:
+                    with pkl_path.open("wb") as f:
+                        pickle_dump(datetime.datetime.now(), f)
+                except Exception as e:
+                    g.logger.error(f"{lp} failed to serialize datetime object to {pkl_path}")
+
+        elif response_:
+            g.logger.error(f"{lp} FCM failed to send to token {token[:-10]} with error {response_.status_code} - "
+                           f"response message: {response_.text}")
+            if response_.text.find('not a valid FCM') > -1 or response_.text.find('entity was not found') > -1:
+                # todo remove the token from the file
+                g.logger.warning(f"{lp} removing token {token[:-10]} from the file - NOT ACTUALLY BUT THIS WILL "
+                                 f"BE IMPLEMENTED LATER")
+
+    def _check_invocations(self, count: int):
+        """Check if we have exceeded the max FCM invocations per month"""
+        # "invocations": {"at":1, "count":0}
+        if count < self.default_fcm_per_month:
+            return True
+        return False
 
 
 class Timer:
@@ -66,7 +360,7 @@ class Timer:
         return self.get_ms()
 
 
-def createAnimation(image: Optional[np.ndarray] = None, options: Optional[dict] = None, perf: Optional[float] = None):
+def create_animation(image: Optional[np.ndarray] = None, options: Optional[dict] = None, perf: Optional[float] = None):
     """A function to create an animation in MP4 and/or GIF.
 
 
@@ -133,7 +427,7 @@ def createAnimation(image: Optional[np.ndarray] = None, options: Optional[dict] 
                 start = g.animation_seconds
                 g.animation_seconds = (datetime.datetime.now() - start).total_seconds()
                 return
-            image_grab_url: str = f"{(g.api.portal_url)}/index.php?view=image&eid={g.eid}"
+            image_grab_url: str = f"{g.api.portal_url}/index.php?view=image&eid={g.eid}"
             animation_retries: int = int(g.config["animation_max_tries"])
             sleep_secs: Union[str, float] = g.config["animation_retry_sleep"]
             length, fps, last_tot_frame = 0, 0, 0
@@ -143,8 +437,8 @@ def createAnimation(image: Optional[np.ndarray] = None, options: Optional[dict] 
             target_fps: int = 2
             for x in range(animation_retries):
                 if (
-                    (not g.api_event_response)
-                    and ((g.config.get("PAST_EVENT") and x == 0) or (not g.config.get("PAST_EVENT")))
+                        (not g.api_event_response)
+                        and ((g.config.get("PAST_EVENT") and x == 0) or (not g.config.get("PAST_EVENT")))
                 ) or (not g.config.get("PAST_EVENT") and x > 0):
                     g.Event, g.Monitor, g.Frame = g.api.get_all_event_data()
                 mon_name = g.config.get("mon_name", g.Monitor["Name"])
@@ -328,14 +622,15 @@ def createAnimation(image: Optional[np.ndarray] = None, options: Optional[dict] 
                 s2 = round((end_frame - gif_end_frame) / skip)
                 if s1 >= 0 and s2 >= 0:
                     if fast_gif:
-                        gif_images = images[0 + s1 : -s2 : 2]
+                        gif_images = images[0 + s1: -s2: 2]
                     else:
-                        gif_images = images[0 + s1 : -s2]
+                        gif_images = images[0 + s1: -s2]
                     if image is not None:
                         num = 8 if fast_gif else 4
                         for i in range(num):
                             gif_images.insert(0, image)
-                    # g.logger.debug(f"{gif_buffer_seconds=} | {target_fps=} | {gif_start_frame=} | {gif_end_frame=} | sliced from {s1=} | negative {s2=}")
+                    # g.logger.debug(f"{gif_buffer_seconds=} | {target_fps=} | {gif_start_frame=} | {gif_end_frame=} "
+                    #                f"| sliced from {s1=} | negative {s2=}")
                     g.logger.debug(
                         f"{lp}{'fast ' if fast_gif is not None else ''}gif: sliced {s1} to"
                         f" -{s2} from a total of {len(images)}, writing to disk..."
@@ -426,7 +721,7 @@ def do_hass(*args):
     disable_warnings(InsecureRequestWarning)
 
     lp: str = "hass add-on:"
-    headers: set = {
+    headers: dict = {
         "Authorization": f"Bearer {g.config.get('hass_token')}",
         "content-type": "application/json",
     }
@@ -615,19 +910,19 @@ def read_config(file: str, return_object: bool = False) -> Optional[Union[dict, 
 
 
 def write_text(
-    frame: Optional[np.ndarray] = None,
-    text: Optional[str] = None,
-    text_color: tuple = (0, 0, 0),
-    x: Optional[int] = None,
-    y: Optional[int] = None,
-    w: Optional[int] = None,
-    h: Optional[int] = None,
-    adjust: bool = False,
-    font: cv2 = None,
-    font_scale: float = None,
-    thickness: int = 1,
-    bg: bool = True,
-    bg_color: tuple = (255, 255, 255),
+        frame: Optional[np.ndarray] = None,
+        text: Optional[str] = None,
+        text_color: tuple = (0, 0, 0),
+        x: Optional[int] = None,
+        y: Optional[int] = None,
+        w: Optional[int] = None,
+        h: Optional[int] = None,
+        adjust: bool = False,
+        font: cv2 = None,
+        font_scale: float = None,
+        thickness: int = 1,
+        bg: bool = True,
+        bg_color: tuple = (255, 255, 255),
 ) -> np.ndarray:
     """Write supplied text onto an image"""
     lp: str = "image:write text:"
@@ -696,18 +991,18 @@ def write_text(
 
 
 def draw_bbox(
-    image: Optional[np.ndarray] = None,
-    boxes: Optional[list] = None,
-    labels: Optional[list] = None,
-    confidences: Optional[list] = None,
-    polygons: Optional[list] = None,
-    box_color: Optional[list] = None,
-    poly_color: tuple = (255, 255, 255),
-    poly_thickness: int = 1,
-    write_conf: bool = True,
-    errors=None,
-    write_model=False,
-    models=None,
+        image: Optional[np.ndarray] = None,
+        boxes: Optional[list] = None,
+        labels: Optional[list] = None,
+        confidences: Optional[list] = None,
+        polygons: Optional[list] = None,
+        box_color: Optional[list] = None,
+        poly_color: tuple = (255, 255, 255),
+        poly_thickness: int = 1,
+        write_conf: bool = True,
+        errors=None,
+        write_model=False,
+        models=None,
 ):
     """Draw a bounding box on a supplied image based upon coords supplied"""
     # FIXME: need to add scaling dependant on image dimensions
@@ -796,8 +1091,8 @@ def draw_bbox(
         text_size = cv2.getTextSize(label, font_type, font_scale, font_thickness)[0]
         text_width_padded = text_size[0] + 4
         text_height_padded = text_size[1] + 4
-        # print(
-        #     f"DRAW BBOX - WRITE TEXT {h=} -- {w=}   {font_scale=} -- {font_thickness=} -- text_width={text_size[0]} -- text_height={text_size[1]}")
+        # print(f"DRAW BBOX - WRITE TEXT {h=} -- {w=}   {font_scale=} -- {font_thickness=} -- text_width="
+        #       f"{text_size[0]} -- text_height={text_size[1]}")
 
         r_top_left = (boxes[i][0], boxes[i][1] - text_height_padded)
         r_bottom_right = (boxes[i][0] + text_width_padded, boxes[i][1])
@@ -832,7 +1127,8 @@ def str2tuple(string):
 
 
 def str_split(my_str: str, seperator: Optional[str] = None) -> list:
-    """Split a string using ``seperator``, if ``seperator`` is not provided a comma (',') will be used, returns a list with the split string
+    """Split a string using ``seperator``, if ``seperator`` is not provided a comma (',') will be used,
+    returns a list with the split string
 
     :param str my_str: The string to split
     :param str seperator: The seperator used to split the string
@@ -855,8 +1151,8 @@ def str2bool(v: Optional[Union[str, bool]]) -> Union[str, bool]:
     if isinstance(v, bool):
         return v
     v = str(v)
-    true_ret = ("yes", "true", "t", "y", "1", "on", "ok", "okay", "da")
-    false_ret = ("no", "false", "f", "n", "0", "off", "nyet")
+    true_ret = ("yes", "true", "t", "y", "1", "on", "ok", "okay", "da", "enabled")
+    false_ret = ("no", "false", "f", "n", "0", "off", "nyet", "disabled")
     if v.lower() in true_ret:
         return True
     elif v.lower() in false_ret:
@@ -883,7 +1179,8 @@ def verify_vals(config: dict, vals: set) -> bool:
 
 
 def import_zm_zones(reason: str, existing_polygons: list):
-    """A function to import zones that are defined in the ZoneMinder web GUI instead of defining zones in the per-monitor section of the configuration file.
+    """A function to import zones that are defined in the ZoneMinder web GUI instead of defining
+    zones in the per-monitor section of the configuration file.
 
 
     :param reason:
@@ -925,8 +1222,6 @@ def import_zm_zones(reason: str, existing_polygons: list):
 
 
 def pkl_pushover(action: str = "load", time_since_sent=None, mid=None):
-    from pickle import load as pickle_load, dump as pickle_dump
-
     lp: str = "pushover:pickle:"
     pkl_path: str = f"{g.config.get('base_data_path')}/push" or "/var/lib/zmeventnotification/push"
     mon_file: str = f"{pkl_path}/mon-{mid}-pushover.pkl"
@@ -1016,11 +1311,11 @@ def grab_frame_id(frame_id_str: str) -> str:
 
 
 def pkl(
-    action: str,
-    boxes: Optional[list] = None,
-    labels: Optional[list] = None,
-    confs: Optional[list] = None,
-    event: Optional[str] = None,
+        action: str,
+        boxes: Optional[list] = None,
+        labels: Optional[list] = None,
+        confs: Optional[list] = None,
+        event: Optional[str] = None,
 ):
     """Use the pickle module to save a python data structure to a file"""
     lp: str = "pickle:"
@@ -1068,7 +1363,7 @@ def pkl(
                 pickle_dump(event, f)
                 g.logger.debug(
                     4,
-                    f"{lp}  saved_event:{event} saved boxes:{boxes} - labels:{labels} "
+                    f"{lp} saved_event:{event} saved boxes:{boxes} - labels:{labels} "
                     f"- confs:{confs} to file: '{mon_file}'",
                 )
         except Exception as e:
@@ -1130,7 +1425,7 @@ class Pushover:
     def __init__(self, pushover_url: Optional[str] = None):
         """Create a PushOver object to send pushover notifications via `request.post` to API
 
-        :param str pushover_url: The URL to send pushover messages, default is -> https://api.pushover.net/1/messages.json
+        :param str pushover_url: The URL to send pushover messages, default > https://api.pushover.net/1/messages.json
         """
         lp: str = "pushover:"
         if pushover_url is None:

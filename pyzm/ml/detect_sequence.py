@@ -298,18 +298,18 @@ class DetectSequence:
 
     # todo: clean up (kw)args
     def _filter_detections(
-        self,
-        model_name,
-        box,
-        label,
-        conf,
-        polygons,
-        h,
-        w,
-        model_names,
-        seq_opt=None,
-        model_type=None,
-        pkl_data=None,
+            self,
+            model_name,
+            box,
+            label,
+            conf,
+            polygons,
+            h,
+            w,
+            model_names,
+            seq_opt=None,
+            model_type=None,
+            pkl_data=None,
     ):
         """INTERNAL METHOD. Filter out detected objects based upon configured options."""
 
@@ -376,9 +376,9 @@ class DetectSequence:
                     ioa = seq_opt[key_]
                     ioa_found = f"Sequence {seq_opt.get('name')} -> {key_}"
             elif (
-                key_ in self.ml_options.get("general")
-                and self.ml_options.get("general")[key_] is not None
-                and not self.ml_options.get("general")[key_].startswith("{{")
+                    key_ in self.ml_options.get("general")
+                    and self.ml_options.get("general")[key_] is not None
+                    and not self.ml_options.get("general")[key_].startswith("{{")
             ):
                 if key_ == "object_min_confidence":
                     min_conf = self.ml_options.get("general").get(key_)
@@ -393,9 +393,9 @@ class DetectSequence:
                     ioa = self.ml_options.get("general").get(key_)
                     ioa_found = f"ml_sequence:general -> {key_}"
             elif (
-                key_ in self.ml_options.get(model_name, {}).get("general")
-                and self.ml_options.get(model_name, {}).get("general")[key_] is not None
-                and not self.ml_options.get(model_name, {}).get("general")[key_].startswith("{{")
+                    key_ in self.ml_options.get(model_name, {}).get("general")
+                    and self.ml_options.get(model_name, {}).get("general")[key_] is not None
+                    and not self.ml_options.get(model_name, {}).get("general")[key_].startswith("{{")
             ):
                 if key_ == "object_min_confidence":
                     min_conf = self.ml_options.get(model_name, {}).get("general").get(key_)
@@ -445,9 +445,9 @@ class DetectSequence:
             )
             for key_ in per_keys_:
                 if (
-                    seq_opt.get(f"{label[idx]}{key_}")
-                    and seq_opt[f"{label[idx]}{key_}"] is not None
-                    and not seq_opt[f"{label[idx]}{key_}"].startswith("{{")
+                        seq_opt.get(f"{label[idx]}{key_}")
+                        and seq_opt[f"{label[idx]}{key_}"] is not None
+                        and not seq_opt[f"{label[idx]}{key_}"].startswith("{{")
                 ):
                     if key_ == "_object_min_confidence":
                         min_conf = seq_opt.get(f"{label[idx]}{key_}")
@@ -462,9 +462,9 @@ class DetectSequence:
                         ioa = seq_opt.get(f"{label[idx]}{key_}")
                         ioa_found = f"Sequence {seq_opt.get('name')} -> {label[idx]}{key_}"
                 elif (
-                    self.ml_options.get("general").get(f"{label[idx]}{key_}")
-                    and self.ml_options.get("general").get(f"{label[idx]}{key_}") is not None
-                    and not self.ml_options.get("general").get(f"{label[idx]}{key_}").startswith("{{")
+                        self.ml_options.get("general").get(f"{label[idx]}{key_}")
+                        and self.ml_options.get("general").get(f"{label[idx]}{key_}") is not None
+                        and not self.ml_options.get("general").get(f"{label[idx]}{key_}").startswith("{{")
                 ):
                     if key_ == "_min_confidence":
                         min_conf = self.ml_options.get("general").get(key_)
@@ -479,12 +479,12 @@ class DetectSequence:
                         ioa = self.ml_options.get("general").get(key_)
                         ioa_found = f"ml_sequence:general -> {label[idx]}{key_}"
                 elif (
-                    self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}")
-                    and self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}") is not None
-                    and not self.ml_options.get(model_name, {})
-                    .get("general")
-                    .get(f"{label[idx]}{key_}")
-                    .startswith("{{")
+                        self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}")
+                        and self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}") is not None
+                        and not self.ml_options.get(model_name, {})
+                        .get("general")
+                        .get(f"{label[idx]}{key_}")
+                        .startswith("{{")
                 ):
                     if key_ == "_object_min_confidence":
                         min_conf = self.ml_options.get(model_name, {}).get("general").get(f"{label[idx]}{key_}")
@@ -707,15 +707,15 @@ class DetectSequence:
 
                 # pattern matching is here because polygon/zone might have its own match pattern
                 if str2bool(self.ml_overrides.get("enable")) and self.ml_overrides.get(model_name, {}).get(
-                    f"{model_type}_detection_pattern"
+                        f"{model_type}_detection_pattern"
                 ):
                     match_pattern = self.ml_overrides.get(model_name, {}).get(f"{model_type}_detection_pattern")
                     g.logger.debug(
                         2,
                         "match pattern: overridden by ml_overrides from '{}' to '{}'".format(
                             self.ml_options.get(model_name, {})
-                            .get("general", {})
-                            .get("{}_detection_pattern".format(model_type), ".*"),
+                                .get("general", {})
+                                .get("{}_detection_pattern".format(model_type), ".*"),
                             match_pattern,
                         ),
                     )
@@ -729,8 +729,8 @@ class DetectSequence:
                 else:
                     match_pattern = (
                         self.ml_options.get(model_name, {})
-                        .get("general", {})
-                        .get("{}_detection_pattern".format(model_type), ".*")
+                            .get("general", {})
+                            .get("{}_detection_pattern".format(model_type), ".*")
                     )
                     g.logger.debug(2, f"match pattern: {match_pattern}")
 
@@ -756,12 +756,12 @@ class DetectSequence:
             # Allows match_past_detections to be enabled using sequence options - WIP
             seq_mpd = seq_opt.get("match_past_detections")
             if (
-                (str2bool(mpd) or str2bool(seq_mpd))
-                and (
+                    (str2bool(mpd) or str2bool(seq_mpd))
+                    and (
                     not g.config.get("PAST_EVENT")
                     or (g.config.get("PAST_EVENT") and str2bool(g.config.get("force_mpd")))
-                )
-                and ((not g.eid == saved_event) or (g.eid == saved_event and str2bool(g.config.get("force_mpd"))))
+            )
+                    and ((not g.eid == saved_event) or (g.eid == saved_event and str2bool(g.config.get("force_mpd"))))
             ):
                 lp = "mpd:"
                 if not saved_bs:
@@ -790,12 +790,12 @@ class DetectSequence:
                                 mda = self.ml_options[model_name]["general"]["past_det_max_diff_area"]
                                 mda_found = f"Model {model_name}:general -> past_det_max_diff_area"
                         if (
-                            self.ml_options.get(model_name, {})
-                            .get("general", {})
-                            .get(f"{label[idx]}_past_det_max_diff_area")
+                                self.ml_options.get(model_name, {})
+                                        .get("general", {})
+                                        .get(f"{label[idx]}_past_det_max_diff_area")
                         ):
                             if _is_unconverted(
-                                self.ml_options[model_name]["general"][f"{label[idx]}_past_det_max_diff_area"]
+                                    self.ml_options[model_name]["general"][f"{label[idx]}_past_det_max_diff_area"]
                             ):
                                 mda = self.ml_options[model_name]["general"][f"{label[idx]}_past_det_max_diff_area"]
                                 mda_found = f"Model {model_name}:general -> {label[idx]}_past_det_max_diff_area"
@@ -969,7 +969,7 @@ class DetectSequence:
                         # out of past detection bounding box loop, still inside if mpd
 
             elif (g.config.get("PAST_EVENT") and not str2bool(g.config.get("force_mpd"))) and (
-                str2bool(mpd) or str2bool(seq_mpd)
+                    str2bool(mpd) or str2bool(seq_mpd)
             ):
                 g.logger.debug(
                     f"{lp} this is a PAST event, skipping match past detections filter... override with "
@@ -1095,7 +1095,6 @@ class DetectSequence:
             polygons = list(polygons)
         # todo: mpd as part of ml_overrides?
         mpd: Optional[Union[str, bool]] = self.ml_options.get("general", {}).get("match_past_detections")
-        g.logger.debug(f"mpd:DBG>>> {self.ml_options.get('general', {}).get('match_past_detections') = } -- {mpd = }")
         mpd = str2bool(mpd)
         # Loops across all frames
         # match past detections is here, so we don't try and load/dump while still detecting
@@ -1195,7 +1194,7 @@ class DetectSequence:
                 raise ValueError(f"No model sequences configured? FATAL!")
             for model_loop, model_name in enumerate(self.model_sequence):
                 if str2bool(self.ml_overrides.get("enable")) and (
-                    model_name not in self.ml_overrides.get("model_sequence")
+                        model_name not in self.ml_overrides.get("model_sequence")
                 ):
                     g.logger.debug(f"{lp}overrides: '{model_name}' model is NOT in ml_overrides, skipping model...")
                     continue
@@ -1242,7 +1241,7 @@ class DetectSequence:
                         show_len = 1
                     g.logger.debug(
                         2,
-                        f"frame: {self.media.last_frame_id_read} [strategy:'{frame_strategy}'] ("
+                        f"frame: {self.media.get_last_frame()} [strategy:'{frame_strategy}'] ("
                         f"{self.media.frames_processed} of {show_len}) - "
                         f"model: '{model_name}' [strategy:'{frame_strategy}'] ({model_loop + 1} of "
                         f"{len(self.model_sequence)}) - sequence: '{seq_opt['name']}' "
@@ -1251,9 +1250,9 @@ class DetectSequence:
                     )
                     pre_existing_labels = seq_opt.get("pre_existing_labels")
                     if _pre_existing(
-                        pre_existing_labels,
-                        _labels_in_frame,
-                        f"'ml_sequence':'{model_name}':'sequence':'{seq_opt['name']}'",
+                            pre_existing_labels,
+                            _labels_in_frame,
+                            f"'ml_sequence':'{model_name}':'sequence':'{seq_opt['name']}'",
                     ):
                         continue
 
@@ -1311,12 +1310,12 @@ class DetectSequence:
                         # Moved here to be evaluated if changed by the 'confidence_upper' filter
                         added_ = False
                         if (
-                            (same_model_sequence_strategy == "first")
-                            or ((same_model_sequence_strategy == "most") and (len(_l) > len(_l_best_in_same_model)))
-                            or (
+                                (same_model_sequence_strategy == "first")
+                                or ((same_model_sequence_strategy == "most") and (len(_l) > len(_l_best_in_same_model)))
+                                or (
                                 (same_model_sequence_strategy == "most_unique")
                                 and (len(set(_l)) > len(set(_l_best_in_same_model)))
-                            )
+                        )
                         ):
                             added_ = True
                             # self.has_rescaled = True
@@ -1355,8 +1354,8 @@ class DetectSequence:
                             )
                             break
                         if (
-                            same_model_sequence_strategy != "first"
-                            and filtered_extras.get("confidence_upper_break") is True
+                                same_model_sequence_strategy != "first"
+                                and filtered_extras.get("confidence_upper_break") is True
                         ):
                             g.logger.debug(
                                 3,
@@ -1364,7 +1363,7 @@ class DetectSequence:
                             )
                             if not added_ and len(_b):
                                 g.logger.debug(
-                                    f"DEBUG>>> this match was not added to best in same model yet, " f"ADDING NOW"
+                                    f"DEBUG>>> this match was not added to best in same model yet, ADDING NOW"
                                 )
                                 _b_best_in_same_model = _b
                                 _l_best_in_same_model = _l
@@ -1448,25 +1447,26 @@ class DetectSequence:
             # Credit to @hqhoang for this idea - https://github.com/ZoneMinder/pyzm/issues/36
             # Takes into consideration confidences instead of returning the first match.
             if (
-                (frame_strategy == "first")
-                or ((frame_strategy == "most") and (len(item["labels"]) > len(matched_l)))
-                or (
+                    (frame_strategy == "first")
+                    or ((frame_strategy == "most") and (len(item["labels"]) > len(matched_l)))
+                    or (
                     (frame_strategy == "most")
                     and (len(item["labels"]) == len(matched_l))
                     and (sum(matched_c) < sum(item["confidences"]))
-                )
-                or ((frame_strategy == "most_models") and (len(item["detection_types"]) > len(matched_detection_types)))
-                or (
+            )
+                    or (
+                    (frame_strategy == "most_models") and (len(item["detection_types"]) > len(matched_detection_types)))
+                    or (
                     (frame_strategy == "most_models")
                     and (len(item["detection_types"]) == len(matched_detection_types))
                     and (sum(matched_c) < sum(item["confidences"]))
-                )
-                or ((frame_strategy == "most_unique") and (len(set(item["labels"])) > len(set(matched_l))))
-                or (
+            )
+                    or ((frame_strategy == "most_unique") and (len(set(item["labels"])) > len(set(matched_l))))
+                    or (
                     (frame_strategy == "most_unique")
                     and (len(set(item["labels"])) == len(set(matched_l)))
                     and (sum(matched_c) < sum(item["confidences"]))
-                )
+            )
             ):
                 # matched_poly = item['bbox2poly']
                 matched_l = item["labels"]

@@ -123,7 +123,7 @@ class ZMApi:
             self.session.verify = False
             g.logger.debug(
                 2,
-                f"{lp}init: SSL certificate verification disabled (encryption enabled, vulnerable to MITM attacks)",
+                f"{lp} SSL certificate verification disabled (encryption enabled, vulnerable to MITM attacks)",
                 caller=caller,
             )
             disable_warnings(category=InsecureRequestWarning)
@@ -484,13 +484,13 @@ class ZMApi:
             return event, monitor, frame
 
     def make_request(
-        self,
-        url: Optional[str] = None,
-        query: Optional[Dict] = None,
-        payload: Optional[Dict] = None,
-        type_action: str = "get",
-        re_auth: bool = True,
-        quiet: bool = False,
+            self,
+            url: Optional[str] = None,
+            query: Optional[Dict] = None,
+            payload: Optional[Dict] = None,
+            type_action: str = "get",
+            re_auth: bool = True,
+            quiet: bool = False,
     ) -> Union[Dict, Response]:
         """
         :rtype: dict|Response
@@ -556,9 +556,13 @@ class ZMApi:
                 r: requests.Response
                 # A non 0 byte response will usually mean it's an image eid request that needs re-login
                 if r.headers.get("content-length") != "0":
-                    g.logger.debug(4, f"{lp} raising RELOGIN ValueError", caller=caller)
                     g.logger.debug(f"{lp} DEBUG>>> {r.text = }")
-                    raise ValueError("RELOGIN")
+                    if r.text.lower().startswith('no frame found'):
+                        #  r.text = 'No Frame found for event(69129) and frame id(280)']
+                        g.logger.debug(f"{lp} Frame was not found by API! Retrying!")
+                    else:
+                        g.logger.debug(4, f"{lp} raising RELOGIN ValueError", caller=caller)
+                        raise ValueError("RELOGIN")
                 else:
                     # ZM returns 0 byte body if index not found (no frame ID or out of bounds)
                     g.logger.debug(
