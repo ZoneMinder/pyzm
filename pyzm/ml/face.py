@@ -7,6 +7,7 @@ from pyzm.interface import GlobalConfig
 
 g: GlobalConfig
 
+
 class Face:
     def __init__(self, options=None, *args, **kwargs):
         global g
@@ -15,15 +16,17 @@ class Face:
             options = {}
         self.model = None
         self.options = options
-        name = self.options.get('name') or 'Face wrapper'
+        name = self.options.get("name") or "Face wrapper"
         self.lock = None
         self.sequence_name: str = name
 
-        if self.options.get('face_detection_framework') == 'dlib':
+        if self.options.get("face_detection_framework") == "dlib":
             import pyzm.ml.face_dlib as face_dlib
+
             self.model = face_dlib.FaceDlib(self.options, **kwargs)
-        elif self.options.get('face_detection_framework') == 'tpu':
+        elif self.options.get("face_detection_framework") == "tpu":
             import pyzm.ml.face_tpu as face_tpu
+
             self.model = face_tpu.FaceTpu(self.options, **kwargs)
         else:
             raise ValueError(f"{self.options.get('face_detection_framework')} face detection framework is unknown")

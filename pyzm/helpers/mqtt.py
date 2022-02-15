@@ -54,19 +54,37 @@ def on_publish(client, userdata, mid):
 
 
 class Mqtt:
-    """ Create an MQTT object to publish (subscribe coming for es control)
-        config: (dict)
-        config_file: path to a config file to read
-        secrets: same as config but for secrets
+    """Create an MQTT object to publish (subscribe coming for es control)
+    config: (dict)
+    config_file: path to a config file to read
+    secrets: same as config but for secrets
 
     """
 
     # todo **kwargs instead of all of this
-    def __init__(self, config=None, broker_address: str = None, port=None, user=None, password=None, config_file=None,
-                 secrets_filename=None, secrets=None):
+    def __init__(
+        self,
+        config=None,
+        broker_address: str = None,
+        port=None,
+        user=None,
+        password=None,
+        config_file=None,
+        secrets_filename=None,
+        secrets=None,
+    ):
         global g
-        self.image, self.path, self.conn_wait, self.client, self.tls_ca, self.connected, self.config, self.secrets, self.conn_time \
-            = None, None, None, None, None, None, None, None, None
+        (
+            self.image,
+            self.path,
+            self.conn_wait,
+            self.client,
+            self.tls_ca,
+            self.connected,
+            self.config,
+            self.secrets,
+            self.conn_time,
+        ) = (None, None, None, None, None, None, None, None, None)
         self.ssl_cert = ssl.CERT_REQUIRED  # start with strict cert checking/verification of CN
         self.tls_self_signed = False
         g = GlobalConfig()
@@ -83,41 +101,41 @@ class Mqtt:
                 self.secrets = read_config(secrets_filename)
 
         if not user:
-            self.user = self.config.get('mqtt_user')
+            self.user = self.config.get("mqtt_user")
         if not password:
-            self.password = self.config.get('mqtt_pass')
+            self.password = self.config.get("mqtt_pass")
 
         # todo: add ws/wss support
         if not broker_address:
-            self.broker = self.config.get('mqtt_broker')
+            self.broker = self.config.get("mqtt_broker")
         else:
             self.broker = broker_address
         if not port:  # if a port isnt specified use protocol defaults for insecure/secure
             port = 1883
-            if self.config.get('tls_ca'):
+            if self.config.get("tls_ca"):
                 port = 8883
 
-                self.tls_ca = self.config.get('tls_ca')
-                if self.config.get('mqtt_tls_allow_self_signed'):
+                self.tls_ca = self.config.get("tls_ca")
+                if self.config.get("mqtt_tls_allow_self_signed"):
                     self.tls_self_signed = True
                     self.ssl_cert = ssl.CERT_NONE
 
-        if not g.config.get('mqtt_port'):
+        if not g.config.get("mqtt_port"):
             self.port = port
         else:
-            self.port = g.config.get('mqtt_port', port)
+            self.port = g.config.get("mqtt_port", port)
 
-        self.tls_insecure = self.config.get('mqtt_tls_insecure') if self.config.get('mqtt_tls_insecure') else None
-        self.mtls_cert = self.config.get('tls_cert') if self.config.get('tls_cert') else None
-        self.mtls_key = self.config.get('tls_key') if self.config.get('tls_key') else None
-        self.retain = str2bool(self.config.get('mqtt_retain'))
-        self.qos = self.config.get('mqtt_qos', 0)
+        self.tls_insecure = self.config.get("mqtt_tls_insecure") if self.config.get("mqtt_tls_insecure") else None
+        self.mtls_cert = self.config.get("tls_cert") if self.config.get("tls_cert") else None
+        self.mtls_key = self.config.get("tls_key") if self.config.get("tls_key") else None
+        self.retain = str2bool(self.config.get("mqtt_retain"))
+        self.qos = self.config.get("mqtt_qos", 0)
         self.client_id = "zmes-"
 
     def isConnected(self):
         return Connected
 
-    def create_ml_image(self, image_path=None, cause=None, image=None, _type='byte'):
+    def create_ml_image(self, image_path=None, cause=None, image=None, _type="byte"):
         """Prepares an image to be published, tested on jpg and gif so far. Give it an image or a (path and cause: [
         s] dog:98%), *** image will take precedence if all 3 sent path and cause; determines if it returns
         alarm/snapshot/objdetect.jpg or objdetect.gif. precedence is
@@ -130,36 +148,39 @@ class Mqtt:
             if image_path and cause:
                 self.path = image_path
                 self.path = get_image(self.path, cause)
-                if _type == 'byte':
+                if _type == "byte":
                     g.logger.debug(
                         f"mqtt:grab_image: {Path(self.path).suffix}"
-                        f" to be used is: '{self.path}', converting to byte array")
+                        f" to be used is: '{self.path}', converting to byte array"
+                    )
                     with open(self.path, "rb") as fd:
                         self.image = bytearray(fd.read())
                 else:
                     import base64
+
                     g.logger.debug(
                         f"mqtt:grab_image: {Path(self.path).suffix}"
-                        f" to be used is: '{self.path}', converting to BASE64")
+                        f" to be used is: '{self.path}', converting to BASE64"
+                    )
                     with open(self.path, "rb") as fd:
-                        self.image = base64.b64encode(fd.read()).decode('utf-8')
+                        self.image = base64.b64encode(fd.read()).decode("utf-8")
 
     def get_options(self):
         return {
-            'client_id': self.client_id,
-            'broker': self.broker,
-            'port': self.port,
-            'user': self.user,
-            'password': self.password,
-            'retain_published': self.retain,
-            'tls_info': {
-                'self_signed': self.tls_self_signed,
-                'insecure': self.tls_insecure,
-                'ca': self.tls_ca,
-                'server_cert': self.ssl_cert,
-                'client_cert': self.mtls_cert,
-                'client_key': self.mtls_key,
-                'cert_reqs': repr(self.ssl_cert)
+            "client_id": self.client_id,
+            "broker": self.broker,
+            "port": self.port,
+            "user": self.user,
+            "password": self.password,
+            "retain_published": self.retain,
+            "tls_info": {
+                "self_signed": self.tls_self_signed,
+                "insecure": self.tls_insecure,
+                "ca": self.tls_ca,
+                "server_cert": self.ssl_cert,
+                "client_cert": self.mtls_cert,
+                "client_key": self.mtls_key,
+                "cert_reqs": repr(self.ssl_cert),
             },
         }
 
@@ -201,7 +222,8 @@ class Mqtt:
                     # ssl.CERT_NONE allows self signed, don't use if using lets encrypt certs and CA
                     if self.tls_insecure:
                         self.client.tls_insecure_set(
-                            True)  # DO NOT verify CN (COMMON NAME) in certificates - [MITM risk]
+                            True
+                        )  # DO NOT verify CN (COMMON NAME) in certificates - [MITM risk]
 
                 else:
                     self.client_id = f"{self.client_id}TLS-{id_generator()}"
@@ -209,7 +231,8 @@ class Mqtt:
                     self.client.tls_set(self.tls_ca, cert_reqs=ssl.CERT_NONE)
                     g.logger.debug(
                         f"mqtt:connect: {self.client_id} -> {self.broker}:{self.port} trying TLS "
-                        f"({'TLS Secure' if not self.tls_insecure else 'TLS Insecure'}) -> tls_ca: {self.tls_ca}")
+                        f"({'TLS Secure' if not self.tls_insecure else 'TLS Insecure'}) -> tls_ca: {self.tls_ca}"
+                    )
             else:
                 self.client_id = f"{self.client_id}noTLS-{id_generator()}"
                 self.client = mqtt_client.Client(self.client_id)
@@ -236,7 +259,8 @@ class Mqtt:
 
         if not self.client:
             g.logger.error(
-                f"mqtt:connect: STRANGE ERROR -> there is no active mqtt object instantiated?! Exiting mqtt routine")
+                f"mqtt:connect: STRANGE ERROR -> there is no active mqtt object instantiated?! Exiting mqtt routine"
+            )
             return
         self.conn_wait = 5 if not self.conn_wait else self.conn_wait
         g.logger.debug(2, f"mqtt:connect: connecting to broker (timeout: {self.conn_wait})")
@@ -245,7 +269,8 @@ class Mqtt:
             elapsed = datetime.now() - start  # how long has it been
             if elapsed.total_seconds() > self.conn_wait:
                 g.logger.error(
-                    f"mqtt:connect: broker @ '{self.broker}' did not reply within '{self.conn_wait}' seconds")
+                    f"mqtt:connect: broker @ '{self.broker}' did not reply within '{self.conn_wait}' seconds"
+                )
                 break  # no longer than x seconds waiting for it to connect
         if not Connected:
             g.logger.error(f"mqtt:connect: could not establish a connection to the broker!")
@@ -253,13 +278,7 @@ class Mqtt:
             self.conn_time = datetime.now()
             self.connected = Connected
 
-    def publish(
-            self,
-            topic=None,
-            message=None,
-            qos=0,
-            retain: bool = False
-    ):
+    def publish(self, topic=None, message=None, qos=0, retain: bool = False):
         global wasConnected
         if not Connected:
             if wasConnected:
@@ -280,17 +299,19 @@ class Mqtt:
             g.logger.error(f"mqtt:publish: no topic specified, please set a topic, skipping publish...")
             return
         if isinstance(message, bytes):
-            g.logger.debug(2,
-                           f"mqtt:publish: sending -> topic: '{topic}'  data: '<serialized byte object>'  size: "
-                           f"{round(message.__sizeof__() / 1024 / 1024, 2)} MB"
-                           )
+            g.logger.debug(
+                2,
+                f"mqtt:publish: sending -> topic: '{topic}'  data: '<serialized byte object>'  size: "
+                f"{round(message.__sizeof__() / 1024 / 1024, 2)} MB",
+            )
         elif not isinstance(message, bytearray):
             g.logger.debug(2, f"mqtt:publish: sending -> topic: '{topic}' data: {message[:255]}")
         else:
-            g.logger.debug(2,
-                           f"mqtt:publish: sending -> topic: '{topic}'  data: '<serialized bytearray>'  size: "
-                           f"{round(message.__sizeof__() / 1024 / 1024, 2)} MB"
-                           )
+            g.logger.debug(
+                2,
+                f"mqtt:publish: sending -> topic: '{topic}'  data: '<serialized bytearray>'  size: "
+                f"{round(message.__sizeof__() / 1024 / 1024, 2)} MB",
+            )
         try:
             self.client.publish(topic, message, qos=qos, retain=self.retain)
         except Exception as e:  # todo narrow down exception catching
@@ -304,10 +325,12 @@ class Mqtt:
             if self.conn_time:
                 self.conn_time = datetime.now() - self.conn_time
             show_broker = f"{g.config['sanitize_str']}"
-            g.logger.debug(2,
-                           f"mqtt:close: {self.client_id} ->  disconnecting from mqtt broker: "
-                           f"'{self.broker if not str2bool(g.config['sanitize_logs']) else show_broker}:{self.port}'"
-                           f" [connection alive for: {self.conn_time.total_seconds()} seconds]")
+            g.logger.debug(
+                2,
+                f"mqtt:close: {self.client_id} ->  disconnecting from mqtt broker: "
+                f"'{self.broker if not str2bool(g.config['sanitize_logs']) else show_broker}:{self.port}'"
+                f" [connection alive for: {self.conn_time.total_seconds()} seconds]",
+            )
             self.client.disconnect()
             self.client.loop_stop()
             Connected = self.connected = wasConnected = False

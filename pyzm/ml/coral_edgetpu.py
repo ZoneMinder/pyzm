@@ -1,16 +1,13 @@
 from os import getuid
+from pathlib import Path
 from typing import Optional
 from PIL import Image
 
 import cv2
+
 # Pycharm hack for intellisense
 # from cv2 import cv2
 import numpy as np
-
-from pycoral.adapters import common
-from pycoral.adapters import detect
-from pycoral.utils.edgetpu import make_interpreter
-from pathlib import Path
 
 from pyzm.ml.object import Object
 from pyzm.helpers.pyzm_utils import Timer
@@ -18,6 +15,11 @@ from pyzm.interface import GlobalConfig
 
 g: GlobalConfig
 lp: str
+
+# global placeholders for TPU lib imports
+common = None
+detect = None
+make_interpreter = None
 
 
 class TPUException(Exception):
@@ -36,37 +38,51 @@ class TPUException(Exception):
 class Tpu(Object):
     def __init__(self, *args, **kwargs):
         global g, lp
-        self.lp = lp = 'coral:'
         g = GlobalConfig()
-        options = kwargs['options']
-        kwargs['globs'] = g
+        self.lp = lp = "coral:"
+        try:
+            global common, detect, make_interpreter
+            from pycoral.adapters import common
+            from pycoral.adapters import detect
+            from pycoral.utils.edgetpu import make_interpreter
+        except ImportError:
+            g.logger.warning(
+                f"{lp} pycoral libs not installed, this is ok if you do not plan to use "
+                f"TPU as detection processor. If you intend to use a TPU please install the TPU libs "
+                f"and pycoral!"
+            )
+        else:
+            g.logger.debug(f"{lp} the pycoral library has been successfully imported!")
+            options = kwargs["options"]
+            kwargs["globs"] = g
 
-        super().__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
-        if options is None:
-            g.logger.error(
-                f"{lp} cannot initialize TPU object detection model -> no 'sequence' sent with weights, conf, "
-                f"labels, etc.")
-            raise TPUException(f"{lp} -> NO OPTIONS")
-        g.logger.debug(f"{lp} initializing edge TPU with params: {options}")
-        self.sequence_name: str = ''
+            if options is None:
+                g.logger.error(
+                    f"{lp} cannot initialize TPU object detection model -> no 'sequence' sent with weights, conf, "
+                    f"labels, etc."
+                )
+                raise TPUException(f"{lp} -> NO OPTIONS")
+            g.logger.debug(f"{lp} initializing edge TPU with params: {options}")
+            self.sequence_name: str = ""
 
-        self.classes = {}
-        self.options = options
-        self.processor = 'tpu'
-        self.lock_maximum = int(options.get(f"{self.processor}_max_processes", 1))
-        self.lock_name = f"pyzm_uid{getuid()}_{self.processor.upper()}_lock"
-        self.lock_timeout = int(options.get(f"{self.processor}_max_lock_wait", 120))
-        self.disable_locks = options.get('disable_locks', 'no')
-        self.create_lock()
-        self.is_locked = False
-        self.model = None
-        self.model_height = self.options.get('model_height', 312)
-        self.model_width = self.options.get('model_width', 312)
-        self.populate_class_labels()
+            self.classes = {}
+            self.options = options
+            self.processor = "tpu"
+            self.lock_maximum = int(options.get(f"{self.processor}_max_processes", 1))
+            self.lock_name = f"pyzm_uid{getuid()}_{self.processor.upper()}_lock"
+            self.lock_timeout = int(options.get(f"{self.processor}_max_lock_wait", 120))
+            self.disable_locks = options.get("disable_locks", "no")
+            self.create_lock()
+            self.is_locked = False
+            self.model = None
+            self.model_height = self.options.get("model_height", 312)
+            self.model_width = self.options.get("model_width", 312)
+            self.populate_class_labels()
 
     def get_model_name(self) -> str:
-        return 'coral'
+        return "coral"
 
     def get_options(self, key=None):
         if not key:
@@ -78,7 +94,7 @@ class Tpu(Object):
         return self.sequence_name
 
     def populate_class_labels(self):
-        label_file = self.options.get('object_labels')
+        label_file = self.options.get("object_labels")
         if label_file and Path(label_file).is_file():
             fp = None
             try:
@@ -95,30 +111,33 @@ class Tpu(Object):
                     fp.close()
         elif not Path(label_file).is_file():
             g.logger.error(f"{lp} '{Path(label_file).name}' does not exist or is not an actual file")
-            raise TPUException(f"Provided label file does not exist or is not a file! Check the config for any spelling mistakes in the entire Path")
+            raise TPUException(
+                f"Provided label file does not exist or is not a file! Check the config for any spelling mistakes in the entire Path"
+            )
         else:
             g.logger.debug(f"{lp} No label file provided for this model")
-            raise TPUException(f"Provided label file does not exist or is not a file! Check the config for any spelling mistakes in the entire Path")
-
+            raise TPUException(
+                f"Provided label file does not exist or is not a file! Check the config for any spelling mistakes in the entire Path"
+            )
 
     def get_classes(self):
         return self.classes
 
     def load_model(self):
         # print(f"{self.options = }")
-        self.sequence_name = self.options.get('name') or self.get_model_name()
+        self.sequence_name = self.options.get("name") or self.get_model_name()
         g.logger.debug(f"{lp} loading model data from sequence '{self.sequence_name}' ")
         # self.model = DetectionEngine(self.options.get('object_weights'))
         # Initialize the TF interpreter
         t = Timer()
-        if Path(self.options.get('object_weights')).is_file():
+        if Path(self.options.get("object_weights")).is_file():
             try:
-                self.model = make_interpreter(self.options.get('object_weights'))
+                self.model = make_interpreter(self.options.get("object_weights"))
             except Exception as ex:
                 ex = repr(ex)
-                tokens = ex.split(' ')
+                tokens = ex.split(" ")
                 for tok in tokens:
-                    if tok.startswith('libedgetpu'):
+                    if tok.startswith("libedgetpu"):
                         g.logger.info(
                             f"{lp} TPU error detected (replace cable with a short high quality one, dont allow "
                             f"TPU/cable to move around). Reset the USB port or reboot!"
@@ -129,14 +148,17 @@ class Tpu(Object):
                 diff_time = t.stop_and_get_ms()
                 g.logger.debug(
                     f"perf:{lp} initialization -> loading '{Path(self.options.get('object_weights')).name}' "
-                    f"took: {diff_time}")
+                    f"took: {diff_time}"
+                )
         else:
-            g.logger.error(f"{lp} The supplied model file does not exist or is not an actual file. Can't run detection!")
+            g.logger.error(
+                f"{lp} The supplied model file does not exist or is not an actual file. Can't run detection!"
+            )
 
     @staticmethod
     def _nms(objects, threshold):
         # not used - its already part of TPU core libs it seems
-        # credit 
+        # credit
         # https://github.com/google-coral/pycoral/blob/master/examples/small_object_detection.py
 
         """Returns a list of indexes of objects passing the NMS.
@@ -176,8 +198,7 @@ class Tpu(Object):
             unions = areas[idxs[:-1]] + areas[selected_idx] - intersections
             ious = intersections / unions
 
-            idxs = np.delete(
-                idxs, np.concatenate(([len(idxs) - 1], np.where(ious > threshold)[0])))
+            idxs = np.delete(idxs, np.concatenate(([len(idxs) - 1], np.where(ious > threshold)[0])))
 
         return selected_idxs
 
@@ -198,9 +219,10 @@ class Tpu(Object):
 
         if model_resize:
             downscaled = True
-            g.logger.debug(2, f"{lp} model dimensions requested -> "
-                              f"{self.model_width}*{self.model_height}")
-            input_image = cv2.resize(input_image, (int(self.model_width), int(self.model_height)), interpolation=cv2.INTER_AREA)
+            g.logger.debug(2, f"{lp} model dimensions requested -> " f"{self.model_width}*{self.model_height}")
+            input_image = cv2.resize(
+                input_image, (int(self.model_width), int(self.model_height)), interpolation=cv2.INTER_AREA
+            )
             newHeight, newWidth = input_image.shape[:2]
             # getscaling so we can make correct bounding boxes
             upsize_xfactor = w / newWidth
@@ -209,7 +231,7 @@ class Tpu(Object):
         h, w = input_image.shape[:2]
         input_image = cv2.cvtColor(input_image, cv2.COLOR_BGR2RGB)
         input_image = Image.fromarray(input_image)
-        if self.options.get('auto_lock', True):
+        if self.options.get("auto_lock", True):
             self.acquire_lock()
 
         try:
@@ -231,39 +253,41 @@ class Tpu(Object):
         except Exception as ex:
             raise ex
         else:
-            objs = detect.get_objects(self.model, float(self.options.get('object_min_confidence')), scale)
+            objs = detect.get_objects(self.model, float(self.options.get("object_min_confidence")), scale)
             diff_time = t.stop_and_get_ms()
             g.logger.debug(f"perf:{lp} '{self.sequence_name}' detection took: {diff_time}")
 
         finally:
-            if self.options.get('auto_lock', True):
+            if self.options.get("auto_lock", True):
                 self.release_lock()
 
         bbox, labels, conf = [], [], []
 
         for obj in objs:
             # box = obj.bbox.flatten().astype("int")
-            bbox.append([
-                int(round(obj.bbox.xmin)),
-                int(round(obj.bbox.ymin)),
-                int(round(obj.bbox.xmax)),
-                int(round(obj.bbox.ymax))
-            ])
+            bbox.append(
+                [
+                    int(round(obj.bbox.xmin)),
+                    int(round(obj.bbox.ymin)),
+                    int(round(obj.bbox.xmax)),
+                    int(round(obj.bbox.ymax)),
+                ]
+            )
 
             labels.append(self.classes.get(obj.id))
             conf.append(float(obj.score))
         if downscaled and labels:
             # fixme: what if its up scaled?
-            g.logger.debug(2,
-                           f"{lp} The image was resized before processing by the 'model width/height', scaling "
-                           f"bounding boxes in image back up by factors of -> x={upsize_xfactor:.4} "
-                           f"y={upsize_yfactor:.4}"
-                           )
+            g.logger.debug(
+                2,
+                f"{lp} The image was resized before processing by the 'model width/height', scaling "
+                f"bounding boxes in image back up by factors of -> x={upsize_xfactor:.4} "
+                f"y={upsize_yfactor:.4}",
+            )
             bbox = self.downscale(bbox, upsize_xfactor, upsize_yfactor)
-
 
         if labels:
             g.logger.debug(f"{lp} returning {labels} -- {bbox} -- {conf}")
         else:
             g.logger.debug(f"{lp} no detections to return!")
-        return bbox, labels, conf, ['coral'] * len(labels)  # , ret_val
+        return bbox, labels, conf, ["coral"] * len(labels)  # , ret_val
