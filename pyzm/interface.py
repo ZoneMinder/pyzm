@@ -107,7 +107,7 @@ ZMES_DEFAULT_CONFIG: dict = safe_load(
     push_emerg_time_start: '00:00'
     push_emerg_time_end: '23:59'
     push_emerg_force: no
-    
+
     goti_enable: no
     goti_host: ''
     goti_token: ''
@@ -533,7 +533,7 @@ class ZMESConfig:
             comparative_hash: Optional[str] = None,
             read_chunk_size: int = 65536,
             algorithm: str = "sha256",
-    ):
+    ) -> tuple[str, Optional[bool]]:
         """Hash a file using hashlib library.
 
         If an ``input_file`` is passed, that file will be read and hashed into a string. If a ``input_hash`` is supplied
@@ -683,6 +683,20 @@ class ZMESConfig:
                 # Substitute {[secrets]} then {{sub vars}}
                 sfn = self.secrets_file_path = self.config.get("secrets", "")
                 # todo: {{sub var}} in secrets name support to allow for "{{base_data_path}}/secrets.yml"
+                return_config = str(sfn)
+                # Use set to remove duplicates then convert back to a list to allow indexing
+                found_sub_vars: list = list(set(compile(r"{{(\w*)}}").findall(return_config)))
+                for sub_var in found_sub_vars:
+                    # This is needed if the value is replaced and updated, the config (being used as the key pool)
+                    # also needs to be updated as config_pool will have all the keys BUT the values will have {{}}, {[]}
+                    sub_pattern: str = r"(\{{\{{{key}\}}\}})".format(key=sub_var)
+                    if sub_var in self.config:
+                        sfn = self.secrets_file_path = compile(sub_pattern).sub(str(self.config[sub_var]),
+                                                                                return_config)
+                        g.logger.debug(f"{lp} after substituting the secrets file is now: {sfn}")
+                    else:
+                        g.logger.warning(f"{lp} the substitution variable {sub_var} which is in the secrets: option "
+                                         f"not found in config, skipping substitution!")
 
                 try:
                     self.config = self._parse_secrets()
