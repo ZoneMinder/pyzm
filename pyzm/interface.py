@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import time
 from hashlib import new
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 from re import compile
 
 from pyzm.ZMLog import str2bool
@@ -533,7 +533,7 @@ class ZMESConfig:
             comparative_hash: Optional[str] = None,
             read_chunk_size: int = 65536,
             algorithm: str = "sha256",
-    ) -> tuple[str, Optional[bool]]:
+    ) -> Tuple[str, Optional[bool]]:
         """Hash a file using hashlib library.
 
         If an ``input_file`` is passed, that file will be read and hashed into a string. If a ``input_hash`` is supplied
