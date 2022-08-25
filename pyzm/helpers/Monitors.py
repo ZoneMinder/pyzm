@@ -3,37 +3,59 @@ Monitors
 =========
 Holds a list of Monitors for a ZM configuration
 Given monitors are fairly static, maintains a cache of monitors
-which can be overriden 
+which can be overridden
 """
 
-
 from pyzm.helpers.Monitor import Monitor
-from pyzm.helpers.Base import Base
-import requests
-import pyzm.helpers.globals as g
+from typing import Optional
+from pyzm.interface import GlobalConfig
+
+g: GlobalConfig
 
 
-class Monitors(Base):
-    def __init__(self, api=None):
-        self.api = api
+class Monitors:
+    def __init__(self):
+        global g
+        g = GlobalConfig()
+        self.monitors = []
         self._load()
 
-    def _load(self,options={}):
-        g.logger.Debug(2,'Retrieving monitors via API')
-        url = self.api.api_url +'/monitors.json'
-        r = self.api._make_request(url=url)
-        ms = r.get('monitors')
-        self.monitors = []
-        for m in ms:
-           self.monitors.append(Monitor(monitor=m,api=self.api))
+    def __len__(self):
+        if self.monitors:
+            return len(self.monitors)
+        else:
+            return 0
 
+    def __str__(self) -> Optional[str]:
+        if self.monitors:
+            ret_val = []
+            for mon in self.monitors:
+                ret_val.append(str(mon))
+            return str(ret_val)
+        else:
+            return None
+
+    def _load(self, options=None):
+        if options is None:
+            options = {}
+        g.logger.debug(2, "Retrieving monitors via API")
+        url = f"{g.api.api_url}/monitors.json"
+        r = g.api.make_request(url=url)
+        ms = r.get("monitors")
+        for m in ms:
+            self.monitors.append(Monitor(monitor=m))
+
+    def __iter__(self):
+        if self.monitors:
+            for mon in self.monitors:
+                yield mon
 
     def list(self):
         return self.monitors
 
-    def add(self, options={}):
+    def add(self, options=None):
         """Adds a new monitor
-        
+
         Args:
             options (dict): Set of attributes that define the monitor::
 
@@ -54,67 +76,64 @@ class Monitors(Base):
                     }
 
                 }
-        
+
         Returns:
             json: json response of API request
         """
-        url = self.api.api_url +'/monitors.json'
+        if options is None:
+            options = {}
+        url = f"{g.api.api_url}/monitors.json"
         payload = {}
-        if options.get('function'):
-            payload['Monitor[Function]'] = options.get('function')
-        if options.get('name'):
-            payload['Monitor[Name]'] = options.get('name')
-        if options.get('enabled'):
-            enabled = '1' if options.get('enabled') else '0'
-            payload['Monitor[Enabled]'] = enabled
-        if options.get('protocol'):
-            payload['Monitor[Protocol]'] = options.get('protocol')
-        if options.get('host'):
-            payload['Monitor[Host]'] = options.get('host')
-        if options.get('port'):
-            payload['Monitor[Port]'] = str(options.get('port'))
-        if options.get('path'):
-            payload['Monitor[Path]'] = options.get('path')
-        if options.get('width'):
-            payload['Monitor[Width]'] = str(options.get('width'))
-        if options.get('height'):
-            payload['Monitor[Height]'] = str(options.get('height'))
+        if options.get("function"):
+            payload["Monitor[Function]"] = options.get("function")
+        if options.get("name"):
+            payload["Monitor[Name]"] = options.get("name")
+        if options.get("enabled"):
+            enabled = "1" if options.get("enabled") else "0"
+            payload["Monitor[Enabled]"] = enabled
+        if options.get("protocol"):
+            payload["Monitor[Protocol]"] = options.get("protocol")
+        if options.get("host"):
+            payload["Monitor[Host]"] = options.get("host")
+        if options.get("port"):
+            payload["Monitor[Port]"] = str(options.get("port"))
+        if options.get("path"):
+            payload["Monitor[Path]"] = options.get("path")
+        if options.get("width"):
+            payload["Monitor[Width]"] = str(options.get("width"))
+        if options.get("height"):
+            payload["Monitor[Height]"] = str(options.get("height"))
 
-        if options.get('raw'):
-            for k in options.get('raw'):
-                payload[k] = options.get('raw')[k]
-               
+        if options.get("raw"):
+            for k in options.get("raw"):
+                payload[k] = options.get("raw")[k]
+
         if payload:
-            return self.api._make_request(url=url, payload=payload, type='post')
-    
-    def find(self, id=None, name=None):
+            return g.api.make_request(url=url, payload=payload, type_action="post")
+
+    def find(self, id_=None, name=None):
         """Given an id or name, returns matching monitor object
-        
+
         Args:
-            id (int, optional): MonitorId of monitor. Defaults to None.
+            id_ (int, optional): MonitorId of monitor. Defaults to None.
             name (string, optional): Monitor name of monitor. Defaults to None.
-        
+
         Returns:
             :class:`pyzm.helpers.Monitor`: Matching monitor object
         """
-        if not id and not name:
+        if not id_ and not name:
             return None
         match = None
-        if id:
-            key = 'Id'
+        if id_:
+            key = "Id"
         else:
-            key = 'Name'
-    
+            key = "Name"
+
         for mon in self.monitors:
-            if id and mon.id() == id:
+            if id_ and mon.id() == id_:
                 match = mon
                 break
             if name and mon.name().lower() == name.lower():
                 match = mon
                 break
         return match
-        
-
-
-    
-

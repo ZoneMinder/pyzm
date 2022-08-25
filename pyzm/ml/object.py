@@ -1,104 +1,85 @@
-import numpy as np
+from typing import Optional
 
-import sys
-import cv2
-import time
-import datetime
-import re
-from pyzm.helpers.Base import Base
-from pyzm.helpers.Media import MediaStream
+from portalocker import AlreadyLocked, BoundedSemaphore
 
-import time
-import requests
-import pyzm.helpers.globals as g
+from pyzm.helpers.pyzm_utils import str2bool
+from pyzm.interface import GlobalConfig
+
+g: GlobalConfig
 
 
-# Class to handle Yolo based detection
+class Object:
+    """'Object' is a BASE class to wrap other model Classes for detections using OpenCV 4.2+/CUDA/cuDNN"""
 
+    def __init__(self, *args, **kwargs):
+        global g
+        g = GlobalConfig()
+        self.lock: Optional[BoundedSemaphore] = None
 
-
-
-class Object(Base):
-
-    def __init__(self, options={}):
-
-        self.model = None
-        self.options = options
-
-        if self.options.get('object_framework') == 'opencv':
-            import pyzm.ml.yolo as yolo
-            self.model =  yolo.Yolo(options=options)
-
-        elif self.options.get('object_framework') == 'coral_edgetpu':
-            import pyzm.ml.coral_edgetpu as tpu
-            self.model = tpu.Tpu(options=options)
-
-        elif self.options.get('object_framework') == 'aws_rekognition':
-            try:
-                import pyzm.ml.aws_rekognition as awsr
-                self.model = awsr.AwsRekognition(options=options)
-            except ModuleNotFoundError as e:
-                g.logger.Error('Module {} not found. Please install with: sudo pip3 install {}'.format(e.name, e.name))
-                raise e
-
+    def create_lock(self):
+        if not str2bool(self.disable_locks):
+            g.logger.debug(
+                2,
+                f"{self.lp}portalock: [name: {self.lock_name}] [max: {self.lock_maximum}] - "
+                f"[timeout: {self.lock_timeout}]",
+            )
+            self.lock = BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name, timeout=self.lock_timeout)
         else:
-            raise ValueError ('Invalid object_framework:{}'.format(self.options.get('object_framework')))
-
-    def get_options(self):
-        return self.options
-        
-    def get_model(self):
-            return self.model
-
-    def get_classes(self):
-            return self.model.get_classes()
+            self.lock = None
 
     def acquire_lock(self):
-        self.model.acquire_lock()
+        if str2bool(self.disable_locks):
+            return
+        if self.is_locked:
+            g.logger.debug(2, f"{self.lp}portalock: '{self.lock_name}' already acquired")
+            return
+        try:
+            g.logger.debug(2, f"{self.lp}portalock: Waiting for '{self.lock_name}' portalock...")
+            if self.lock:
+                self.lock.acquire()
+                g.logger.debug(2, f"{self.lp}portalock: got '{self.lock_name}'")
+                self.is_locked = True
+
+        except AlreadyLocked:
+            g.logger.error(
+                f"{self.lp}portalock: timeout waiting for '{self.lock_name}'  for {self.lock_timeout}" f" seconds"
+            )
+            raise ValueError(f"Timeout waiting for {self.lock_name} portalock for {self.lock_timeout} seconds")
 
     def release_lock(self):
-        self.model.release_lock()
+        if str2bool(self.disable_locks):
+            return
+        if not self.is_locked:
+            g.logger.debug(2, f"{self.lp}portalock: already released '{self.lock_name}'")
+            return
+        if self.lock:
+            self.lock.release()
+            self.is_locked = False
+            g.logger.debug(2, f"{self.lp}portalock: released '{self.lock_name}'")
 
-        
-    def detect(self,image=None):
-        h,w = image.shape[:2]
-        b,l,c,_model_names = self.model.detect(image)
-        g.logger.Debug (2,'core model detection over, got {} objects. Now filtering'.format(len(b)))
-        # Apply various object filtering rules
-        max_object_area = 0
-        if self.options.get('max_detection_size'):
-                g.logger.Debug(2,'Max object size found to be: {}'.format(self.options.get('max_detection_size')))
-                # Let's make sure its the right size
-                m = re.match('(\d*\.?\d*)(px|%)?$', self.options.get('max_detection_size'),
-                            re.IGNORECASE)
-                if m:
-                    max_object_area = float(m.group(1))
-                    if m.group(2) == '%':
-                        max_object_area = float(m.group(1))/100.0*(h * w)
-                        g.logger.Debug (2,'Converted {}% to {}'.format(m.group(1), max_object_area))
-                else:
-                    g.logger.Error('max_object_area misformatted: {} - ignoring'.format(
-                        self.options.get('max_object_area')))
+    @staticmethod
+    def downscale(bbox: list, upsize_x_factor: float, upsize_y_factor: float) -> list:
+        for box in bbox:
+            box[0] = round(box[0] * upsize_x_factor)
+            box[1] = round(box[1] * upsize_y_factor)
+            box[2] = round(box[2] * upsize_x_factor)
+            box[3] = round(box[3] * upsize_y_factor)
+        return bbox
 
-        boxes=[]
-        labels=[]
-        confidences=[]
-        model_names = []
-
-        for idx,box in enumerate(b):
-            (sX,sY,eX,eY) = box
-            if max_object_area:
-                object_area = abs((eX-sX)*(eY-sY))
-                if (object_area > max_object_area):
-                    g.logger.Debug (2,'Ignoring object:{}, as it\'s area: {}px exceeds max_object_area of {}px'.format(l[idx], object_area, max_object_area))
-                    continue
-            if c[idx] >= self.options.get('object_min_confidence'):
-                boxes.append([sX,sY,eX,eY])
-                labels.append(l[idx])
-                confidences.append(c[idx])
-                model_names.append(_model_names[idx])
-            else:
-                g.logger.Debug (2,'Ignoring {} {} as conf. level {} is lower than {}'.format(l[idx],box,c[idx],self.options.get('object_min_confidence')))
-       
-        g.logger.Debug (2,'Returning filtered list of {} objects.'.format(len(boxes)))
-        return boxes,labels,confidences,model_names
+    @staticmethod
+    def indice_process(boxes, indices, confidences, classes, class_ids, scalar_fix: bool = False):
+        box = None
+        bbox, label, conf = [], [], []
+        for i in indices:
+            if not scalar_fix:
+                # Nested on versions older than 4.5.4 GetUnconnectedOutLayers() API changed
+                i = i[0]
+            box = boxes[i]
+            x = box[0]
+            y = box[1]
+            w_ = box[2]
+            h_ = box[3]
+            bbox.append([int(round(x)), int(round(y)), int(round(x + w_)), int(round(y + h_))])
+            label.append(str(classes[class_ids[i]]))
+            conf.append(confidences[i])
+        return label, bbox, conf, box

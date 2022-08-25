@@ -1,153 +1,157 @@
-
+from typing import Optional
 import cv2
-import argparse
+
+# Pycharm hack for intellisense
+# from cv2 import cv2
 import pickle
 from sklearn import neighbors
 import imutils
 import math
-import ssl
 import os
-import datetime
+from pathlib import Path
 
-from pyzm.helpers.Base import Base
-from pyzm.helpers.utils import Timer
-import pyzm.helpers.globals as g
+from pyzm.helpers.pyzm_utils import Timer
+from pyzm.interface import GlobalConfig
+
+face_recognition = None
+g: GlobalConfig
+lp: str = "Dlib face train:"
 
 
-g_start = datetime.datetime.now()
-import face_recognition
-g_diff_time = (datetime.datetime.now() - g_start)
-
-class FaceTrain (Base):
-
-    def __init__(self, options={}):
-        global g_diff_time
-
-        self.options = options
-
-    def train(self,size=None):
-        t = Timer()
-        known_images_path = self.options.get('known_images_path')
-        train_model = self.options.get('face_train_model')
-        knn_algo = self.options.get('face_recog_knn_algo', 'ball_tree') 
-    
-        upsample_times = int(self.options.get('face_upsample_times',1))
-        num_jitters = int(self.options.get('face_num_jitters',0))
-
-        encoding_file_name = known_images_path + '/faces.dat'
+class FaceTrain:
+    def __init__(self):
+        global g, face_recognition
+        g = GlobalConfig()
+        self.options = g.config
         try:
-            if (os.path.isfile(known_images_path + '/faces.pickle')):
+            import face_recognition as face_rec_libs
+        except ImportError as e:
+            g.logger.error(f"{lp} UNABLE to IMPORT DLIB face_recognition library, is it installed?")
+        else:
+            g.logger.debug(f"{lp} successfully imported Dlib face recognition library")
+
+    def train(self, size=None):
+        t = Timer()
+        known_images_path = self.options.get("known_images_path")
+        train_model = self.options.get("face_train_model")
+        knn_algo = self.options.get("face_recog_knn_algo", "ball_tree")
+
+        upsample_times = int(self.options.get("face_upsample_times", 1))
+        num_jitters = int(self.options.get("face_num_jitters", 3))
+
+        encoding_file_name = f"{known_images_path}/faces.dat"
+        try:
+            if Path(f"{known_images_path}/faces.pickle").is_file():
                 # old version, we no longer want it. begone
-                g.logger.Debug(
-                    2,'removing old faces.pickle, we have moved to clustering')
-                os.remove(known_images_path + '/faces.pickle')
+                g.logger.debug(2, f"{lp} removing old faces.pickle, we have moved to clustering")
+                os.remove(f"{known_images_path}/faces.pickle")
         except Exception as e:
-            g.logger.Error('Error deleting old pickle file: {}'.format(e))
+            g.logger.error(f"{lp} Error deleting old pickle file: {e}")
 
         directory = known_images_path
-        ext = ['.jpg', '.jpeg', '.png', '.gif']
+        ext = (".jpg", ".jpeg", ".png", ".gif")
         known_face_encodings = []
         known_face_names = []
 
         try:
             for entry in os.listdir(directory):
-                if os.path.isdir(directory + '/' + entry):
+                if Path(f"{directory}/{entry}").is_dir():
                     # multiple images for this person,
                     # so we need to iterate that subdir
-                    g.logger.Debug(
-                        1,'{} is a directory. Processing all images inside it'.
-                        format(entry))
-                    person_dir = os.listdir(directory + '/' + entry)
+                    g.logger.debug(f"{lp} '{entry}' is a directory. Processing all images inside it")
+                    person_dir = os.listdir(directory + "/" + entry)
                     for person in person_dir:
                         if person.endswith(tuple(ext)):
-                            g.logger.Debug(1,'loading face from  {}/{}'.format(
-                                entry, person))
+                            g.logger.debug(f"{lp} loading face from  {entry}/{person}")
 
                             # imread seems to do a better job of color space conversion and orientation
-                            known_face = cv2.imread('{}/{}/{}'.format(
-                                directory, entry, person))
+                            known_face = cv2.imread(f"{directory}/{entry}/{person}")
                             if known_face is None or known_face.size == 0:
-                                g.logger.Error('Error reading file, skipping')
+                                g.logger.error("{lp} Error reading file, skipping")
                                 continue
-                            #known_face = face_recognition.load_image_file('{}/{}/{}'.format(directory,entry, person))
+                            # known_face = face_recognition.load_image_file('{}/{}/{}'.format(directory,entry, person))
                             if not size:
-                                size = int(self.options.get('resize',800))
-                            g.logger.Debug (1,'resizing to {}'.format(size))
-                            known_face = imutils.resize(known_face,width=size)
+                                if self.options.get("resize") == "no":
+                                    size = 800
+                                else:
+                                    size = int(self.options.get("resize", 800))
+                            g.logger.debug(f"{lp} resizing to {size}")
+                            known_face = imutils.resize(known_face, width=size)
 
                             # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
-                            #g.logger.Debug(1,'Converting from BGR to RGB')
+                            # g.logger.Debug(1,'Converting from BGR to RGB')
                             known_face = known_face[:, :, ::-1]
                             face_locations = face_recognition.face_locations(
-                                known_face,
-                                model=train_model,
-                                number_of_times_to_upsample=upsample_times)
+                                known_face, model=train_model, number_of_times_to_upsample=upsample_times
+                            )
                             if len(face_locations) != 1:
-                                g.logger.Error(
-                                    'File {} has {} faces, cannot use for training. We need exactly 1 face. If you think you have only 1 face try using "cnn" for training mode. Ignoring...'
-                                .format(person, len(face_locations)))
+                                g.logger.error(
+                                    f"{lp} File {person} has {len(face_locations)} faces, cannot use for training. "
+                                    f"We need exactly 1 face. If you think you have only 1 face try using 'cnn' "
+                                    f"for training mode. Ignoring..."
+                                )
                             else:
                                 face_encodings = face_recognition.face_encodings(
-                                    known_face,
-                                    known_face_locations=face_locations,
-                                    num_jitters=num_jitters)
+                                    known_face, known_face_locations=face_locations, num_jitters=num_jitters
+                                )
                                 known_face_encodings.append(face_encodings[0])
                                 known_face_names.append(entry)
-                                #g.logger.Debug ('Adding image:{} as known person: {}'.format(person, person_dir))
+                                # g.logger.Debug ('Adding image:{} as known person: {}'.format(person, person_dir))
 
                 elif entry.endswith(tuple(ext)):
-                    # this was old style. Lets still support it. The image is a single file with no directory
-                    g.logger.Debug(1,'loading face from  {}'.format(entry))
-                    #known_face = cv2.imread('{}/{}/{}'.format(directory,entry, person))
-                    known_face = cv2.imread('{}/{}'.format(directory, entry))
+                    # this was old style. Let's still support it. The image is a single file with no directory
+                    g.logger.debug(f"{lp} loading face from {entry}")
+                    # known_face = cv2.imread('{}/{}/{}'.format(directory,entry, person))
+                    known_face = cv2.imread(f"{directory}/{entry}")
 
                     if not size:
-                        size = int(self.options.get('resize',800))
-                        g.logger.Debug (1,'resizing to {}'.format(size))
-                        known_face = imutils.resize(known_face,width=size)
+                        if g.config.get("resize") == "no":
+                            size = 800
+                        else:
+                            size = int(self.options.get("resize", 800))
+                        g.logger.debug(f"{lp} resizing to {size}")
+                        known_face = imutils.resize(known_face, width=size)
                     # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
                     known_face = known_face[:, :, ::-1]
                     face_locations = face_recognition.face_locations(
-                        known_face,
-                        model=train_model,
-                        number_of_times_to_upsample=upsample_times)
+                        known_face, model=train_model, number_of_times_to_upsample=upsample_times
+                    )
 
                     if len(face_locations) != 1:
-                        g.logger.Error(
-                                    'File {} has {} faces, cannot use for training. We need exactly 1 face. If you think you have only 1 face try using "cnn" for training mode. Ignoring...'
-                                    .format(person), len(face_locations))
+                        g.logger.error(
+                            f"{lp} File {entry} has {len(face_locations)} faces, cannot use for training."
+                            f" We need exactly 1 face. If you think you have only 1 face try using 'cnn' for "
+                            f"training mode. Ignoring..."
+                        )
                     else:
                         face_encodings = face_recognition.face_encodings(
-                            known_face,
-                            known_face_locations=face_locations,
-                            num_jitters=num_jitters)
+                            known_face, known_face_locations=face_locations, num_jitters=num_jitters
+                        )
                         known_face_encodings.append(face_encodings[0])
                         known_face_names.append(os.path.splitext(entry)[0])
 
         except Exception as e:
-            g.logger.Error('Error initializing face recognition: {}'.format(e))
-            raise ValueError(
-                'Error opening known faces directory. Is the path correct?')
+            g.logger.error(f"{lp} Error initializing face recognition: {e}")
+            raise ValueError("Error opening known faces directory. Is the path correct?")
 
         # Now we've finished iterating all files/dirs
         # lets create the svm
         if not len(known_face_names):
-            g.logger.Error(
-                'No known faces found to train, encoding file not created')
+            g.logger.error(f"{lp} No known faces found to train, skipping saving of face encodings to file...")
         else:
             n_neighbors = int(round(math.sqrt(len(known_face_names))))
-            g.logger.Debug(2,'Using algo:{} n_neighbors to be: {}'.format(knn_algo, n_neighbors))
-            knn = neighbors.KNeighborsClassifier(n_neighbors=n_neighbors,
-                                                algorithm=knn_algo,
-                                                weights='distance')
+            g.logger.debug(2, f"{lp} using algo:{knn_algo} n_neighbors to be: {n_neighbors}")
+            knn = neighbors.KNeighborsClassifier(n_neighbors=n_neighbors, algorithm=knn_algo, weights="distance")
 
-            g.logger.Debug(1,'Training model ...')
+            g.logger.debug(f"{lp} training model ...")
             knn.fit(known_face_encodings, known_face_names)
 
-            f = open(encoding_file_name, "wb")
-            pickle.dump(knn, f)
-            f.close()
-            g.logger.Debug(1,'wrote encoding file: {}'.format(encoding_file_name))
+            try:
+                with open(encoding_file_name, "wb") as f:
+                    pickle.dump(knn, f)
+            except Exception as exc:
+                g.logger.error(f"{lp} error writing face encodings to pickle file!")
+            else:
+                g.logger.debug(f"{lp} wrote encoding file: {encoding_file_name}")
         diff_time = t.stop_and_get_ms()
-        g.logger.Debug(
-            1,'perf: Face Recognition training took: {}'.format(diff_time))
+        g.logger.debug(f"perf: Face Recognition training took: {diff_time}")
