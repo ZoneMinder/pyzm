@@ -92,7 +92,7 @@ class Yolo(Base):
         (maj, minor, patch) = cv2.__version__.split('.')
         min_ver = int(maj + minor)
         patch = int(patch) if patch.isdigit() else 0
-        if min_ver >= 45 and patch >=4:
+        if min_ver > 45 or (min_ver == 45 and patch >=4):
             # see https://github.com/opencv/opencv/issues/20923
             # we need to modify Yolo code not to expect a nested structure 
             g.logger.Debug(1, 'You are using OpenCV >= 4.5.4, making sure we fix getUnconnectedOutLayers() API')
