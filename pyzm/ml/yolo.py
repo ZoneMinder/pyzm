@@ -90,9 +90,8 @@ class Yolo(Base):
         diff_time = t.stop_and_get_ms()
 
         (maj, minor, patch) = cv2.__version__.split('.')
-        min_ver = int(maj + minor)
-        patch = int(patch) if patch.isdigit() else 0
-        if min_ver >= 45 and patch >=4:
+        min_ver = int(maj + minor + patch)
+        if min_ver >= 454:
             # see https://github.com/opencv/opencv/issues/20923
             # we need to modify Yolo code not to expect a nested structure 
             g.logger.Debug(1, 'You are using OpenCV >= 4.5.4, making sure we fix getUnconnectedOutLayers() API')
@@ -102,7 +101,7 @@ class Yolo(Base):
             .format(self.processor, self.options.get('object_weights'), diff_time))
         if self.processor == 'gpu':
 
-            if min_ver < 42:
+            if min_ver < 420:
                 g.logger.Error('Not setting CUDA backend for OpenCV DNN')
                 g.logger.Error(
                     'You are using OpenCV version {} which does not support CUDA for DNNs. A minimum of 4.2 is required. See https://www.pyimagesearch.com/2020/02/03/how-to-use-opencvs-dnn-module-with-nvidia-gpus-cuda-and-cudnn/ on how to compile and install openCV 4.2'
