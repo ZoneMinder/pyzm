@@ -14,14 +14,14 @@ class AlprBase(Base):
     def __init__(self,options={}, tempdir='/tmp'):
 
         if not options.get('alpr_key'):
-            g.logger.Debug (2,'No API key specified, hopefully you do not need one')
+            g.logger.Debug(2, 'No API key specified, hopefully you do not need one')
         self.apikey = options.get('alpr_key')
         self.tempdir = tempdir
         self.url = options.get('alpr_url')
         self.options = options
         self.disable_locks = options.get('disable_locks', 'no')
         name = self.options.get('name') or 'ALPR'
-        g.logger.Debug (2, 'Initializing ALPR:{} with options:{}'.format(name, self.options))
+        g.logger.Debug(2, 'Initializing ALPR:{} with options:{}'.format(name, self.options))
 
     def get_options(self):
         return self.options
@@ -37,13 +37,13 @@ class AlprBase(Base):
 
     def setkey(self, key=None):
         self.apikey = key
-        g.logger.Debug(2,'Key changed')
+        g.logger.Debug(2, 'Key changed')
 
     def stats(self):
-        g.logger.Debug(1,'stats not implemented in base class')
+        g.logger.Debug(1, 'stats not implemented in base class')
 
     def detect(self, image=None):
-        g.logger.Debug(1,'detect not implemented in base class')
+        g.logger.Debug(1, 'detect not implemented in base class')
 
     def prepare(self, object):
         if not isinstance(object, str):
@@ -56,18 +56,16 @@ class AlprBase(Base):
                                                object.shape[1]))
                 object = obj_new
             # use png so there is no loss
-            self.filename = self.tempdir + '/'+str(uuid.uuid4())+'-alpr.png'
+            self.filename = self.tempdir+'/'+str(uuid.uuid4())+'-alpr.png'
             cv2.imwrite(self.filename, object)
             self.remove_temp = True
         else:
             # If it is a file and zm_detect sent it, it would already be resized
             # If it is a file and zm_detect did not send it, no need to adjust scales
             # as there won't be a yolo/alpr size mismatch
-            g.logger.Debug(2,'supplied object is a file {}'.format(object))
+            g.logger.Debug(2, 'supplied object is a file {}'.format(object))
             self.filename = object
-           
             self.remove_temp = False
-  
 
     def getscale(self):
         if self.options.get('resize') and self.options.get('resize') != 'no':
@@ -98,17 +96,16 @@ class Alpr(AlprBase):
         Args:
             options (dict, optional): Config options. Defaults to {}.
             tempdir (str, optional): Path to store image for analysis. Defaults to '/tmp'.
-        """        
+        """
         AlprBase.__init__(self, options=options, tempdir=tempdir)
         self.alpr_obj = None
 
-        if self.options.get('alpr_service') == 'plate_recognizer':   
+        if self.options.get('alpr_service') == 'plate_recognizer':
             self.alpr_obj = PlateRecognizer(options=self.options)
-        elif self.options.get('alpr_service') == 'open_alpr':   
+        elif self.options.get('alpr_service') == 'open_alpr':
             self.alpr_obj = OpenAlpr(options=self.options)
-        elif self.options.get('alpr_service') == 'open_alpr_cmdline':   
+        elif self.options.get('alpr_service') == 'open_alpr_cmdline':
             self.alpr_obj = OpenAlprCmdLine(options=self.options)
-                  
         else:
             raise ValueError('ALPR service "{}" not known'.format(self.options.get('alpr_service')))
 
@@ -128,38 +125,34 @@ class PlateRecognizer(AlprBase):
         Args:
             options (dict, optional): Config options. Defaults to {}.
             tempdir (str, optional): Path to store image for analysis. Defaults to '/tmp'.
-        """        
+        """
         AlprBase.__init__(self, options=options,  tempdir=tempdir)
-        
+
         url=self.options.get('alpr_url')
         apikey=self.options.get('alpr_key')
-        
-        
+
         if not url:
             self.url = 'https://api.platerecognizer.com/v1'
 
         g.logger.Debug(
             1,'PlateRecognizer ALPR initialized with url: {}'.
             format(self.url))
-        
 
     def stats(self):
         """Returns API statistics
 
         Returns:
             HTTP Response: HTTP response of statistics API
-        """        
+        """
         if self.options.get('alpr_api_type') != 'cloud':
             g.logger.Debug (1,'local SDK does not provide stats')
             return {}
         try:
             if self.apikey:
-                 headers={'Authorization': 'Token ' + self.apikey}
+                headers={'Authorization': 'Token ' + self.apikey}
             else:
                 headers={}
-            response = requests.get(
-                self.url + '/statistics/',
-               headers=headers)
+            response = requests.get(self.url + '/statistics/', headers=headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             response = {'error': str(e)}
@@ -175,8 +168,8 @@ class PlateRecognizer(AlprBase):
 
         Returns:
             boxes, labels, confidences: 3 objects, containing bounding boxes, labels and confidences
-        """    
-        object = image    
+        """
+        object = image
         bbox = []
         labels = []
         confs = []
@@ -248,7 +241,7 @@ class PlateRecognizer(AlprBase):
                         .format(label, dscore, score, self.options.get('platerec_min_dscore'),
                                 self.options.get('platerec_min_score')))
 
-        g.logger.Debug (2,'Exiting ALPR with labels:{}'.format(labels))
+        g.logger.Debug(2, 'Exiting ALPR with labels:{}'.format(labels))
         return (bbox, labels, confs, ['platerec'] * len(labels))
 
 
@@ -267,7 +260,7 @@ class OpenAlpr(AlprBase):
         g.logger.Debug(
             1,'Open ALPR initialized with url: {}'.
             format(self.url))
-        
+
 
     def detect(self, image=None):
         """Detection using OpenALPR
@@ -277,17 +270,17 @@ class OpenAlpr(AlprBase):
 
         Returns:
             boxes, labels, confidences: 3 objects, containing bounding boxes, labels and confidences
-        """  
-        object = image      
+        """
+        object = image
         bbox = []
         labels = []
         confs = []
 
         self.prepare(object)
-     
+
         with open(self.filename, 'rb') as fp:
             try:
-               
+
                 params = ''
                 if self.options.get('openalpr_country'):
                     params = params + '&country=' + self.options.get('oenalpr_country')
@@ -358,17 +351,17 @@ class OpenAlprCmdLine(AlprBase):
             cmd (string, optional): The cli command. Defaults to None.
             options (dict, optional): Various ALPR options. Defaults to {}.
             tempdir (str, optional): Temporary path to analyze image. Defaults to '/tmp'.
-        """        
+        """
         AlprBase.__init__(self, options=options, tempdir=tempdir)
-        
+
         cmd=self.options.get('openalpr_cmdline_binary')
 
-                                                
+
         self.cmd = cmd + ' ' + self.options.get('openalpr_cmdline_params')
         if self.cmd.lower().find('-j') == -1:
             g.logger.Debug (2,'Adding -j to OpenALPR for json output')
             self.cmd = self.cmd + ' -j'
-      
+
 
     def detect(self, image = None):
         """Detection using OpenALPR command line
@@ -378,8 +371,8 @@ class OpenAlprCmdLine(AlprBase):
 
          Returns:
             boxes, labels, confidences: 3 objects, containing bounding boxes, labels and confidences
-        """ 
-        object = image            
+        """
+        object = image
         bbox = []
         labels = []
         confs = []
@@ -387,7 +380,7 @@ class OpenAlprCmdLine(AlprBase):
         self.prepare(object)
         self.cmd = self.cmd + ' ' + self.filename
         g.logger.Debug (2,'OpenALPR CmdLine Executing: {}'.format(self.cmd))
-        response = subprocess.check_output(self.cmd, shell=True)      
+        response = subprocess.check_output(self.cmd, shell=True)
         g.logger.Debug (2,'OpenALPR CmdLine Response: {}'.format(response))
         try:
             response = json.loads(response)
@@ -411,7 +404,7 @@ class OpenAlprCmdLine(AlprBase):
                         1,'OpenALPR cmd line: discarding plate: {} because detected confidence {} is less than configured min confidence: {}'
                         .format(label, conf, self.options.get('openalpr_cmdline_min_confidence')))
                     continue
-                
+
                 x1 = round(int(plates['coordinates'][0]['x']))
                 y1 = round(int(plates['coordinates'][0]['y']))
                 x2 = round(int(plates['coordinates'][2]['x']))
