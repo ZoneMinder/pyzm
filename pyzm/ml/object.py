@@ -12,11 +12,7 @@ import time
 import requests
 import pyzm.helpers.globals as g
 
-
-# Class to handle Yolo based detection
-
-
-
+# Class to instantiate a specific object detection implementation
 
 class Object(Base):
 
@@ -41,6 +37,14 @@ class Object(Base):
                 g.logger.Error('Module {} not found. Please install with: sudo pip3 install {}'.format(e.name, e.name))
                 raise e
 
+        elif self.options.get('object_framework') == 'virelai':
+            try:
+                import pyzm.ml.virelai as virelai
+                self.model = virelai.VirelAI(options=options)
+            except ModuleNotFoundError as e:
+                g.logger.Error('Module {} not found. Please install with: sudo pip3 install {}'.format(e.name, e.name))
+                raise e
+
         else:
             raise ValueError ('Invalid object_framework:{}'.format(self.options.get('object_framework')))
 
@@ -58,12 +62,14 @@ class Object(Base):
 
     def release_lock(self):
         self.model.release_lock()
+ 
+    def get_detect_image(self, image=None):
+        return self.model.get_detect_image(image)
 
-        
     def detect(self,image=None):
         h,w = image.shape[:2]
         b,l,c,_model_names = self.model.detect(image)
-        g.logger.Debug (2,'core model detection over, got {} objects. Now filtering'.format(len(b)))
+        g.logger.Debug(2, 'core model detection over, got {} objects. Now filtering'.format(len(b)))
         # Apply various object filtering rules
         max_object_area = 0
         if self.options.get('max_detection_size'):
@@ -90,7 +96,7 @@ class Object(Base):
             if max_object_area:
                 object_area = abs((eX-sX)*(eY-sY))
                 if (object_area > max_object_area):
-                    g.logger.Debug (2,'Ignoring object:{}, as it\'s area: {}px exceeds max_object_area of {}px'.format(l[idx], object_area, max_object_area))
+                    g.logger.Debug(2, 'Ignoring object:{}, as it\'s area: {}px exceeds max_object_area of {}px'.format(l[idx], object_area, max_object_area))
                     continue
             if c[idx] >= self.options.get('object_min_confidence'):
                 boxes.append([sX,sY,eX,eY])
@@ -98,7 +104,7 @@ class Object(Base):
                 confidences.append(c[idx])
                 model_names.append(_model_names[idx])
             else:
-                g.logger.Debug (2,'Ignoring {} {} as conf. level {} is lower than {}'.format(l[idx],box,c[idx],self.options.get('object_min_confidence')))
+                g.logger.Debug(2, 'Ignoring {} {} as conf. level {} is lower than {}'.format(l[idx],box,c[idx],self.options.get('object_min_confidence')))
        
-        g.logger.Debug (2,'Returning filtered list of {} objects.'.format(len(boxes)))
+        g.logger.Debug(2, 'Returning filtered list of {} objects.'.format(len(boxes)))
         return boxes,labels,confidences,model_names
