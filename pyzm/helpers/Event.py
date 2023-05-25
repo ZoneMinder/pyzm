@@ -69,7 +69,7 @@ class Event(Base):
         """           
            
         url = self.get_image_url(fid)
-        f =  self._download_file(url, str(self.id())+'-'+fid+'.jpg', dir, show_progress)
+        f = self._download_file(url, str(self.id())+'-'+fid+'.jpg', dir, show_progress)
         g.logger.Info('File downloaded to {}'.format(f))
         return f
 
