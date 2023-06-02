@@ -27,9 +27,6 @@ from pyzm.helpers.States import States
 from pyzm.helpers.Configs import Configs
 import pyzm.helpers.globals as g
 
-
-
-
 class ZMApi (Base):
     def __init__(self,options={}):
         '''
@@ -49,7 +46,7 @@ class ZMApi (Base):
         self.portal_url = options.get('portalurl')
         if not self.portal_url and self.api_url.endswith('/api'):
             self.portal_url = self.api_url[:-len('/api')] 
-            g.logger.Debug (2,'Guessing portal URL is: {}'.format(self.portal_url))
+            g.logger.Debug(2, 'Guessing portal URL is: {}'.format(self.portal_url))
 
         self.options = options
         
@@ -65,17 +62,16 @@ class ZMApi (Base):
         self.legacy_credentials = None
         self.session = requests.Session()
         if (self.options.get('basic_auth_user')):
-            g.logger.Debug (2, 'Basic auth requested, configuring')
+            g.logger.Debug(2, 'Basic auth requested, configuring')
             self.session.auth = (self.options.get('basic_auth_user'), self.options.get('basic_auth_password'))
         if options.get('disable_ssl_cert_check', True):
             self.session.verify = False
-            g.logger.Debug (2, 'API SSL certificate check has been disbled')
+            g.logger.Debug(2, 'API SSL certificate check has been disbled')
             from urllib3.exceptions import InsecureRequestWarning
             requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
         self.api_version = None
         self.zm_version = None
         self.zm_tz = None
-        
      
         self._login()
      
@@ -88,7 +84,6 @@ class ZMApi (Base):
 
     def get_session(self):
         return self.session
-        
 
     def version(self):
         """Returns version of API and ZM
@@ -134,7 +129,6 @@ class ZMApi (Base):
         """
         return self.authenticated
 
-
     # called in _make_request to avoid 401s if possible
     def _refresh_tokens_if_needed(self):
         if not (self.access_token_expires and self.refresh_token_expires):
@@ -146,7 +140,6 @@ class ZMApi (Base):
         else:
             self._relogin()
               
-
     def _relogin(self):
         """ Used for 401. I could use _login too but decided to do a simpler fn
         """
@@ -155,12 +148,11 @@ class ZMApi (Base):
             # use tokens
             tr = (self.refresh_token_datetime - datetime.datetime.now()).total_seconds()
 
-
             if (tr >= 60 * 5): # 5 mins grace
                 g.logger.Debug(2, 'Going to use refresh token as it still has {} minutes remaining'.format(tr/60))
                 self.options['token'] = self.refresh_token
             else:
-                g.logger.Debug (1, 'Refresh token only has {}s of lifetime, going to use user/pass'.format(tr))
+                g.logger.Debug(1, 'Refresh token only has {}s of lifetime, going to use user/pass'.format(tr))
                 self.options['token'] = None
         self._login()
 
@@ -178,14 +170,14 @@ class ZMApi (Base):
                 self.auth_enabled = True
 
             elif self.options.get('user') and self.options.get('password'):
-                g.logger.Debug (1,'using username/password for login')
+                g.logger.Debug(1, 'using username/password for login')
                 data={'user': self.options.get('user'),
                     'pass': self.options.get('password')
                 }
                 self.auth_enabled = True
 
             else:
-                g.logger.Debug(1,'Not using auth')
+                g.logger.Debug(1, 'Not using auth')
                 self.auth_enabled = False
                 data = {}
                 url = self.api_url + '/host/getVersion.json'
@@ -207,18 +199,18 @@ class ZMApi (Base):
             self.zm_version = rj.get('version')
             if self.auth_enabled:
                 if (self._versiontuple(self.api_version) >= self._versiontuple('2.0')):
-                    g.logger.Debug(2,'Using new token API')
+                    g.logger.Debug(2, 'Using new token API')
                     self.access_token = rj.get('access_token','')
                     if rj.get('refresh_token'):
                         self.refresh_token = rj.get('refresh_token')
                     if (rj.get('access_token_expires')):
                         self.access_token_expires = int(rj.get('access_token_expires'))
                         self.access_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.access_token_expires)
-                        g.logger.Debug (1, 'Access token expires on:{} [{}s]'.format(self.access_token_datetime, self.access_token_expires))
+                        g.logger.Debug(1, 'Access token expires on:{} [{}s]'.format(self.access_token_datetime, self.access_token_expires))
                     if (rj.get('refresh_token_expires')):
                         self.refresh_token_expires = int(rj.get('refresh_token_expires'))
                         self.refresh_token_datetime = datetime.datetime.now() + datetime.timedelta(seconds = self.refresh_token_expires)
-                        g.logger.Debug (1, 'Refresh token expires on:{} [{}s]'.format(self.refresh_token_datetime, self.refresh_token_expires))
+                        g.logger.Debug(1, 'Refresh token expires on:{} [{}s]'.format(self.refresh_token_datetime, self.refresh_token_expires))
                 else:
                     g.logger.Info('Using old credentials API. Recommended you upgrade to token API')
                     self.legacy_credentials = rj.get('credentials')
@@ -232,7 +224,6 @@ class ZMApi (Base):
             self.authenticated = False
             raise err
 
-      
     def get_apibase(self):
         return self.api_url
 
@@ -269,7 +260,7 @@ class ZMApi (Base):
                 url += qchar + self.legacy_credentials
                 
         try:
-            g.logger.Debug(3,'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
+            g.logger.Debug(3, 'make_request called with url={} payload={} type={} query={}'.format(url,payload,type,query))
             if type=='get':
                 r = self.session.get(url, params=query)
 
@@ -309,9 +300,9 @@ class ZMApi (Base):
         except requests.exceptions.HTTPError as err:
             g.logger.Debug(1, 'HTTP error: {}'.format(err))
             if err.response.status_code == 401 and reauth:
-                g.logger.Debug (1, 'Got 401 (Unauthorized) - retrying login once')
+                g.logger.Debug(1, 'Got 401 (Unauthorized) - retrying login once')
                 self._relogin()
-                g.logger.Debug (1,'Retrying failed request again...')
+                g.logger.Debug(1, 'Retrying failed request again...')
                 return self._make_request(url, query, payload, type, reauth=False)
             elif err.response.status_code == 404:
                 # ZM returns 404 when an image cannot be decoded
@@ -322,9 +313,9 @@ class ZMApi (Base):
             if err_msg == "RELOGIN":
                 if reauth:
                     g.logger.Debug(1, 'Got ValueError access error: {}'.format(err))
-                    g.logger.Debug (1, 'Retrying login once')
+                    g.logger.Debug(1, 'Retrying login once')
                     self._relogin()
-                    g.logger.Debug (1,'Retrying failed request again...')
+                    g.logger.Debug(1, 'Retrying failed request again...')
                     return self._make_request(url, query, payload, type, reauth=False)
                 else:
                     raise err

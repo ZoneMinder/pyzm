@@ -809,8 +809,11 @@ class DetectSequence(Base):
        
         if manual_locking:
             for seq in self.model_sequence:
-                for m in self.models[seq]:
-                    m.release_lock()
+                if seq in self.models:
+                    for m in self.models[seq]:
+                        m.release_lock()
+                else:
+                    g.logger.Debug(2, '{} not in self.models', seq)
 
         
         # Now let's take past detections into consideration 
