@@ -30,9 +30,9 @@ class VirelAI(Base):
             return [], [], [], []
         image_jpg = _buff.tobytes()
 
-        files = {'Image': {'Bytes' :  base64.b64encode(image_jpg.tobytes()).decode()}}
+        files = {'Image': {'Bytes' :  base64.b64encode(image_jpg).decode()}}
 
-        api_url = 'http://virel.ai';
+        api_url = 'https://virel.ai';
         object_url = api_url+'/api/detect/payload'
         g.logger.Debug(2, 'Invoking virelai api with url:{} and headers={} '.format(object_url, auth_header))
 
@@ -102,9 +102,9 @@ class VirelAI(Base):
               g.logger.Debug(2, traceback.format_exc())
 
     def acquire_lock(self):
-        # AWS Rekognition doesn't need locking
+        # Virel.AI doesn't need locking
         pass
 
     def release_lock(self):
-        # AWS Rekognition doesn't need locking
+        # Virel.AI doesn't need locking
         pass
