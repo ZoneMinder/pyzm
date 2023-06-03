@@ -14,11 +14,8 @@ import pyzm.helpers.globals as g
 class VirelAI(Base):
     def __init__(self, options={}):
         self.options = options
-        self.min_confidence = self.options.get('object_min_confidence', 0.7)
-        if self.min_confidence < 1: # Rekognition wants the confidence as 0% ~ 100%, not 0.00 ~ 1.00
-            self.min_confidence *= 100
-
-        g.logger.Debug (2, 'VirelAI initialised (min confidence: {}%'.format(self.min_confidence))
+        self.min_confidence = float(self.options.get('object_min_confidence', 0.5))
+        g.logger.Debug (2, 'VirelAI initialised (min confidence: {}'.format(self.min_confidence))
 
     def detect(self, image=None):
         height, width = image.shape[:2]
@@ -76,8 +73,9 @@ class VirelAI(Base):
                 #   ]
                 # }
                 conf = float(item["Confidence"]) / 100
-                #if conf < _conf:
-                #    continue
+                if conf < float(self.min_confidence):
+                    g.logger.Warning(f"{model_name}: confidence={conf} - min conf threshold={self.min_confidence}")
+                    continue
                 label = item["Name"].casefold()
                 # Virel.ai does not return bounding box coords yet.
                 # box = item["BoundingBox"]
