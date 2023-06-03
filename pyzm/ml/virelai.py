@@ -58,10 +58,10 @@ class VirelAI(Base):
         try:
             response = r.json()
         except json.JSONDecodeError as e:
-            logger.error(f"Error decoding virelai api response: {e}")
+            g.logger.Error(f"Error decoding virelai api response: {e}")
         else:
 
-            logger.debug(
+            g.logger.Debug(2, 
                 f"{model_name} detection response -> {response}"
             )
             # Parse the returned labels
@@ -93,6 +93,8 @@ class VirelAI(Base):
                 bboxes.append(bbox)
                 labels.append(label)
                 confs.append(conf)
+                g.logger.Debug(3, 'bbox={} / label={} / conf={}'.format(bbox, label, conf))
+                
         return bboxes, labels, confs, [model_name]*len(labels)
 
     def get_detect_image(self, image=None):
