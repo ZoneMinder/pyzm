@@ -49,7 +49,7 @@ class VirelAI(Base):
             raise
 
         
-        g.logger.Debug(1, 'remote detection inferencing took: {} s'.format(time.perf_counter - start))
+        g.logger.Debug(1, 'remote detection inferencing took: {} s'.format(time.perf_counter() - start))
         # Parse the returned labels
         bboxes = []
         labels = []
