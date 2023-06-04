@@ -4,6 +4,7 @@
 import io
 import sys
 import base64
+import time
 
 import cv2
 
@@ -13,11 +14,8 @@ import pyzm.helpers.globals as g
 class VirelAI(Base):
     def __init__(self, options={}):
         self.options = options
-        self.min_confidence = self.options.get('object_min_confidence', 0.7)
-        if self.min_confidence < 1: # Rekognition wants the confidence as 0% ~ 100%, not 0.00 ~ 1.00
-            self.min_confidence *= 100
-
-        g.logger.Debug (2, 'VirelAI initialised (min confidence: {}%'.format(self.min_confidence))
+        self.min_confidence = float(self.options.get('object_min_confidence', 0.5))
+        g.logger.Debug (2, 'VirelAI initialised (min confidence: {}'.format(self.min_confidence))
 
     def detect(self, image=None):
         height, width = image.shape[:2]
@@ -36,7 +34,7 @@ class VirelAI(Base):
         object_url = api_url+'/api/detect/payload'
         g.logger.Debug(2, 'Invoking virelai api with url:{} and headers={} '.format(object_url, auth_header))
 
-        start = datetime.datetime.now()
+        start = time.perf_counter()
         try:
             headers = {'Content-type': 'application/json; charset=utf-8'}
             r = requests.post(url=object_url, headers=headers, json=files)
@@ -47,36 +45,55 @@ class VirelAI(Base):
             g.logger.Debug(2, traceback.format_exc())
             raise
 
-        diff_time = (datetime.datetime.now() - start)
-        g.logger.Debug(1, 'remote detection inferencing took: {}'.format(diff_time))
-        response = r.json()
         
+        g.logger.Debug(1, 'remote detection inferencing took: {} s'.format(time.perf_counter() - start))
         # Parse the returned labels
         bboxes = []
         labels = []
         confs = []  # Confidences
+        model_name = 'VirelAI:'
+        try:
+            response = r.json()
+        except json.JSONDecodeError as e:
+            g.logger.Error(f"Error decoding virelai api response: {e}")
+        else:
 
-        for item in response['Labels']:
-            if 'Instances' not in item:
-                continue
-            for instance in item['Instances']:
-                if not 'BoundingBox' in instance or not 'Confidence' in instance:
+            g.logger.Debug(2, 
+                f"{model_name} detection response -> {response}"
+            )
+            # Parse the returned labels
+            model_name = f"{model_name}:{repr(response['LabelModelVersion'])}"
+            for item in response["Labels"]:
+                # {
+                # "LabelModelVersion": "detect-1",
+                # "Img": "",
+                # "Labels": [
+                #   {"Confidence": "78.06", "Name": "person"},
+                #   {"Confidence": "75.35", "Name": "person"}
+                #   ]
+                # }
+                conf = float(item["Confidence"]) / 100
+                if conf < float(self.min_confidence):
+                    g.logger.Warning(f"{model_name}: confidence={conf} - min conf threshold={self.min_confidence}")
                     continue
-                label = item['Name'].lower()
-                conf = instance['Confidence']/100
-                bbox = (
-                    round(width * instance['BoundingBox']['Left']),
-                    round(height * instance['BoundingBox']['Top']),
-                    round(width * (instance['BoundingBox']['Left'] + instance['BoundingBox']['Width'])),
-                    round(height * (instance['BoundingBox']['Top'] + instance['BoundingBox']['Height']))
-                )
-                g.logger.Debug(3, 'bbox={} / label={} / conf={}'.format(bbox, label, conf))
+                label = item["Name"].casefold()
+                # Virel.ai does not return bounding box coords yet.
+                # box = item["BoundingBox"]
 
+                # bbox = (
+                #     round(w * box["Left"]),
+                #     round(h * box["Top"]),
+                #     round(w * (box["Left"] + box["Width"])),
+                #     round(h * (box["Top"] + box["Height"])),
+                # )
+                # return false bbox data for now
+                bbox = (0, 0, 0, 0)
                 bboxes.append(bbox)
                 labels.append(label)
                 confs.append(conf)
-
-        return bboxes, labels, confs, ['VirelAI']*len(labels)
+                g.logger.Debug(3, 'bbox={} / label={} / conf={}'.format(bbox, label, conf))
+                
+        return bboxes, labels, confs, [model_name]*len(labels)
 
     def get_detect_image(self, image=None):
         is_success, _buff = cv2.imencode('.jpg', image)
