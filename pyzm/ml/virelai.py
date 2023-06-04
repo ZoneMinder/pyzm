@@ -6,6 +6,7 @@ import sys
 import base64
 import time
 
+import requests
 import cv2
 
 from pyzm.helpers.Base import Base
@@ -32,6 +33,7 @@ class VirelAI(Base):
 
         api_url = 'https://virel.ai';
         object_url = api_url+'/api/detect/payload'
+        auth_header = None
         g.logger.Debug(2, 'Invoking virelai api with url:{} and headers={} '.format(object_url, auth_header))
 
         start = time.perf_counter()
