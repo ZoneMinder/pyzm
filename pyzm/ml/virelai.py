@@ -44,7 +44,6 @@ class VirelAI(Base):
             r.raise_for_status()
         except Exception as e:
             g.logger.Error('Error during remote post: {}'.format(str(e)))
-            g.logger.Debug(2, traceback.format_exc())
             raise
 
         
@@ -118,7 +117,6 @@ class VirelAI(Base):
             return image_obj
         except Exception as e:
               g.logger.Error('Error during image grab: {}'.format(str(e)))
-              g.logger.Debug(2, traceback.format_exc())
 
     def acquire_lock(self):
         # Virel.AI doesn't need locking
