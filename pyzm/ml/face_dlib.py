@@ -188,7 +188,7 @@ class FaceDlib(Face):
         conf = []
 
         # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
-        rgb_image = image[:, :, ::-1]
+        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         #rgb_image = image
 
         # Find all the faces and face encodings in the target image
