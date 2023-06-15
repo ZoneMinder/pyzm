@@ -45,7 +45,6 @@ class VirelAI(Base):
         except Exception as e:
             g.logger.Error('Error during remote post: {}'.format(str(e)))
             raise
-
         
         g.logger.Debug(1, 'remote detection inferencing took: {} s'.format(time.perf_counter() - start))
         # Parse the returned labels
@@ -58,10 +57,7 @@ class VirelAI(Base):
         except json.JSONDecodeError as e:
             g.logger.Error(f"Error decoding virelai api response: {e}")
         else:
-
-            g.logger.Debug(2, 
-                f"{model_name} detection response -> {response}"
-            )
+            g.logger.Debug(2, f"{model_name} detection response -> {response}")
             # Parse the returned labels
             model_name = f"{model_name}:{repr(response['LabelModelVersion'])}"
             for item in response["Labels"]:
@@ -75,7 +71,7 @@ class VirelAI(Base):
                 # }
                 conf = float(item["Confidence"]) / 100
                 if conf < float(self.min_confidence):
-                    g.logger.Warning(f"{model_name}: confidence={conf} - min conf threshold={self.min_confidence}")
+                    g.logger.Debug(1, f"{model_name}: confidence={conf} - min conf threshold={self.min_confidence}")
                     continue
                 label = item["Name"].casefold()
                 # Virel.ai does not return bounding box coords yet.

@@ -176,7 +176,7 @@ class DetectSequence(Base):
                         try:
                             obj_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
                             g.logger.Debug(2,'Loading sequence: {}'.format(obj_seq.get('name') or 'index:{}'.format(ndx)))
-                            g.logger.Debug (2,'Initializing model  type:{} with options:{}'.format(seq,obj_seq ))
+                            g.logger.Debug(2, 'Initializing model  type:{} with options:{}'.format(seq, obj_seq))
                             self.models[seq].append(ObjectDetect.Object(options=obj_seq))
                         except Exception as e:
                             g.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
