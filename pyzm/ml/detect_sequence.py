@@ -147,7 +147,7 @@ class DetectSequence(Base):
     def get_ml_options(self):
         return self.ml_options
 
-    def set_ml_options(self,options, force_reload=False):
+    def set_ml_options(self, options, force_reload=False):
         """ Use this to change ml options later. Note that models will not be reloaded 
             unless you add force_reload=True
         """
@@ -614,7 +614,7 @@ class DetectSequence(Base):
         
         self.ml_overrides = ml_overrides
         self.stream_options = options
-        frame_strategy = self.stream_options.get('frame_strategy', 'most_models' )
+        frame_strategy = self.stream_options.get('frame_strategy', 'most_models')
         all_matches = []
         matched_b = []
         matched_e = []
@@ -631,27 +631,27 @@ class DetectSequence(Base):
 
         if len(self.model_sequence) > 1:
             manual_locking = False
-            g.logger.Debug(3,'Using automatic locking as we are switching between models')
+            g.logger.Debug(3, 'Using automatic locking as we are switching between models')
         else:
             manual_locking = True
-            g.logger.Debug(3,'Using manual locking as we are only using one model')
+            g.logger.Debug(3, 'Using manual locking as we are only using one model')
             for seq in self.model_sequence:
                 self.ml_options[seq]['auto_lock'] = False        
         t = Timer()
-        media = MediaStream(stream,'video', self.stream_options )
+        media = MediaStream(stream, 'video', self.stream_options)
         self.media = media
 
-        polygons = copy.copy(self.stream_options.get('polygons',[]))
+        polygons = copy.copy(self.stream_options.get('polygons', []))
 
         # Loops across all frames
         while self.media.more():
             frame = self.media.read()
             if frame is None:
-                g.logger.Debug(1,'Ran out of frames to read')
+                g.logger.Debug(1, 'Ran out of frames to read')
                 break
             #fname = '/tmp/{}.jpg'.format(self.media.get_last_read_frame())
             #cv2.imwrite( fname ,frame)
-            g.logger.Debug (1, 'perf: Starting for frame:{}'.format(self.media.get_last_read_frame()))
+            g.logger.Debug(1, 'perf: Starting for frame:{}'.format(self.media.get_last_read_frame()))
             _labels_in_frame = []
             _boxes_in_frame = []
             _error_boxes_in_frame = []
@@ -661,17 +661,17 @@ class DetectSequence(Base):
 
             # For each frame, loop across all models
             found = False
-            g.logger.Debug (1, "Sequence of detection types to execute: {}".format(self.model_sequence))
+            g.logger.Debug(1, "Sequence of detection types to execute: {}".format(self.model_sequence))
             for seq in self.model_sequence:
                 #if seq not in self.ml_overrides.get('model_sequence',seq):
                 #    g.logger.Debug (1, 'Skipping {} as it was overridden in ml_overrides'.format(seq))
                 #    continue
-                g.logger.Debug(1,'============ Frame: {} Running {} detection type in sequence =================='.format(self.media.get_last_read_frame(),seq))
+                g.logger.Debug(1, '============ Frame: {} Running {} detection type in sequence =================='.format(self.media.get_last_read_frame(), seq))
                 pre_existing_labels = self.ml_options.get(seq,{}).get('general',{}).get('pre_existing_labels')
                 if pre_existing_labels:
-                    g.logger.Debug(2,'Making sure we have matched one of {} in {} before we proceed'.format(pre_existing_labels, _labels_in_frame))
+                    g.logger.Debug(2, 'Making sure we have matched one of {} in {} before we proceed'.format(pre_existing_labels, _labels_in_frame))
                     if not any(x in _labels_in_frame for x in pre_existing_labels):
-                        g.logger.Debug(1,'Did not find pre existing labels, not running detection type')
+                        g.logger.Debug(1, 'Did not find pre existing labels, not running detection type')
                         continue
 
                 if not self.models.get(seq):
@@ -682,11 +682,11 @@ class DetectSequence(Base):
                                 m.acquire_lock()
                     except Exception as e:
                         g.logger.Error('Error loading model for {}:{}'.format(seq,e))
-                        g.logger.Debug(2,traceback.format_exc())
+                        g.logger.Debug(2, traceback.format_exc())
                         continue
 
                 same_model_sequence_strategy = self.ml_options.get(seq,{}).get('general',{}).get('same_model_sequence_strategy', 'first')
-                g.logger.Debug (3,'{} has a same_model_sequence strategy of {}'.format(seq, same_model_sequence_strategy))
+                g.logger.Debug(3, '{} has a same_model_sequence strategy of {}'.format(seq, same_model_sequence_strategy))
                 
                 # start of same model iteration
                 _b_best_in_same_model = []
@@ -698,20 +698,20 @@ class DetectSequence(Base):
                 cnt = 1
                 # For each model, loop across different variations
                 for m in self.models[seq]:
-                    g.logger.Debug(1,'--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(),cnt))
-                    cnt +=1
+                    g.logger.Debug(1, '--------- Frame:{} Running variation: #{} -------------'.format(self.media.get_last_read_frame(), cnt))
+                    cnt += 1
                     pre_existing_labels = m.get_options().get('pre_existing_labels')
                     if pre_existing_labels:
-                        g.logger.Debug(2,'Making sure we have matched one of {} in {} before we proceed'.format(pre_existing_labels, _l_best_in_same_model))
+                        g.logger.Debug(2, 'Making sure we have matched one of {} in {} before we proceed'.format(pre_existing_labels, _l_best_in_same_model))
                         if not any(x in _l_best_in_same_model for x in pre_existing_labels):
-                            g.logger.Debug(1,'Did not find pre existing labels, not running sequence in model')
+                            g.logger.Debug(1, 'Did not find pre existing labels, not running sequence in model')
                             continue
                     try:
                         _b,_l,_c,_m = m.detect(image=frame)
-                        g.logger.Debug(2,'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
+                        g.logger.Debug(2, 'This model iteration inside {} found: labels: {},conf:{}'.format(seq, _l, _c))
                     except Exception as e:
-                        g.logger.Error ('Error running model: {}'.format(e))
-                        g.logger.Debug(2,traceback.format_exc())
+                        g.logger.Error('Error running model: {}'.format(e))
+                        g.logger.Debug(2, traceback.format_exc())
                         continue
 
                     # Now let's make sure the labels match our pattern
