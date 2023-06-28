@@ -69,11 +69,11 @@ class VirelAI(Base):
                 #   {"Confidence": "75.35", "Name": "person"}
                 #   ]
                 # }
+                label = item["Name"].casefold()
                 conf = float(item["Confidence"]) / 100
                 if conf < float(self.min_confidence):
-                    g.logger.Debug(1, f"{model_name}: confidence={conf} - min conf threshold={self.min_confidence}")
+                    g.logger.Debug(1, f"{model_name}: label={label} confidence={conf} < min conf threshold={self.min_confidence}")
                     continue
-                label = item["Name"].casefold()
                 # Virel.ai does not return bounding box coords yet.
                 # box = item["BoundingBox"]
 
