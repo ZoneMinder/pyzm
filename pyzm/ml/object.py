@@ -52,10 +52,10 @@ class Object(Base):
         return self.options
         
     def get_model(self):
-            return self.model
+        return self.model
 
     def get_classes(self):
-            return self.model.get_classes()
+        return self.model.get_classes()
 
     def acquire_lock(self):
         self.model.acquire_lock()
@@ -63,8 +63,15 @@ class Object(Base):
     def release_lock(self):
         self.model.release_lock()
  
-    def get_detect_image(self, image=None):
-        return self.model.get_detect_image(image)
+    def get_detect_image(self, data=None):
+        method = getattr(self.model, 'get_detect_image', None)
+        if callable(method):
+            return self.model.get_detect_image(data['image'])
+        else:
+            return pyzmutils.draw_bbox(image=data['image'], boxes=data['boxes'],
+                                              labels=data['labels'], confidences=data['confidences'],
+                                              polygons=data['polygons'], poly_thickness = g.config['poly_thickness'],
+                                              write_conf=True if g.config['show_percent'] == 'yes' else False )
 
     def detect(self,image=None):
         h,w = image.shape[:2]
