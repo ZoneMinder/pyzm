@@ -28,7 +28,7 @@ class DetectSequence(Base):
 
         Args:
             - options (dict): Variety of ML options. Best described by an example as below
-            
+
                 ::
 
                     options = {
@@ -39,15 +39,15 @@ class DetectSequence(Base):
                             'disable_locks':'no',
 
                         },
-                    
+
                         # We now specify all the config parameters per model_sequence entry
                         'object': {
                             'general':{
-                                # 'first' - When detecting objects, if there are multiple fallbacks, break out 
-                                # the moment we get a match using any object detection library. 
+                                # 'first' - When detecting objects, if there are multiple fallbacks, break out
+                                # the moment we get a match using any object detection library.
                                 # 'most' - run through all libraries, select one that has most object matches
                                 # 'most_unique' - run through all libraries, select one that has most unique object matches
-                                
+
                                 'same_model_sequence_strategy': 'first' # 'first' 'most', 'most_unique', 'union'
                                 'pattern': '.*' # any pattern
                             },
@@ -71,7 +71,7 @@ class DetectSequence(Base):
                                 'object_framework':'opencv',
                                 'object_processor': 'gpu',
                                 # These are optional below. Default is 416. Change if your model is trained for larger sizes
-                                'model_width': 416, 
+                                'model_width': 416,
                                 'model_height': 416
                             },
                             {
@@ -99,7 +99,7 @@ class DetectSequence(Base):
                                 # if max_size is specified, not matter what
                                 # the resize value in stream_options, it will be rescaled down to this
                                 # value if needed
-                                'max_size':800, 
+                                'max_size':800,
                                 'face_detection_framework': 'dlib',
                                 'known_images_path': '/var/lib/zmeventnotification/known_faces',
                                 'face_model': 'cnn',
@@ -118,7 +118,7 @@ class DetectSequence(Base):
                                 # This can be applied to any model. This means, don't run this model
                                 # unless a previous model detected one of these labels.
                                 # In this case, I'm not calling ALPR unless we've detected a vehile
-                                # bacause platerec has an API threshold 
+                                # bacause platerec has an API threshold
 
                                 'pre_existing_labels':['car', 'motorbike', 'bus', 'truck', 'boat'],
 
@@ -136,22 +136,22 @@ class DetectSequence(Base):
 
                     - global_config (dict): Used by zm_detect and mlapi to pass
                       additional config parameters that may not be present in ml_config
- 
+
         """
-    
+
         self.has_rescaled = False # only once in init
         self.set_ml_options(options,force_reload=True)
         self.global_config = global_config
         #g.logger.Debug(1,'WAKANDA FOREVER!!!!!!!!!!!!!!!')
-        
+
     def get_ml_options(self):
         return self.ml_options
 
     def set_ml_options(self, options, force_reload=False):
-        """ Use this to change ml options later. Note that models will not be reloaded 
+        """ Use this to change ml options later. Note that models will not be reloaded
             unless you add force_reload=True
         """
-        self.model_sequence = options.get('general', {}).get('model_sequence', 'object').split(',')    
+        self.model_sequence = options.get('general', {}).get('model_sequence', 'object').split(',')
         self.ml_options = options
         self.stream_options = None
         self.media = None
@@ -167,7 +167,7 @@ class DetectSequence(Base):
         for seq in sequences:
             try:
                 if seq == 'object':
-                    import pyzm.ml.object as  ObjectDetect
+                    import pyzm.ml.object as ObjectDetect
                     self.models[seq] = []
                     for ndx,obj_seq in enumerate(self.ml_options.get(seq,{}).get('sequence', [])):
                         if obj_seq.get('enabled') == 'no':
@@ -200,13 +200,13 @@ class DetectSequence(Base):
                     import pyzm.ml.alpr as AlprDetect
                     self.models[seq] = []
                     for alpr_seq in self.ml_options.get(seq,{}).get('sequence', []):
-                        
+
                         try:
                             alpr_seq['disable_locks'] = self.ml_options.get('general',{}).get('disable_locks', 'no')
                             self.models[seq].append(AlprDetect.Alpr(options=alpr_seq))
                         except Exception as e:
                             g.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
-                            g.logger.Debug(2,traceback.format_exc())                        
+                            g.logger.Debug(2,traceback.format_exc())
 
                 else:
                     g.logger.Error ('Invalid model: {}'.format(seq))
@@ -214,8 +214,8 @@ class DetectSequence(Base):
             except Exception as e:
                 g.logger.Error('Error loading same model variation for {}:{}'.format(seq,e))
                 g.logger.Debug(2,traceback.format_exc())
-                continue            
-    
+                continue
+
     def _rescale_polygons(self, polygons, xfactor, yfactor):
         newps = []
         for p in polygons:
@@ -229,7 +229,7 @@ class DetectSequence(Base):
             xfactor, yfactor, newps))
         return newps
 
-    
+
     # once all bounding boxes are detected, we check to see if any of them
     # intersect the polygons, if specified
     # it also makes sure only patterns specified in detect_pattern are drawn
@@ -293,7 +293,7 @@ class DetectSequence(Base):
                     'past_det_max_diff_area must be in the range 0-100 when using percentages. Setting to 5%, was {}'
                     .format(self.global_config.get(global_max_diff_area)))
                 global_max_diff_area=5
-       
+
         #g.logger.Debug (1,'loaded past: bbox={}, labels={}'.format(saved_bs, saved_ls));
         g.logger.Debug (3, 'Globals:past detection:use_percent:{}, max_diff_area:{}'.format(global_use_percent,global_max_diff_area))
         new_label = []
@@ -350,7 +350,7 @@ class DetectSequence(Base):
             for saved_idx, saved_b in enumerate(saved_bs):
                 # compare current detection element with saved list from file
                 if saved_ls[saved_idx] != label[idx]:
-                    foundAlias = False 
+                    foundAlias = False
                     for item in self.ml_options.get('general',{}).get('aliases',[]):
                         if saved_ls[saved_idx] in item and label[idx] in item:
                             g.logger.Debug(2, 'found label:{} and stored label:{} are aliases:{}'.format(label[idx], saved_ls[saved_idx], item))
@@ -411,8 +411,8 @@ class DetectSequence(Base):
 
 
     def _filter_detections(self, seq, box,label,conf, polygons, h,w, model_names):
-        
-     
+
+
         # remember this needs to occur after a frame
         # is read, otherwise we don't have dimensions
 
@@ -420,7 +420,7 @@ class DetectSequence(Base):
 
         global_max_object_area = 0
         mds= self.ml_options.get('general',{}).get('max_detection_size') or self.global_config.get('max_detection_size')
-        if mds:  
+        if mds:
                 g.logger.Debug(2,'Max object size found to be: {}'.format(mds))
                 # Let's make sure its the right size
                 _m = re.match('(\d*\.?\d*)(px|%)?$', mds,
@@ -457,10 +457,10 @@ class DetectSequence(Base):
             neww = self.media.image_dimensions()['resized'][1]
             if (oldh != newh) or (oldw != neww):
                 polygons[:] = self._rescale_polygons(polygons, neww / oldw, newh / oldh)
-            
+
 
         doesIntersect = False
-        new_label = [] 
+        new_label = []
         new_bbox =[]
         new_conf = []
         new_err = []
@@ -497,7 +497,7 @@ class DetectSequence(Base):
 
             for p in polygons:
                 poly = Polygon(p['value'])
-                
+
                 if obj.intersects(poly):
                     g.logger.Debug(2,'intersection: object:{},{} intersects polygon:{},{}'.format(label[idx],obj,p['name'],poly))
                     if  p['pattern']:
@@ -556,9 +556,9 @@ class DetectSequence(Base):
             stream (string): location of media (file, url or event ID)
             ml_overrides(string): Ignore it. You will almost never need it. zm_detect uses it for ugly foo
             options (dict, optional): Various options that control the detection process. Defaults to {}:
-            
+
                 - delay (int): Delay in seconds before starting media stream
-                - delay_between_frames (int): Delay in seconds between each frame read 
+                - delay_between_frames (int): Delay in seconds between each frame read
                 - delay_between_snapshots (int): Delay in seconds between each snapshot frame read (useful if you want to read snapshot multiple times, for example. frameset: ['snapshot','snapshot','snapshot'])
                 - download (boolean): if True, will download video before analysis. Defaults to False
                 - download_dir (string): directory where downloads will be kept (only applies to videos). Default is /tmp
@@ -578,16 +578,16 @@ class DetectSequence(Base):
                 - save_frames_dir (string): Directory to save analyzed frames. Default /tmp
                 - frame_strategy: (string): various conditions to stop matching as below
                     - 'most_models': Match the frame that has matched most models (does not include same model alternatives) (Default)
-                    - 'first': Stop at first match 
+                    - 'first': Stop at first match
                     - 'most': Match the frame that has the highest number of detected objects
                     - 'most_unique' Match the frame that has the highest number of unique detected objects
-           
+
                 - resize (int): Width to resize image, default 800
                 - polygons(object): object # set of polygons that the detected image needs to intersect
-                - convert_snapshot_to_fid (bool or 'yes'): if True/'yes', will convert 'snapshot' to an actual fid. If you are seeing 
-                  boxes at wrong places for snapshot frames, this may fix it. However, it can also result in frame 404 errors 
+                - convert_snapshot_to_fid (bool or 'yes'): if True/'yes', will convert 'snapshot' to an actual fid. If you are seeing
+                  boxes at wrong places for snapshot frames, this may fix it. However, it can also result in frame 404 errors
                   if that frame ID is not yet written to disk. So you may want to add a delay if you enable this. Default is False.
-                
+
         Returns:
            - object: representing matched frame, consists of:
 
@@ -608,10 +608,10 @@ class DetectSequence(Base):
         OpenCV's frame reading logic and when ``False`` we use ZoneMinder's image.php function
         which uses time based approximation. Therefore, the retrieve different frame offsets, but I assume
         they should be reasonably close.
-            
+
         """
 
-        
+
         self.ml_overrides = ml_overrides
         self.stream_options = options
         frame_strategy = self.stream_options.get('frame_strategy', 'most_models')
@@ -624,7 +624,7 @@ class DetectSequence(Base):
         matched_frame_id = None
         matched_images=[]
         matched_model_names = [] # coral, yolo etc
-        
+
         matched_frame_img = None
         manual_locking = False
 
@@ -636,7 +636,7 @@ class DetectSequence(Base):
             manual_locking = True
             g.logger.Debug(3, 'Using manual locking as we are only using one model')
             for seq in self.model_sequence:
-                self.ml_options[seq]['auto_lock'] = False        
+                self.ml_options[seq]['auto_lock'] = False
         t = Timer()
         media = MediaStream(stream, 'video', self.stream_options)
         self.media = media
@@ -687,10 +687,10 @@ class DetectSequence(Base):
 
                 same_model_sequence_strategy = self.ml_options.get(seq,{}).get('general',{}).get('same_model_sequence_strategy', 'first')
                 g.logger.Debug(3, '{} has a same_model_sequence strategy of {}'.format(seq, same_model_sequence_strategy))
-                
+
                 # start of same model iteration
                 _b_best_in_same_model = []
-                _l_best_in_same_model = [] 
+                _l_best_in_same_model = []
                 _c_best_in_same_model = []
                 _e_best_in_same_model = []
                 _m_best_in_same_model = []
@@ -722,10 +722,8 @@ class DetectSequence(Base):
                     if not len(_l):
                         continue
 
-                   
-                      
-                    if  ((same_model_sequence_strategy == 'first') 
-                    or ((same_model_sequence_strategy == 'most') and (len(_l) > len(_l_best_in_same_model))) 
+                    if ((same_model_sequence_strategy == 'first')
+                    or ((same_model_sequence_strategy == 'most') and (len(_l) > len(_l_best_in_same_model)))
                     or ((same_model_sequence_strategy == 'most_unique') and (len(set(_l)) > len(set(_l_best_in_same_model))))):
                         _b_best_in_same_model = _b
                         _l_best_in_same_model = _l
@@ -741,7 +739,7 @@ class DetectSequence(Base):
                         _m_best_in_same_model.extend(_m)
 
                     if _l_best_in_same_model and self.stream_options.get('save_analyzed_frames') and self.media.get_debug_filename():
-                            d = self.stream_options.get('save_frames_dir','/tmp')
+                            d = self.stream_options.get('save_frames_dir', '/tmp')
                             f = '{}/{}-analyzed-{}.jpg'.format(d,self.media.get_debug_filename(), media.get_last_read_frame())
                             g.logger.Debug (2, 'Saving analyzed frame: {}'.format(f))
                             a = utils.draw_bbox(frame,_b_best_in_same_model,_l_best_in_same_model,_c_best_in_same_model,self.stream_options.get('polygons'))
@@ -753,7 +751,7 @@ class DetectSequence(Base):
                         g.logger.Debug(2, 'breaking out of same model loop, as matches found and strategy is "first"')
                         break
                 # end of same model sequence iteration
-                # at this state x_best_in_model contains the best match across 
+                # at this state x_best_in_model contains the best match across
                 # same model variations
                 if _l_best_in_same_model:
                     found = True
@@ -780,33 +778,33 @@ class DetectSequence(Base):
                         'confidences': _confs_in_frame,
                         'detection_types': _detection_types_in_frame,
                         'model_names': _model_names_in_frame
-                        
-                        
+
+
                     }
                 )
                 matched_images.append(frame.copy())
                 if (frame_strategy == 'first'):
                     g.logger.Debug(2,'Frame strategy is first, breaking out of frame loop')
                     break
-                
-               
-        # end of while media loop   
-           
+
+
+        # end of while media loop
+
         #print ('*********** MATCH_STRATEGY {}'.format(model_match_strategy))
         for idx,item in enumerate(all_matches):
-            if  ((frame_strategy == 'first') or 
+            if  ((frame_strategy == 'first') or
             ((frame_strategy == 'most') and (len(item['labels']) > len(matched_l))) or
             ((frame_strategy == 'most_models') and (len(item['detection_types']) > len(matched_detection_types))) or
             ((frame_strategy == 'most_unique') and (len(set(item['labels'])) > len(set(matched_l))))):
                 matched_b =item['boxes']
                 matched_e = item['error_boxes']
                 matched_c = item['confidences']
-                matched_l  = item['labels']            
+                matched_l  = item['labels']
                 matched_frame_id = item['frame_id']
                 matched_detection_types = item['detection_types']
                 matched_model_names = item['model_names']
                 matched_frame_img = matched_images[idx]
-       
+
         if manual_locking:
             for seq in self.model_sequence:
                 if seq in self.models:
@@ -815,9 +813,9 @@ class DetectSequence(Base):
                 else:
                     g.logger.Debug(2, '{} not in self.models', seq)
 
-        
-        # Now let's take past detections into consideration 
-        # let's remove past detections first, if enabled 
+
+        # Now let's take past detections into consideration
+        # let's remove past detections first, if enabled
         mpd = self.ml_options.get('general',{}).get('match_past_detections') or self.global_config.get('match_past_detections')
         if mpd == 'yes' and self.stream_options.get('mid'):
             # point detections to post processed data set
@@ -848,4 +846,4 @@ class DetectSequence(Base):
         return matched_data, all_matches
 
 
-        
+
