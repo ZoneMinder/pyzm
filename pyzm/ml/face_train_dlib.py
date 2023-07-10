@@ -78,7 +78,7 @@ class FaceTrain (Base):
                             # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
                             #g.logger.Debug(1,'Converting from BGR to RGB')
                             #known_face = known_face[:, :, ::-1]
-                            known_face = cv2.cvtColor(known_face, cv2.COLOR_BG2RGB)
+                            known_face = cv2.cvtColor(known_face, cv2.COLOR_BGR2RGB)
                             
                             face_locations = face_recognition.face_locations(
                                 known_face,
