@@ -32,7 +32,7 @@ class VirelAI(Base):
         files = {'Image': {'Bytes' :  base64.b64encode(image_jpg).decode()}}
 
         api_url = 'https://virel.ai';
-        object_url = api_url+'/api/detect/payload'
+        object_url = api_url+'/api/coords/payload'
         auth_header = None
         g.logger.Debug(2, 'Invoking virelai api with url:{} and headers={} '.format(object_url, auth_header))
 
@@ -74,17 +74,23 @@ class VirelAI(Base):
                 if conf < float(self.min_confidence):
                     g.logger.Debug(1, f"{model_name}: label={label} confidence={conf} < min conf threshold={self.min_confidence}")
                     continue
-                # Virel.ai does not return bounding box coords yet.
-                # box = item["BoundingBox"]
 
-                # bbox = (
-                #     round(w * box["Left"]),
-                #     round(h * box["Top"]),
-                #     round(w * (box["Left"] + box["Width"])),
-                #     round(h * (box["Top"] + box["Height"])),
-                # )
-                # return false bbox data for now
+                # return false bbox data for now if no Instance
                 bbox = (0, 0, 0, 0)
+                if 'Instance' in item:
+                    box = item["Instance"]
+
+                    bbox = (
+                         #round(width * float(box["Left"])),
+                         round(float(box["Left"])),
+                         #round(height * float(box["Top"])),
+                         round(float(box["Top"])),
+                         #round(width * (float(box["Left"]) + float(box["Width"]))),
+                         round(float(box["Left"]) + float(box["Width"])),
+                         #round(height * (float(box["Top"]) + float(box["Height"]))),
+                         round(float(box["Top"]) + float(box["Height"])),
+                    )
+
                 bboxes.append(bbox)
                 labels.append(label)
                 confs.append(conf)
