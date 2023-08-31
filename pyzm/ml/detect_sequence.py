@@ -811,7 +811,7 @@ class DetectSequence(Base):
                     for m in self.models[seq]:
                         m.release_lock()
                 else:
-                    g.logger.Debug(2, '{} not in self.models', seq)
+                    g.logger.Debug(2, '{} not in self.models'.format(seq))
 
 
         # Now let's take past detections into consideration
