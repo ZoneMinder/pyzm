@@ -16,9 +16,11 @@ import pyzm.helpers.globals as g
 """
 shared_data => { type=>'SharedData', seq=>$mem_seq++, contents=> {
     size             => { type=>'uint32', seq=>$mem_seq++ }, I
-    last_write_index => { type=>'uint32', seq=>$mem_seq++ }, I
-    last_read_index  => { type=>'uint32', seq=>$mem_seq++ }, I
+    last_write_index => { type=>'uint32', seq=>$mem_seq++ }, i
+    last_read_index  => { type=>'uint32', seq=>$mem_seq++ }, i
     state            => { type=>'uint32', seq=>$mem_seq++ }, I
+    capture_fps      => { type=>'double', seq=>$mem_seq++ },  d
+    analysis_fps     => { type=>'double', seq=>$mem_seq++ },  d
     last_event       => { type=>'uint64', seq=>$mem_seq++ }, Q
     action           => { type=>'uint32', seq=>$mem_seq++ }, I
     brightness       => { type=>'int32', seq=>$mem_seq++ },  i
@@ -32,12 +34,17 @@ shared_data => { type=>'SharedData', seq=>$mem_seq++, contents=> {
     signal           => { type=>'uint8', seq=>$mem_seq++ },  ?
     format           => { type=>'uint8', seq=>$mem_seq++ },  ?
     imagesize        => { type=>'uint32', seq=>$mem_seq++ }, I
-    epadding1        => { type=>'uint32', seq=>$mem_seq++ },  I
-    startup_time     => { type=>'time_t64', seq=>$mem_seq++ },  Q
-    last_write_time  => { type=>'time_t64', seq=>$mem_seq++ },  Q
-    last_read_time   => { type=>'time_t64', seq=>$mem_seq++ },  Q 
+    last_frame_score => { type=>'uint32', seq=>$mem_seq++ },  I
+    audio_frequency  => { type=>'uint32', seq=>$mem_seq++ },  I
+    audio_channels   => { type=>'uint32', seq=>$mem_seq++ },  I
+    startup_time     => { type=>'time_t64', seq=>$mem_seq++ },  q
+    zmc_heartbeat_time  => { type=>'time_t64', seq=>$mem_seq++ },  q
+    last_write_time  => { type=>'time_t64', seq=>$mem_seq++ },  q
+    last_read_time   => { type=>'time_t64', seq=>$mem_seq++ },  q
     control_state    => { type=>'uint8[256]', seq=>$mem_seq++ }, s256
     alarm_cause      => { type=>'int8[256]', seq=>$mem_seq++ }, s256
+    video_fifo       => { type=>'int8[64]', seq=>$mem_seq++ },  s64
+    audio_fifo       => { type=>'int8[64]', seq=>$mem_seq++ }  s64
 """
 
 """
@@ -200,21 +207,22 @@ class ZMMemory(Base):
 
     def _read(self):
         self.mhandle.seek(0)
-        SharedData = namedtuple('SharedData', 'size last_write_index last_read_index state last_event action brightness hue color contrast alarm_x alarm_y valid active signal format imagesize epadding1 startup_time last_write_time last_read_time control_state alarm_cause')
-        s = SharedData._make(struct.unpack('IIIIQIiiiiii????IIQQQ256s256s',self.mhandle.read(600)))
+        struct_fmt = '@IiiIddQIiiiiii????IIIIqqqq256s256s64s64s'
+        SharedData = namedtuple('SharedData', 'size last_write_index last_read_index state capture_fps analysis_fps last_event action brightness hue color contrast alarm_x alarm_y valid active signal format imagesize last_frame_score audio_frequency audio_channels startup_time heartbeat_time last_write_time last_read_time control_state alarm_cause video_fifo audio_fifo')
+        s = SharedData._make(struct.unpack(struct_fmt, self.mhandle.read(struct.calcsize(struct_fmt))))
         TriggerData = namedtuple('TriggerData', 'size trigger_state trigger_score padding trigger_cause trigger_text trigger_showtext')
         t = TriggerData._make(struct.unpack('IIII32s256s256s', self.mhandle.read(560)))
         self.sd = s._asdict()
         self.td = t._asdict()
 
-        self.sd['alarm_cause'] = self.sd['alarm_cause'].split(b'\0',1)[0].decode()
-        self.sd['control_state'] = self.sd['control_state'].split(b'\0',1)[0].decode()
+        for key in ['alarm_cause', 'control_state', 'audio_fifo', 'video_fifo']:
+            self.sd[key] = self.sd[key].split(b'\0',1)[0].decode()
         self.td['trigger_cause'] = self.td['trigger_cause'].split(b'\0',1)[0].decode()
         self.td['trigger_text'] = self.td['trigger_text'].split(b'\0',1)[0].decode()
         self.td['trigger_showtext'] = self.td['trigger_showtext'].split(b'\0',1)[0].decode()
-        return { 'shared_data':self.sd, 'trigger_data':self.td}
+        return {'shared_data': self.sd, 'trigger_data': self.td}
 
-    
+
     def get(self):
         """returns raw shared and trigger data as a dict
         
