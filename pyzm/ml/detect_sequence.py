@@ -510,7 +510,7 @@ class DetectSequence(Base):
                         g.logger.Debug (1,'{}'.format(self.ml_overrides))
                         g.logger.Debug (1,'**********************************')
                         '''
-                        if self.ml_overrides.get(seq,{}).get('pattern') and False:
+                        if self.ml_overrides.get(seq,{}).get('pattern'):
                             match_pattern = self.ml_overrides.get(seq,{}).get('pattern')
                             g.logger.Debug(2,'Match pattern overridden to {} in ml_overrides'.format(match_pattern))
                         else:
