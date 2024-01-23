@@ -416,10 +416,10 @@ class DetectSequence(Base):
         # remember this needs to occur after a frame
         # is read, otherwise we don't have dimensions
 
-        #print ("************ POLY={}".format(polygons))
+        g.logger.Debug(2, f'Called _filter_detections(seq={seq}, box={box}, label={label}, conf={conf}, polygons={polygons}, h={h}, w={w}, model_names={model_names})')
 
         global_max_object_area = 0
-        mds= self.ml_options.get('general',{}).get('max_detection_size') or self.global_config.get('max_detection_size')
+        mds = self.ml_options.get('general',{}).get('max_detection_size') or self.global_config.get('max_detection_size')
         if mds:
                 g.logger.Debug(2,'Max object size found to be: {}'.format(mds))
                 # Let's make sure its the right size
@@ -510,7 +510,7 @@ class DetectSequence(Base):
                         g.logger.Debug (1,'{}'.format(self.ml_overrides))
                         g.logger.Debug (1,'**********************************')
                         '''
-                        if self.ml_overrides.get(seq,{}).get('pattern') and False:
+                        if self.ml_overrides.get(seq,{}).get('pattern'):
                             match_pattern = self.ml_overrides.get(seq,{}).get('pattern')
                             g.logger.Debug(2,'Match pattern overridden to {} in ml_overrides'.format(match_pattern))
                         else:
@@ -611,7 +611,7 @@ class DetectSequence(Base):
 
         """
 
-
+        g.logger.Debug(2, f'Called detect_stream(stream={stream}, ml_overrides={ml_overrides}, options={options})')
         self.ml_overrides = ml_overrides
         self.stream_options = options
         frame_strategy = self.stream_options.get('frame_strategy', 'most_models')
@@ -641,7 +641,8 @@ class DetectSequence(Base):
         media = MediaStream(stream, 'video', self.stream_options)
         self.media = media
 
-        polygons = copy.copy(self.stream_options.get('polygons', []))
+        polygons = copy.deepcopy(self.stream_options.get('polygons', []))
+        g.logger.Debug(2, f"in detect_stream() polygons={polygons}")
 
         # Loops across all frames
         while self.media.more():
