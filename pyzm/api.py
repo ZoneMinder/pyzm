@@ -171,9 +171,7 @@ class ZMApi (Base):
 
             elif self.options.get('user') and self.options.get('password'):
                 g.logger.Debug(1, 'using username/password for login')
-                data={'user': self.options.get('user'),
-                    'pass': self.options.get('password')
-                }
+                data={'user': self.options.get('user'), 'pass': self.options.get('password') }
                 self.auth_enabled = True
 
             else:
@@ -184,16 +182,15 @@ class ZMApi (Base):
                 
             r = self.session.post(url, data=data)
             if r.status_code == 401 and self.options.get('token') and self.auth_enabled:
-                g.logger.Debug (1, 'Token auth with refresh failed. Likely revoked, doing u/p login')
+                g.logger.Debug(1, 'Token auth with refresh failed. Likely revoked, doing u/p login')
                 self.options['token'] = None
-                data={'user': self.options.get('user'),
-                    'pass': self.options.get('password')
-                }
+                data={'user': self.options.get('user'), 'pass': self.options.get('password')}
                 r = self.session.post(url, data=data)
                 r.raise_for_status()
             else:
                 r.raise_for_status()
 
+            g.logger.Debug(1, r.text)
             rj = r.json()
             self.api_version = rj.get('apiversion')
             self.zm_version = rj.get('version')
