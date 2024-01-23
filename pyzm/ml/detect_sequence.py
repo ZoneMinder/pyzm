@@ -411,8 +411,6 @@ class DetectSequence(Base):
 
 
     def _filter_detections(self, seq, box,label,conf, polygons, h,w, model_names):
-
-
         # remember this needs to occur after a frame
         # is read, otherwise we don't have dimensions
 
@@ -423,19 +421,17 @@ class DetectSequence(Base):
         if mds:
                 g.logger.Debug(2,'Max object size found to be: {}'.format(mds))
                 # Let's make sure its the right size
-                _m = re.match('(\d*\.?\d*)(px|%)?$', mds,
-                            re.IGNORECASE)
+                _m = re.match('(\d*\.?\d*)(px|%)?$', mds, re.IGNORECASE)
                 if _m:
                     global_max_object_area = float(_m.group(1))
                     if _m.group(2) == '%':
                         global_max_object_area = float(_m.group(1))/100.0*(h * w)
-                        g.logger.Debug (2,'Converted {}% to {}'.format(_m.group(1), global_max_object_area))
+                        g.logger.Debug(2,'Converted {}% to {}'.format(_m.group(1), global_max_object_area))
                 else:
-                    g.logger.Error('max_detection_size misformatted: {} - ignoring'.format(
-                        mds))
+                    g.logger.Error('max_detection_size misformatted: {} - ignoring'.format(mds))
 
         if not polygons:
-            oldh =self.media.image_dimensions()['original'][0]
+            oldh = self.media.image_dimensions()['original'][0]
             oldw = self.media.image_dimensions()['original'][1]
 
             polygons.append({
@@ -451,9 +447,9 @@ class DetectSequence(Base):
 
         if (not self.has_rescaled) and (self.stream_options.get('resize') != 'no'):
             self.has_rescaled = True
-            oldh =self.media.image_dimensions()['original'][0]
+            oldh = self.media.image_dimensions()['original'][0]
             oldw = self.media.image_dimensions()['original'][1]
-            newh =self.media.image_dimensions()['resized'][0]
+            newh = self.media.image_dimensions()['resized'][0]
             neww = self.media.image_dimensions()['resized'][1]
             if (oldh != newh) or (oldw != neww):
                 polygons[:] = self._rescale_polygons(polygons, neww / oldw, newh / oldh)
