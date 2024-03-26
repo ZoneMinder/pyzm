@@ -165,7 +165,7 @@ class Tpu(Base):
                 .format(Width, Height))
             t= Timer()            
             _, scale = common.set_resized_input(
-                self.model, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
+                self.model, img.size, lambda size: img.resize(size, Image.LANCZOS))
             self.model.invoke()
             objs = detect.get_objects(self.model, float(self.options.get('object_min_confidence')), scale)
 
