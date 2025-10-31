@@ -233,11 +233,17 @@ def init(name=None, override={}):
         engine = None
         syslog.syslog (syslog.LOG_ERR, _format_string("Turning DB logging off. Could not connect to DB, message was:" + str(e)))
         config['log_level_db'] = levels['OFF']
-        
     else:
-        meta = MetaData(engine,reflect=True)
-        config_table = meta.tables['Config']
-        log_table = meta.tables['Logs']
+        meta = MetaData()
+        try:
+            meta.reflect(bind=engine, only=['Config','Logs'])
+            config_table = meta.tables['Config']
+            log_table = meta.tables['Logs']
+        except Exception as e:
+            connected = False
+            syslog.syslog (syslog.LOG_ERR, _format_string("Turning DB logging off. Could not connect to DB, message was:" + str(e)))
+            config['log_level_db'] = levels['OFF']
+            return
 
         select_st = select([config_table.c.Name, config_table.c.Value]).where(
                 or_(config_table.c.Name=='ZM_LOG_LEVEL_SYSLOG',
@@ -249,16 +255,25 @@ def init(name=None, override={}):
                     config_table.c.Name=='ZM_LOG_DEBUG_TARGET',
                     config_table.c.Name=='ZM_SERVER_ID',
                     ))
-        resultproxy = conn.execute(select_st)
-        db_vals = {row[0]:row[1] for row in resultproxy}
-        config['log_level_syslog'] = int(db_vals['ZM_LOG_LEVEL_SYSLOG']) 
-        config['log_level_file'] = int(db_vals['ZM_LOG_LEVEL_FILE'])
-        config['log_level_db'] = int(db_vals['ZM_LOG_LEVEL_DATABASE'])
-        config['log_debug'] = int(db_vals['ZM_LOG_DEBUG'])
-        config['log_level_debug'] = int(db_vals['ZM_LOG_DEBUG_LEVEL'])
-        config['log_debug_file'] = db_vals['ZM_LOG_DEBUG_FILE']
-        config['log_debug_target'] = db_vals['ZM_LOG_DEBUG_TARGET']
-        config['server_id'] = db_vals.get('ZM_SERVER_ID',0)
+        try:
+            resultproxy = conn.execute(select_st)
+            db_vals = {row[0]:row[1] for row in resultproxy}
+            config['log_level_syslog'] = int(db_vals['ZM_LOG_LEVEL_SYSLOG']) 
+            config['log_level_file'] = int(db_vals['ZM_LOG_LEVEL_FILE'])
+            config['log_level_db'] = int(db_vals['ZM_LOG_LEVEL_DATABASE'])
+            config['log_debug'] = int(db_vals['ZM_LOG_DEBUG'])
+            config['log_level_debug'] = int(db_vals['ZM_LOG_DEBUG_LEVEL'])
+            config['log_debug_file'] = db_vals['ZM_LOG_DEBUG_FILE']
+            config['log_debug_target'] = db_vals['ZM_LOG_DEBUG_TARGET']
+            config['server_id'] = db_vals.get('ZM_SERVER_ID',0)
+        except Exception as e:
+            # If read fails, disable DB logging but continue
+            connected = False
+            syslog.syslog (syslog.LOG_ERR, _format_string("Error reading logging config from DB:" + str(e)))
+            config['log_level_db'] = levels['OFF']
+
+        connected = False
+        conn = None
     # Round 2 of overrides, after DB data is read
     # Override with locals if present
 
@@ -338,17 +353,21 @@ def _db_reconnect():
         boolean: True if reconnected
     """
     global logger, pid, process_name, inited, config, engine, conn, connected, levels, priorities, config_table, log_table, meta, log_fname, log_fhandle
-    try:
-        conn.close()
-    except:
-        pass
+    if conn:
+        try:
+            conn.close()
+        except:
+            pass
+        conn = None
 
     try:
-        engine = create_engine(cstr, pool_recycle=3600)
+        if engine is None:
+            engine = create_engine(cstr, pool_recycle=3600)
+        # Open a persistent connection for performance; do not start a transaction h
         conn = engine.connect()
-        #inspector = inspect(engine)
-        #print(inspector.get_columns('Config'))
-        meta = MetaData(engine,reflect=True)
+        if not meta:
+            meta = MetaData();
+        mega.reflect(bind=engine, only=['Config','Logs'])
         config_table = meta.tables['Config']
         log_table = meta.tables['Logs']
         message = 'reconnecting to Database...'
@@ -356,12 +375,11 @@ def _db_reconnect():
         syslog.syslog (syslog.LOG_INFO, log_string)
     except SQLAlchemyError as e:
         connected = False
-        syslog.syslog (syslog.LOG_ERR, _format_string("Turning off DB logging due to error received:" + str(e)))
+        syslog.syslog(syslog.LOG_ERR, _format_string("Turning off DB logging due to error received:" + str(e)))
         return False
     else:
         connected = True
         return True
-        
 
 def close():
     """Closes all handles. Invoke this before you exit your app
@@ -407,9 +425,9 @@ def _log(level='DBG', message='', caller=None, debug_level=1):
     # write to db
     if levels[level] <= config['log_level_db']:
         if not connected:
-            syslog.syslog (syslog.LOG_INFO, _format_string("Trying to reconnect"))
+            syslog.syslog(syslog.LOG_INFO, _format_string("Trying to reconnect"))
             if not _db_reconnect():
-                syslog.syslog (syslog.LOG_ERR, _format_string("reconnection failed, not writing to DB"))
+                syslog.syslog(syslog.LOG_ERR, _format_string("reconnection failed, not writing to DB"))
             return False
 
         log_string = '{level} [{pname}] [{msg}]'.format(level=disp_level, pname=process_name, msg=message)
@@ -422,6 +440,8 @@ def _log(level='DBG', message='', caller=None, debug_level=1):
 
         try:
             cmd = log_table.insert().values(TimeKey=time.time(), Component=component, ServerId=serverid, Pid=pid, Level=l, Code=code, Message=message,File=os.path.split(caller.filename)[1], Line=line)
+            if not conn:
+               conn = engine.begin()
             conn.execute(cmd)
         except SQLAlchemyError as e:
             connected = False
