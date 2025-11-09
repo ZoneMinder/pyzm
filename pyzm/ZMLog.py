@@ -367,7 +367,7 @@ def _db_reconnect():
         conn = engine.connect()
         if not meta:
             meta = MetaData();
-        mega.reflect(bind=engine, only=['Config','Logs'])
+        meta.reflect(bind=engine, only=['Config','Logs'])
         config_table = meta.tables['Config']
         log_table = meta.tables['Logs']
         message = 'reconnecting to Database...'
