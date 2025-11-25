@@ -119,7 +119,7 @@ class Events(Base):
                 break
             if not pagination.get('nextPage'):
                 break
-            if pagination.get('current')
+            if pagination.get('current'):
                 currevents += int(pagination.get('current'))
             if currevents >= numevents:
                 break
