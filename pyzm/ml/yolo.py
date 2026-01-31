@@ -13,20 +13,15 @@ import pyzm.helpers.globals as g
 import imutils
 
 # cv2 version check for unconnected layers fix
-def cv2_version() -> int:
-    # Sick and tired of OpenCV playing games....
-    maj, min, patch = "", "", ""
+def cv2_version() -> tuple:
+    # Returns (major, minor, patch) as ints for proper numeric comparison
     x = cv2.__version__.split(".")
-    x_len = len(x)
-    if x_len <= 2:
-        maj, min = x
-        patch = "0"
-    elif x_len == 3:
-        maj, min, patch = x
-        patch = patch.replace("-dev", "") or "0"
-    else:
-        g.logger.Error("come and fix me again, OpenCV changing things every version just to play with us devs")
-    return int(maj + min + patch)
+    # Strip non-numeric suffixes like "-dev"
+    parts = [re.sub(r'[^0-9]', '', p) or '0' for p in x]
+    maj = int(parts[0]) if len(parts) > 0 else 0
+    minor = int(parts[1]) if len(parts) > 1 else 0
+    patch = int(parts[2]) if len(parts) > 2 else 0
+    return (maj, minor, patch)
     
 # Class to handle Yolo based detection
 
@@ -107,7 +102,7 @@ class Yolo(Base):
         diff_time = t.stop_and_get_ms()
 
         cv2_ver = cv2_version()
-        if cv2_ver >= 454:
+        if cv2_ver >= (4, 5, 4):
             # see https://github.com/opencv/opencv/issues/20923
             # we need to modify Yolo code not to expect a nested structure
             g.logger.Debug(1, 'You are using OpenCV >= 4.5.4, making sure we fix getUnconnectedOutLayers() API')
@@ -117,7 +112,7 @@ class Yolo(Base):
             .format(self.processor, self.options.get('object_weights'), diff_time))
         if self.processor == 'gpu':
 
-            if cv2_ver < 420:
+            if cv2_ver < (4, 2, 0):
                 g.logger.Error('Not setting CUDA backend for OpenCV DNN')
                 g.logger.Error(
                     'You are using OpenCV version {} which does not support CUDA for DNNs. A minimum of 4.2 is required. See https://www.pyimagesearch.com/2020/02/03/how-to-use-opencvs-dnn-module-with-nvidia-gpus-cuda-and-cudnn/ on how to compile and install openCV 4.2'
@@ -238,9 +233,9 @@ class Yolo(Base):
         conf = []
 
         # now filter out with configured yolo confidence, so we can see rejections in log
+        # NMSBoxes returns flat indices in OpenCV >= 4.5.4, nested [[i]] before that
+        indices = np.array(indices).flatten()
         for i in indices:
-            if not self.is_get_unconnected_api_list:
-                i = i[0]
             box = boxes[i]
             x = box[0]
             y = box[1]
