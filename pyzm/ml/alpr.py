@@ -26,6 +26,10 @@ class AlprBase(Base):
     def get_options(self):
         return self.options
 
+    @property
+    def lock_name(self):
+        return None
+
     def acquire_lock(self):
         pass
 

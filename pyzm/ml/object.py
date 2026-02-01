@@ -65,6 +65,10 @@ class Object(Base):
     def get_classes(self):
         return self.model.get_classes()
 
+    @property
+    def lock_name(self):
+        return self.model.lock_name
+
     def acquire_lock(self):
         self.model.acquire_lock()
 
