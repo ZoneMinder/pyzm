@@ -40,13 +40,14 @@ class Yolo(Base):
         self.lock_maximum = int(options.get(self.processor + '_max_processes') or 1)
         self.lock_timeout = int(options.get(self.processor + '_max_lock_wait') or 120)
         self.is_get_unconnected_api_list = False
+        self.name = self.options.get('name') or 'Yolo'
 
         # self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_name = 'pyzm_uid{}_{}_lock'.format(os.getuid(), self.processor)
 
         self.disable_locks = options.get('disable_locks', 'no')
         if self.disable_locks == 'no':
-            g.logger.Debug(2, 'portalock: max:{}, name:{}, timeout:{}'.format(self.lock_maximum, self.lock_name,
+            g.logger.Debug(2, '{}: portalock: max:{}, name:{}, timeout:{}'.format(self.name, self.lock_maximum, self.lock_name,
                                                                               self.lock_timeout))
             self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,
                                                      timeout=self.lock_timeout)
@@ -57,28 +58,28 @@ class Yolo(Base):
         if self.disable_locks == 'yes':
             return
         if self.is_locked:
-            g.logger.Debug(2, '{} portalock already acquired'.format(self.lock_name))
+            g.logger.Debug(2, '{}: {} portalock already acquired'.format(self.name, self.lock_name))
             return
         try:
-            g.logger.Debug(2, 'Waiting for {} portalock...'.format(self.lock_name))
+            g.logger.Debug(2, '{}: Waiting for {} portalock...'.format(self.name, self.lock_name))
             self.lock.acquire()
-            g.logger.Debug(2, 'Got {} portalock'.format(self.lock_name))
+            g.logger.Debug(2, '{}: Got {} portalock'.format(self.name, self.lock_name))
             self.is_locked = True
 
         except portalocker.AlreadyLocked:
-            g.logger.Error('Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
+            g.logger.Error('{}: Timeout waiting for {} portalock for {} seconds'.format(self.name, self.lock_name, self.lock_timeout))
             raise ValueError(
-                'Timeout waiting for {} portalock for {} seconds'.format(self.lock_name, self.lock_timeout))
+                '{}: Timeout waiting for {} portalock for {} seconds'.format(self.name, self.lock_name, self.lock_timeout))
 
     def release_lock(self):
         if self.disable_locks == 'yes':
             return
         if not self.is_locked:
-            g.logger.Debug(2, '{} portalock already released'.format(self.lock_name))
+            g.logger.Debug(2, '{}: {} portalock already released'.format(self.name, self.lock_name))
             return
         self.lock.release()
         self.is_locked = False
-        g.logger.Debug(2, 'Released {} portalock'.format(self.lock_name))
+        g.logger.Debug(2, '{}: Released {} portalock'.format(self.name, self.lock_name))
 
     def get_options(self):
         return self.options
@@ -93,8 +94,7 @@ class Yolo(Base):
         return self.classes
 
     def load_model(self):
-        name = self.options.get('name') or 'Yolo'
-        g.logger.Debug(1, '|--------- Loading "{}" model from disk -------------|'.format(name))
+        g.logger.Debug(1, '|--------- Loading "{}" model from disk -------------|'.format(self.name))
         t = Timer()
         self.net = cv2.dnn.readNet(self.options.get('object_weights'),
                                    self.options.get('object_config'))
@@ -105,26 +105,26 @@ class Yolo(Base):
         if cv2_ver >= (4, 5, 4):
             # see https://github.com/opencv/opencv/issues/20923
             # we need to modify Yolo code not to expect a nested structure
-            g.logger.Debug(1, 'You are using OpenCV >= 4.5.4, making sure we fix getUnconnectedOutLayers() API')
+            g.logger.Debug(1, '{}: OpenCV >= 4.5.4, fixing getUnconnectedOutLayers() API'.format(self.name))
             self.is_get_unconnected_api_list = True
         g.logger.Debug(
-            1, 'perf: processor:{} Yolo initialization (loading {} model from disk) took: {}'
-            .format(self.processor, self.options.get('object_weights'), diff_time))
+            1, 'perf: processor:{} {} initialization (loading {} model from disk) took: {}'
+            .format(self.processor, self.name, self.options.get('object_weights'), diff_time))
         if self.processor == 'gpu':
 
             if cv2_ver < (4, 2, 0):
-                g.logger.Error('Not setting CUDA backend for OpenCV DNN')
+                g.logger.Error('{}: Not setting CUDA backend for OpenCV DNN'.format(self.name))
                 g.logger.Error(
-                    'You are using OpenCV version {} which does not support CUDA for DNNs. A minimum of 4.2 is required. See https://www.pyimagesearch.com/2020/02/03/how-to-use-opencvs-dnn-module-with-nvidia-gpus-cuda-and-cudnn/ on how to compile and install openCV 4.2'
-                    .format(cv2.__version__))
+                    '{}: OpenCV version {} does not support CUDA for DNNs. A minimum of 4.2 is required. See https://www.pyimagesearch.com/2020/02/03/how-to-use-opencvs-dnn-module-with-nvidia-gpus-cuda-and-cudnn/ on how to compile and install openCV 4.2'
+                    .format(self.name, cv2.__version__))
                 self.processor = 'cpu'
         else:
-            g.logger.Debug(1, 'Using CPU for detection')
+            g.logger.Debug(1, '{}: Using CPU for detection'.format(self.name))
 
         if self.processor == 'gpu':
-            g.logger.Debug(2, 'Setting CUDA backend for OpenCV')
+            g.logger.Debug(2, '{}: Setting CUDA backend for OpenCV'.format(self.name))
             g.logger.Debug(3,
-                           'If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy')
+                           '{}: If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy'.format(self.name))
             self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
             self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
 
@@ -144,7 +144,7 @@ class Yolo(Base):
 
     def detect(self, image=None):
         Height, Width = image.shape[:2]
-        g.logger.Debug(2, 'detect extracted image dimensions as: {}wx{}h'.format(Width, Height))
+        g.logger.Debug(2, '{}: detect extracted image dimensions as: {}wx{}h'.format(self.name, Width, Height))
         downscaled = False
         upsize_xfactor = None
         upsize_yfactor = None
@@ -153,7 +153,7 @@ class Yolo(Base):
 
         if Width > max_size:
             downscaled = True
-            g.logger.Debug(2, 'Scaling image down to max size: {}'.format(max_size))
+            g.logger.Debug(2, '{}: Scaling image down to max size: {}'.format(self.name, max_size))
             old_image = image.copy()
             image = imutils.resize(image, width=max_size)
             newHeight, newWidth = image.shape[:2]
@@ -168,8 +168,8 @@ class Yolo(Base):
                 self.load_model()
 
             g.logger.Debug(
-                1, '|---------- YOLO (input image: {}w*{}h, model resize dimensions: {}w*{}h) ----------|'
-                .format(Width, Height, self.model_width, self.model_height))
+                1, '|---------- {} (input image: {}w*{}h, model resize dimensions: {}w*{}h) ----------|'
+                .format(self.name, Width, Height, self.model_width, self.model_height))
 
             scale = 0.00392  # 1/255, really. Normalize inputs.
 
@@ -192,7 +192,7 @@ class Yolo(Base):
 
         diff_time = t.stop_and_get_ms()
         g.logger.Debug(
-            1, 'perf: processor:{} Yolo detection took: {}'.format(self.processor, diff_time))
+            1, 'perf: processor:{} {} detection took: {}'.format(self.processor, self.name, diff_time))
 
         class_ids = []
         confidences = []
@@ -226,7 +226,7 @@ class Yolo(Base):
         diff_time = t.stop_and_get_ms()
 
         g.logger.Debug(
-            2, 'perf: processor:{} Yolo NMS filtering took: {}'.format(self.processor, diff_time))
+            2, 'perf: processor:{} {} NMS filtering took: {}'.format(self.processor, self.name, diff_time))
 
         bbox = []
         label = []

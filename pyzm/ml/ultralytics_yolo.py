@@ -17,12 +17,13 @@ class UltralyticsDetector(Base):
         self.lock_maximum = int(options.get(self.processor + '_max_processes') or 1)
         self.lock_timeout = int(options.get(self.processor + '_max_lock_wait') or 120)
 
+        self.name = self.options.get('name') or 'Ultralytics'
         self.lock_name = 'pyzm_uid{}_{}_lock'.format(os.getuid(), self.processor)
 
         self.disable_locks = options.get('disable_locks', 'no')
         if self.disable_locks == 'no':
-            g.logger.Debug(2, 'portalock: max:{}, name:{}, timeout:{}'.format(
-                self.lock_maximum, self.lock_name, self.lock_timeout))
+            g.logger.Debug(2, '{}: portalock: max:{}, name:{}, timeout:{}'.format(
+                self.name, self.lock_maximum, self.lock_name, self.lock_timeout))
             self.lock = portalocker.BoundedSemaphore(
                 maximum=self.lock_maximum, name=self.lock_name,
                 timeout=self.lock_timeout)
@@ -33,29 +34,29 @@ class UltralyticsDetector(Base):
         if self.disable_locks == 'yes':
             return
         if self.is_locked:
-            g.logger.Debug(2, '{} portalock already acquired'.format(self.lock_name))
+            g.logger.Debug(2, '{}: {} portalock already acquired'.format(self.name, self.lock_name))
             return
         try:
-            g.logger.Debug(2, 'Waiting for {} portalock...'.format(self.lock_name))
+            g.logger.Debug(2, '{}: Waiting for {} portalock...'.format(self.name, self.lock_name))
             self.lock.acquire()
-            g.logger.Debug(2, 'Got {} portalock'.format(self.lock_name))
+            g.logger.Debug(2, '{}: Got {} portalock'.format(self.name, self.lock_name))
             self.is_locked = True
         except portalocker.AlreadyLocked:
-            g.logger.Error('Timeout waiting for {} portalock for {} seconds'.format(
-                self.lock_name, self.lock_timeout))
+            g.logger.Error('{}: Timeout waiting for {} portalock for {} seconds'.format(
+                self.name, self.lock_name, self.lock_timeout))
             raise ValueError(
-                'Timeout waiting for {} portalock for {} seconds'.format(
-                    self.lock_name, self.lock_timeout))
+                '{}: Timeout waiting for {} portalock for {} seconds'.format(
+                    self.name, self.lock_name, self.lock_timeout))
 
     def release_lock(self):
         if self.disable_locks == 'yes':
             return
         if not self.is_locked:
-            g.logger.Debug(2, '{} portalock already released'.format(self.lock_name))
+            g.logger.Debug(2, '{}: {} portalock already released'.format(self.name, self.lock_name))
             return
         self.lock.release()
         self.is_locked = False
-        g.logger.Debug(2, 'Released {} portalock'.format(self.lock_name))
+        g.logger.Debug(2, '{}: Released {} portalock'.format(self.name, self.lock_name))
 
     def get_options(self):
         return self.options
@@ -76,35 +77,34 @@ class UltralyticsDetector(Base):
     def load_model(self):
         from ultralytics import YOLO
 
-        name = self.options.get('name') or 'Ultralytics'
         weights_path = self.options.get('object_weights')
 
         if not os.path.isfile(weights_path):
             raise ValueError(
-                'Ultralytics weights file not found: {}. '
-                'Please download it manually.'.format(weights_path))
+                '{}: weights file not found: {}. '
+                'Please download it manually.'.format(self.name, weights_path))
 
-        g.logger.Debug(1, '|--------- Loading "{}" model from disk -------------|'.format(name))
+        g.logger.Debug(1, '|--------- Loading "{}" model from disk -------------|'.format(self.name))
         t = Timer()
         self.model = YOLO(weights_path)
         diff_time = t.stop_and_get_ms()
 
         if self.processor == 'gpu':
             self.device = 0
-            g.logger.Debug(1, 'Using GPU (CUDA device 0) for Ultralytics detection')
+            g.logger.Debug(1, '{}: Using GPU (CUDA device 0) for detection'.format(self.name))
         else:
             self.device = 'cpu'
-            g.logger.Debug(1, 'Using CPU for Ultralytics detection')
+            g.logger.Debug(1, '{}: Using CPU for detection'.format(self.name))
 
         g.logger.Debug(
-            1, 'perf: processor:{} Ultralytics initialization (loading {} model from disk) took: {}'
-            .format(self.processor, weights_path, diff_time))
+            1, 'perf: processor:{} {} initialization (loading {} model from disk) took: {}'
+            .format(self.processor, self.name, weights_path, diff_time))
 
         self.populate_class_labels()
 
     def detect(self, image=None):
         Height, Width = image.shape[:2]
-        g.logger.Debug(2, 'detect extracted image dimensions as: {}wx{}h'.format(Width, Height))
+        g.logger.Debug(2, '{}: detect extracted image dimensions as: {}wx{}h'.format(self.name, Width, Height))
 
         if self.options.get('auto_lock', True):
             self.acquire_lock()
@@ -117,8 +117,8 @@ class UltralyticsDetector(Base):
             nms_threshold = 0.4
 
             g.logger.Debug(
-                1, '|---------- Ultralytics (input image: {}w*{}h, imgsz: {}) ----------|'
-                .format(Width, Height, self.imgsz))
+                1, '|---------- {} (input image: {}w*{}h, imgsz: {}) ----------|'
+                .format(self.name, Width, Height, self.imgsz))
 
             t = Timer()
             results = self.model.predict(
@@ -139,8 +139,8 @@ class UltralyticsDetector(Base):
 
         diff_time = t.stop_and_get_ms()
         g.logger.Debug(
-            1, 'perf: processor:{} Ultralytics detection took: {}'.format(
-                self.processor, diff_time))
+            1, 'perf: processor:{} {} detection took: {}'.format(
+                self.processor, self.name, diff_time))
 
         bbox = []
         label = []
