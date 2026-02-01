@@ -675,8 +675,11 @@ class DetectSequence(Base):
                     try:
                         self._load_models([seq])
                         if manual_locking:
+                            acquired_locks = set()
                             for m in self.models[seq]:
-                                m.acquire_lock()
+                                if m.lock_name not in acquired_locks:
+                                    m.acquire_lock()
+                                    acquired_locks.add(m.lock_name)
                     except Exception as e:
                         g.logger.Error('Error loading model for {}:{}'.format(seq,e))
                         g.logger.Debug(2, traceback.format_exc())
@@ -803,10 +806,13 @@ class DetectSequence(Base):
                 matched_frame_img = matched_images[idx]
 
         if manual_locking:
+            released_locks = set()
             for seq in self.model_sequence:
                 if seq in self.models:
                     for m in self.models[seq]:
-                        m.release_lock()
+                        if m.lock_name not in released_locks:
+                            m.release_lock()
+                            released_locks.add(m.lock_name)
                 else:
                     g.logger.Debug(2, '{} not in self.models'.format(seq))
 
