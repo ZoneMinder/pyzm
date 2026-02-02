@@ -51,8 +51,16 @@ class Yolo(Base):
                                                                               self.lock_timeout))
             self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,
                                                      timeout=self.lock_timeout)
-        self.model_height = self.options.get('model_height', 416)
-        self.model_width = self.options.get('model_width', 416)
+
+        # Detect ONNX format from weights file extension
+        weights_path = self.options.get('object_weights', '')
+        self.is_onnx = weights_path.lower().endswith('.onnx')
+
+        # ONNX models (e.g. ultralytics exports) default to 640x640;
+        # Darknet models default to 416x416
+        default_dim = 640 if self.is_onnx else 416
+        self.model_height = self.options.get('model_height', default_dim)
+        self.model_width = self.options.get('model_width', default_dim)
 
     def acquire_lock(self):
         if self.disable_locks == 'yes':
@@ -96,9 +104,12 @@ class Yolo(Base):
     def load_model(self):
         g.logger.Debug(1, '|--------- Loading "{}" model from disk -------------|'.format(self.name))
         t = Timer()
-        self.net = cv2.dnn.readNet(self.options.get('object_weights'),
-                                   self.options.get('object_config'))
-        # self.net = cv2.dnn.readNetFromDarknet(config_file_abs_path, weights_file_abs_path)
+        weights = self.options.get('object_weights')
+        if self.is_onnx:
+            g.logger.Debug(1, '{}: ONNX model detected, using readNetFromONNX'.format(self.name))
+            self.net = cv2.dnn.readNetFromONNX(weights)
+        else:
+            self.net = cv2.dnn.readNet(weights, self.options.get('object_config'))
         diff_time = t.stop_and_get_ms()
 
         cv2_ver = cv2_version()
@@ -174,14 +185,21 @@ class Yolo(Base):
             scale = 0.00392  # 1/255, really. Normalize inputs.
 
             t = Timer()
-            ln = self.get_output_layers()
-            blob = cv2.dnn.blobFromImage(image,
-                                         scale, (self.model_width, self.model_height), (0, 0, 0),
-                                         True,
-                                         crop=False)
-
-            self.net.setInput(blob)
-            outs = self.net.forward(ln)
+            if self.is_onnx:
+                blob = cv2.dnn.blobFromImage(image,
+                                             scale, (self.model_width, self.model_height), (0, 0, 0),
+                                             True,
+                                             crop=False)
+                self.net.setInput(blob)
+                outs = self.net.forward()
+            else:
+                ln = self.get_output_layers()
+                blob = cv2.dnn.blobFromImage(image,
+                                             scale, (self.model_width, self.model_height), (0, 0, 0),
+                                             True,
+                                             crop=False)
+                self.net.setInput(blob)
+                outs = self.net.forward(ln)
 
             if self.options.get('auto_lock', True):
                 self.release_lock()
@@ -205,20 +223,54 @@ class Yolo(Base):
         if float(self.options.get('object_min_confidence')) < conf_threshold:
             conf_threshold = float(self.options.get('object_min_confidence'))
 
-        for out in outs:
-            for detection in out:
-                scores = detection[5:]
-                class_id = np.argmax(scores)
-                confidence = scores[class_id]
-                center_x = int(detection[0] * Width)
-                center_y = int(detection[1] * Height)
-                w = int(detection[2] * Width)
-                h = int(detection[3] * Height)
-                x = center_x - w / 2
-                y = center_y - h / 2
+        if self.is_onnx:
+            # Ultralytics ONNX output: (1, 4+num_classes, num_predictions)
+            # Squeeze batch dim, transpose to (num_predictions, 4+num_classes)
+            output = outs[0]
+            if output.ndim == 3:
+                output = output.squeeze(0)  # remove batch dim
+            predictions = output.T  # (8400, 84) for COCO 80-class
+
+            # Scale factors from model input size to actual image size
+            x_factor = Width / self.model_width
+            y_factor = Height / self.model_height
+
+            for pred in predictions:
+                # First 4 values: cx, cy, w, h in model input pixel coords
+                # Remaining values: class scores (no objectness in ultralytics format)
+                class_scores = pred[4:]
+                class_id = np.argmax(class_scores)
+                confidence = class_scores[class_id]
+                if confidence < conf_threshold:
+                    continue
+
+                cx, cy, bw, bh = pred[0], pred[1], pred[2], pred[3]
+                # Convert to top-left x,y and scale to original image
+                x = (cx - bw / 2) * x_factor
+                y = (cy - bh / 2) * y_factor
+                w = bw * x_factor
+                h = bh * y_factor
+
                 class_ids.append(class_id)
                 confidences.append(float(confidence))
                 boxes.append([x, y, w, h])
+        else:
+            # Darknet output: list of arrays, each row is
+            # (cx, cy, w, h, obj_conf, class_scores...)
+            for out in outs:
+                for detection in out:
+                    scores = detection[5:]
+                    class_id = np.argmax(scores)
+                    confidence = scores[class_id]
+                    center_x = int(detection[0] * Width)
+                    center_y = int(detection[1] * Height)
+                    w = int(detection[2] * Width)
+                    h = int(detection[3] * Height)
+                    x = center_x - w / 2
+                    y = center_y - h / 2
+                    class_ids.append(class_id)
+                    confidences.append(float(confidence))
+                    boxes.append([x, y, w, h])
 
         t = Timer()
         indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold,
