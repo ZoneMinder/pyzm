@@ -45,14 +45,6 @@ class Object(Base):
                 g.logger.Error('Module {} not found. Please install with: sudo pip3 install {}'.format(e.name, e.name))
                 raise e
 
-        elif self.options.get('object_framework') == 'ultralytics':
-            try:
-                import pyzm.ml.ultralytics_yolo as ultralytics_yolo
-                self.model = ultralytics_yolo.UltralyticsDetector(options=options)
-            except ModuleNotFoundError as e:
-                g.logger.Error('Module {} not found. Please install with: sudo pip3 install {}'.format(e.name, e.name))
-                raise e
-
         else:
             raise ValueError ('Invalid object_framework:{}'.format(self.options.get('object_framework')))
 

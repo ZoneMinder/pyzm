@@ -90,7 +90,6 @@ setup(name = NAME,
                     'pyzm.ml.hog',
                     'pyzm.ml.virelai',
                     'pyzm.ml.yolo',
-                    'pyzm.ml.ultralytics_yolo',
                     'pyzm.ml.detect_sequence'
                     ]
       )
