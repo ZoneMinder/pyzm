@@ -53,14 +53,9 @@ def get(key=None, section=None, conf=None):
 
 
 def template_fill(input_str=None, config=None, secrets=None):
-    class Formatter(dict):
-        def __missing__(self, key):
-            return "MISSING-{}".format(key)
-
     res = input_str
     if config:
-        #res = input_str.format_map(Formatter(config)).format_map(Formatter(config))
-        p = r'{{(\w+?)}}'
+        p = r'\$\{(\w+?)\}'
         res = re.sub(p, lambda m: config.get(m.group(1), 'MISSING-{}'.format(m.group(1))), res)
     if secrets:
         p = r'!(\w+)'
