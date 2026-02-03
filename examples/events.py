@@ -12,7 +12,7 @@ print ('Using pyzm version: {}'.format(pyzm.__version__))
 
 g.logger.set_level(2)
 
-conf = utils.read_config('/etc/zm/secrets.ini')
+conf = utils.read_config('/etc/zm/secrets.yml')
 api_options  = {
     'apiurl': utils.get(key='ZM_API_PORTAL', section='secrets', conf=conf),
     'portalurl':utils.get(key='ZM_PORTAL', section='secrets', conf=conf),

@@ -20,7 +20,7 @@ if len(sys.argv) == 1:
 else:
     stream = sys.argv[1]
 
-conf = utils.read_config('/etc/zm/secrets.ini')
+conf = utils.read_config('/etc/zm/secrets.yml')
 
 ml_options = {
     'general': {

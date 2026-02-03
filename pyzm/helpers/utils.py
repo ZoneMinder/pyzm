@@ -4,11 +4,11 @@ utils
 Set of utility functions
 """
 
-from configparser import ConfigParser
 import cv2
 import numpy as np
 import re
 import time
+import yaml
 import pyzm.helpers.globals as g
 
 
@@ -42,16 +42,14 @@ class Timer:
         return self.get_ms()
 
 def read_config(file):
-    config_file = ConfigParser(interpolation=None,inline_comment_prefixes='#')
-    config_file.read(file)
-    return config_file
+    """Read a YAML config file. Returns a dict."""
+    with open(file) as f:
+        data = yaml.safe_load(f)
+    return data if data else {}
 
-# wtf is this?
 def get(key=None, section=None, conf=None):
-    if conf.has_option(section, key):
-        return conf.get(section, key)
-    else:
-        return None
+    """Get a value from a config dict."""
+    return conf.get(section, {}).get(key)
 
 
 def template_fill(input_str=None, config=None, secrets=None):
