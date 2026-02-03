@@ -1,16 +1,12 @@
 import numpy as np
-
-import sys
 import cv2
-import time
-import datetime
 import re
 from pyzm.helpers.Base import Base
 import portalocker
 import os
 from pyzm.helpers.utils import Timer
 import pyzm.helpers.globals as g
-import imutils
+
 
 # cv2 version check for unconnected layers fix
 def cv2_version() -> tuple:
@@ -22,16 +18,20 @@ def cv2_version() -> tuple:
     minor = int(parts[1]) if len(parts) > 1 else 0
     patch = int(parts[2]) if len(parts) > 2 else 0
     return (maj, minor, patch)
-    
-# Class to handle Yolo based detection
 
 
-class Yolo(Base):
+class YoloBase(Base):
+    """Shared base class for YOLO backends (Darknet and ONNX).
 
-    # The actual CNN object detection code
+    Subclasses must implement:
+      - load_model()
+      - _forward_and_parse(blob, Width, Height, conf_threshold)
+            -> (class_ids, confidences, boxes)
+    """
+
     # opencv DNN code credit: https://github.com/arunponnusamy/cvlib
 
-    def __init__(self, options={}):
+    def __init__(self, options={}, default_dim=416):
         self.net = None
         self.classes = None
         self.options = options
@@ -39,10 +39,8 @@ class Yolo(Base):
         self.processor = self.options.get('object_processor') or 'cpu'
         self.lock_maximum = int(options.get(self.processor + '_max_processes') or 1)
         self.lock_timeout = int(options.get(self.processor + '_max_lock_wait') or 120)
-        self.is_get_unconnected_api_list = False
         self.name = self.options.get('name') or 'Yolo'
 
-        # self.lock_name='pyzm_'+self.processor+'_lock'
         self.lock_name = 'pyzm_uid{}_{}_lock'.format(os.getuid(), self.processor)
 
         self.disable_locks = options.get('disable_locks', 'no')
@@ -52,13 +50,6 @@ class Yolo(Base):
             self.lock = portalocker.BoundedSemaphore(maximum=self.lock_maximum, name=self.lock_name,
                                                      timeout=self.lock_timeout)
 
-        # Detect ONNX format from weights file extension
-        weights_path = self.options.get('object_weights', '')
-        self.is_onnx = weights_path.lower().endswith('.onnx')
-
-        # ONNX models (e.g. ultralytics exports) default to 640x640;
-        # Darknet models default to 416x416
-        default_dim = 640 if self.is_onnx else 416
         self.model_height = self.options.get('model_height', default_dim)
         self.model_width = self.options.get('model_width', default_dim)
 
@@ -92,37 +83,18 @@ class Yolo(Base):
     def get_options(self):
         return self.options
 
+    def get_classes(self):
+        return self.classes
+
     def populate_class_labels(self):
         class_file_abs_path = self.options.get('object_labels')
         f = open(class_file_abs_path, 'r')
         self.classes = [line.strip() for line in f.readlines()]
         f.close()
 
-    def get_classes(self):
-        return self.classes
-
-    def load_model(self):
-        g.logger.Debug(1, '|--------- Loading "{}" model from disk -------------|'.format(self.name))
-        t = Timer()
-        weights = self.options.get('object_weights')
-        if self.is_onnx:
-            g.logger.Debug(1, '{}: ONNX model detected, using readNetFromONNX'.format(self.name))
-            self.net = cv2.dnn.readNetFromONNX(weights)
-        else:
-            self.net = cv2.dnn.readNet(weights, self.options.get('object_config'))
-        diff_time = t.stop_and_get_ms()
-
-        cv2_ver = cv2_version()
-        if cv2_ver >= (4, 5, 4):
-            # see https://github.com/opencv/opencv/issues/20923
-            # we need to modify Yolo code not to expect a nested structure
-            g.logger.Debug(1, '{}: OpenCV >= 4.5.4, fixing getUnconnectedOutLayers() API'.format(self.name))
-            self.is_get_unconnected_api_list = True
-        g.logger.Debug(
-            1, 'perf: processor:{} {} initialization (loading {} model from disk) took: {}'
-            .format(self.processor, self.name, self.options.get('object_weights'), diff_time))
+    def _setup_gpu(self, cv2_ver):
+        """Configure CUDA backend if processor is 'gpu' and OpenCV supports it."""
         if self.processor == 'gpu':
-
             if cv2_ver < (4, 2, 0):
                 g.logger.Error('{}: Not setting CUDA backend for OpenCV DNN'.format(self.name))
                 g.logger.Error(
@@ -139,37 +111,22 @@ class Yolo(Base):
             self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
             self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
 
-        self.populate_class_labels()
+    def load_model(self):
+        raise NotImplementedError
 
-    def get_output_layers(self):
-        layer_names = self.net.getLayerNames()
-        if self.is_get_unconnected_api_list:
-            output_layers = [
-                layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()
-            ]
-        else:
-            output_layers = [
-                layer_names[i[0] - 1] for i in self.net.getUnconnectedOutLayers()
-            ]
-        return output_layers
+    def _forward_and_parse(self, blob, Width, Height, conf_threshold):
+        raise NotImplementedError
+
+    def _create_blob(self, image):
+        scale = 0.00392  # 1/255, normalize to [0, 1]
+        return cv2.dnn.blobFromImage(image,
+                                     scale, (self.model_width, self.model_height), (0, 0, 0),
+                                     True,
+                                     crop=False)
 
     def detect(self, image=None):
         Height, Width = image.shape[:2]
         g.logger.Debug(2, '{}: detect extracted image dimensions as: {}wx{}h'.format(self.name, Width, Height))
-        downscaled = False
-        upsize_xfactor = None
-        upsize_yfactor = None
-        max_size = self.options.get('max_size', Width)
-        old_image = None
-
-        if Width > max_size:
-            downscaled = True
-            g.logger.Debug(2, '{}: Scaling image down to max size: {}'.format(self.name, max_size))
-            old_image = image.copy()
-            image = imutils.resize(image, width=max_size)
-            newHeight, newWidth = image.shape[:2]
-            upsize_xfactor = Width / newWidth
-            upsize_yfactor = Height / newHeight
 
         if self.options.get('auto_lock', True):
             self.acquire_lock()
@@ -182,24 +139,17 @@ class Yolo(Base):
                 1, '|---------- {} (input image: {}w*{}h, model resize dimensions: {}w*{}h) ----------|'
                 .format(self.name, Width, Height, self.model_width, self.model_height))
 
-            scale = 0.00392  # 1/255, really. Normalize inputs.
-
             t = Timer()
-            if self.is_onnx:
-                blob = cv2.dnn.blobFromImage(image,
-                                             scale, (self.model_width, self.model_height), (0, 0, 0),
-                                             True,
-                                             crop=False)
-                self.net.setInput(blob)
-                outs = self.net.forward()
-            else:
-                ln = self.get_output_layers()
-                blob = cv2.dnn.blobFromImage(image,
-                                             scale, (self.model_width, self.model_height), (0, 0, 0),
-                                             True,
-                                             crop=False)
-                self.net.setInput(blob)
-                outs = self.net.forward(ln)
+            blob = self._create_blob(image)
+
+            nms_threshold = 0.4
+            conf_threshold = 0.2
+
+            # first nms filter out with a yolo confidence of 0.2 (or less)
+            if float(self.options.get('object_min_confidence')) < conf_threshold:
+                conf_threshold = float(self.options.get('object_min_confidence'))
+
+            class_ids, confidences, boxes = self._forward_and_parse(blob, Width, Height, conf_threshold)
 
             if self.options.get('auto_lock', True):
                 self.release_lock()
@@ -212,81 +162,19 @@ class Yolo(Base):
         g.logger.Debug(
             1, 'perf: processor:{} {} detection took: {}'.format(self.processor, self.name, diff_time))
 
-        class_ids = []
-        confidences = []
-        boxes = []
-
-        nms_threshold = 0.4
-        conf_threshold = 0.2
-
-        # first nms filter out with a yolo confidence of 0.2 (or less)
-        if float(self.options.get('object_min_confidence')) < conf_threshold:
-            conf_threshold = float(self.options.get('object_min_confidence'))
-
-        if self.is_onnx:
-            # Ultralytics ONNX output: (1, 4+num_classes, num_predictions)
-            # Squeeze batch dim, transpose to (num_predictions, 4+num_classes)
-            output = outs[0]
-            if output.ndim == 3:
-                output = output.squeeze(0)  # remove batch dim
-            predictions = output.T  # (8400, 84) for COCO 80-class
-
-            # Scale factors from model input size to actual image size
-            x_factor = Width / self.model_width
-            y_factor = Height / self.model_height
-
-            for pred in predictions:
-                # First 4 values: cx, cy, w, h in model input pixel coords
-                # Remaining values: class scores (no objectness in ultralytics format)
-                class_scores = pred[4:]
-                class_id = np.argmax(class_scores)
-                confidence = class_scores[class_id]
-                if confidence < conf_threshold:
-                    continue
-
-                cx, cy, bw, bh = pred[0], pred[1], pred[2], pred[3]
-                # Convert to top-left x,y and scale to original image
-                x = (cx - bw / 2) * x_factor
-                y = (cy - bh / 2) * y_factor
-                w = bw * x_factor
-                h = bh * y_factor
-
-                class_ids.append(class_id)
-                confidences.append(float(confidence))
-                boxes.append([x, y, w, h])
-        else:
-            # Darknet output: list of arrays, each row is
-            # (cx, cy, w, h, obj_conf, class_scores...)
-            for out in outs:
-                for detection in out:
-                    scores = detection[5:]
-                    class_id = np.argmax(scores)
-                    confidence = scores[class_id]
-                    center_x = int(detection[0] * Width)
-                    center_y = int(detection[1] * Height)
-                    w = int(detection[2] * Width)
-                    h = int(detection[3] * Height)
-                    x = center_x - w / 2
-                    y = center_y - h / 2
-                    class_ids.append(class_id)
-                    confidences.append(float(confidence))
-                    boxes.append([x, y, w, h])
-
         t = Timer()
         indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold,
                                    nms_threshold)
         diff_time = t.stop_and_get_ms()
-
         g.logger.Debug(
             2, 'perf: processor:{} {} NMS filtering took: {}'.format(self.processor, self.name, diff_time))
+        # NMSBoxes returns flat indices in OpenCV >= 4.5.4, nested [[i]] before that
+        indices = np.array(indices).flatten()
 
         bbox = []
         label = []
         conf = []
 
-        # now filter out with configured yolo confidence, so we can see rejections in log
-        # NMSBoxes returns flat indices in OpenCV >= 4.5.4, nested [[i]] before that
-        indices = np.array(indices).flatten()
         for i in indices:
             box = boxes[i]
             x = box[0]
@@ -303,14 +191,15 @@ class Yolo(Base):
             label.append(str(self.classes[class_ids[i]]))
             conf.append(confidences[i])
 
-        if downscaled:
-            g.logger.Debug(2, 'Scaling image back up to {}'.format(Width))
-            image = old_image
-            for box in bbox:
-                box[0] = round(box[0] * upsize_xfactor)
-                box[1] = round(box[1] * upsize_yfactor)
-                box[2] = round(box[2] * upsize_xfactor)
-                box[3] = round(box[3] * upsize_yfactor)
-
         return bbox, label, conf, ['yolo'] * len(label)
 
+
+def Yolo(options={}):
+    """Factory function: returns YoloDarknet or YoloOnnx based on weights file extension."""
+    weights_path = options.get('object_weights', '')
+    if weights_path.lower().endswith('.onnx'):
+        from pyzm.ml.yolo_onnx import YoloOnnx
+        return YoloOnnx(options)
+    else:
+        from pyzm.ml.yolo_darknet import YoloDarknet
+        return YoloDarknet(options)

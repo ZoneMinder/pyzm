@@ -27,7 +27,8 @@ INSTALL_REQUIRES=[
     'numpy >=1.13.3',
     'Pillow',
     'psutil >=5.7.3',
-    'python-dotenv'
+    'python-dotenv',
+    'onnx>=1.12.0'
     ]
 
 
@@ -90,6 +91,8 @@ setup(name = NAME,
                     'pyzm.ml.hog',
                     'pyzm.ml.virelai',
                     'pyzm.ml.yolo',
+                    'pyzm.ml.yolo_darknet',
+                    'pyzm.ml.yolo_onnx',
                     'pyzm.ml.detect_sequence'
                     ]
       )
