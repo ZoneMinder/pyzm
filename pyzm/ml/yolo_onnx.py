@@ -66,11 +66,14 @@ class YoloOnnx(YoloBase):
         g.logger.Debug(1, '|--------- Loading "{}" model from disk -------------|'.format(self.name))
         t = Timer()
         weights = self.options.get('object_weights')
+        cv2_ver = cv2_version()
+        if cv2_ver < (4, 13, 0):
+            g.logger.Warning('{}: OpenCV {} may not support all ONNX operators (e.g. TopK). '
+                             'OpenCV 4.13+ is recommended for ONNX YOLOv26 models.'.format(self.name, cv2.__version__))
         g.logger.Debug(1, '{}: ONNX model detected, using readNetFromONNX'.format(self.name))
         self.net = cv2.dnn.readNetFromONNX(weights)
         diff_time = t.stop_and_get_ms()
 
-        cv2_ver = cv2_version()
         g.logger.Debug(
             1, 'perf: processor:{} {} initialization (loading {} model from disk) took: {}'
             .format(self.processor, self.name, weights, diff_time))
