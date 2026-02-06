@@ -108,8 +108,14 @@ class YoloBase(Base):
             g.logger.Debug(2, '{}: Setting CUDA backend for OpenCV'.format(self.name))
             g.logger.Debug(3,
                            '{}: If you did not set your CUDA_ARCH_BIN correctly during OpenCV compilation, you will get errors during detection related to invalid device/make_policy'.format(self.name))
-            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+            try:
+                self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+                self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+            except Exception as e:
+                g.logger.Error('{}: Failed to set CUDA backend: {}. Falling back to CPU.'.format(self.name, e))
+                self.processor = 'cpu'
+                self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
 
     def load_model(self):
         raise NotImplementedError
@@ -149,7 +155,17 @@ class YoloBase(Base):
             if float(self.options.get('object_min_confidence')) < conf_threshold:
                 conf_threshold = float(self.options.get('object_min_confidence'))
 
-            class_ids, confidences, boxes = self._forward_and_parse(blob, Width, Height, conf_threshold)
+            try:
+                class_ids, confidences, boxes = self._forward_and_parse(blob, Width, Height, conf_threshold)
+            except cv2.error as e:
+                if self.processor == 'gpu':
+                    g.logger.Error('{}: GPU inference failed: {}. Falling back to CPU.'.format(self.name, e))
+                    self.processor = 'cpu'
+                    self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                    self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+                    class_ids, confidences, boxes = self._forward_and_parse(blob, Width, Height, conf_threshold)
+                else:
+                    raise
 
             if self.options.get('auto_lock', True):
                 self.release_lock()
