@@ -179,6 +179,11 @@ def init(name=None, override={}):
         'driver': os.getenv('PYZM_DBDRIVER','mysql+mysqlconnector')
     }
 
+    # Apply defaults for any config values that are None (unset env vars)
+    for key, val in defaults.items():
+        if config.get(key) is None and val is not None:
+            config[key] = val
+
     # Round 1 of overrides, before we read params from DB
     # Override with locals if present
     for key in override:
@@ -196,12 +201,15 @@ def init(name=None, override={}):
     files.insert(0,config['conf_path']+'/zm.conf')
     config_file = configparser.ConfigParser(interpolation=None, inline_comment_prefixes='#')
     for f in files:
+        if not os.path.exists(f):
+            syslog.syslog(syslog.LOG_WARNING, _format_string('Config file not found: {}, skipping'.format(f)))
+            continue
         with open(f) as s:
             #print ('reading {}'.format(f))
             config_file.read_string('[zm_root]\n' + s.read())
             s.close()
     # config_file will now contained merged data
-    conf_data=config_file['zm_root']
+    conf_data=config_file['zm_root'] if config_file.has_section('zm_root') else {}
 
     if not config.get('dbuser'):
         config['dbuser'] = conf_data.get('ZM_DB_USER')
