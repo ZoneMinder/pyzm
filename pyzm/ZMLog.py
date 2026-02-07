@@ -251,8 +251,8 @@ def init(name=None, override={}):
             connected = False
             syslog.syslog (syslog.LOG_ERR, _format_string("Turning DB logging off. Could not connect to DB, message was:" + str(e)))
             config['log_level_db'] = levels['OFF']
-            return
 
+    if connected:
         select_st = select([config_table.c.Name, config_table.c.Value]).where(
                 or_(config_table.c.Name=='ZM_LOG_LEVEL_SYSLOG',
                     config_table.c.Name=='ZM_LOG_LEVEL_FILE',
