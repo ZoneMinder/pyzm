@@ -20,7 +20,7 @@ import pyzm.helpers.globals as g
 
 class MediaStream(Base):
     def __init__(self, stream=None, type='video', options={}):
-        self.stream = stream
+        self.stream = str(stream).strip() if stream else stream
         self.type = type
         self.fvs = None
         self.next_frameid_to_read = 1
