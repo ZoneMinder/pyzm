@@ -216,10 +216,10 @@ class ZMMemory(Base):
         self.td = t._asdict()
 
         for key in ['alarm_cause', 'control_state', 'audio_fifo', 'video_fifo']:
-            self.sd[key] = self.sd[key].split(b'\0',1)[0].decode()
-        self.td['trigger_cause'] = self.td['trigger_cause'].split(b'\0',1)[0].decode()
-        self.td['trigger_text'] = self.td['trigger_text'].split(b'\0',1)[0].decode()
-        self.td['trigger_showtext'] = self.td['trigger_showtext'].split(b'\0',1)[0].decode()
+            self.sd[key] = self.sd[key].split(b'\0',1)[0].decode(errors='replace')
+        self.td['trigger_cause'] = self.td['trigger_cause'].split(b'\0',1)[0].decode(errors='replace')
+        self.td['trigger_text'] = self.td['trigger_text'].split(b'\0',1)[0].decode(errors='replace')
+        self.td['trigger_showtext'] = self.td['trigger_showtext'].split(b'\0',1)[0].decode(errors='replace')
         return {'shared_data': self.sd, 'trigger_data': self.td}
 
 
