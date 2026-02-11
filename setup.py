@@ -102,6 +102,8 @@ setup(name = NAME,
                     'pyzm.ml.backends.rekognition',
 
                     # Low-level ML implementations (wrapped by v2 backends)
+                    'pyzm.ml.alpr',
+                    'pyzm.ml.face',
                     'pyzm.ml.face_dlib',
                     'pyzm.ml.face_tpu',
                     'pyzm.ml.face_train_dlib',
