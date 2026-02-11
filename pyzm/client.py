@@ -18,6 +18,7 @@ Usage::
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from pyzm.models.config import StreamConfig, ZMClientConfig
@@ -286,6 +287,56 @@ class ZMClient:
 
         conn.commit()
         cur.close()
+
+    # ------------------------------------------------------------------
+    # Event path
+    # ------------------------------------------------------------------
+
+    def event_path(self, event_id: int) -> str | None:
+        """Construct the filesystem path for an event, same as ZoneMinder::Event->Path().
+
+        Queries the DB for StoragePath, Scheme, MonitorId, and StartDateTime,
+        then builds the relative path based on the storage scheme.
+        """
+        from datetime import datetime as _dt
+        from pyzm.zm.db import get_zm_db
+
+        conn = get_zm_db()
+        if conn is None:
+            logger.warning("Cannot resolve event path: DB unavailable")
+            return None
+
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT E.MonitorId, E.StartDateTime, S.Path AS StoragePath, S.Scheme "
+            "FROM Events E JOIN Storage S ON E.StorageId = S.Id WHERE E.Id=%s",
+            (event_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row or not row["StoragePath"] or not row["StartDateTime"]:
+            logger.warning("Cannot resolve event path: missing DB fields for event %s", event_id)
+            return None
+
+        storage_path = row["StoragePath"]
+        monitor_id = row["MonitorId"]
+        scheme = (row.get("Scheme") or "Medium").capitalize()
+        start_dt = row["StartDateTime"]
+        if isinstance(start_dt, str):
+            start_dt = _dt.strptime(start_dt, "%Y-%m-%d %H:%M:%S")
+
+        if scheme == "Deep":
+            relative = "{}/{}".format(monitor_id, start_dt.strftime("%y/%m/%d/%H/%M/%S"))
+        elif scheme == "Medium":
+            relative = "{}/{}/{}".format(monitor_id, start_dt.strftime("%Y-%m-%d"), event_id)
+        else:
+            relative = "{}/{}".format(monitor_id, event_id)
+
+        path = os.path.join(storage_path, relative)
+        logger.debug("Event %s path (scheme=%s): %s", event_id, scheme, path)
+        return path
 
     # ------------------------------------------------------------------
     # Frames
