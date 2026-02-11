@@ -1,0 +1,264 @@
+"""Pure functions for filtering detections.
+
+Every function takes and returns :class:`Detection` / :class:`BBox` objects
+from :mod:`pyzm.models.detection`.  Heavy dependencies (Shapely, pickle) are
+imported at function level so they remain optional.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import re
+from typing import TYPE_CHECKING
+
+from pyzm.models.detection import BBox, Detection
+
+if TYPE_CHECKING:
+    pass
+
+logger = logging.getLogger("pyzm.ml")
+
+
+# ---------------------------------------------------------------------------
+# Zone filtering
+# ---------------------------------------------------------------------------
+
+def filter_by_zone(
+    detections: list[Detection],
+    zones: list[dict],
+    image_shape: tuple[int, int],
+) -> tuple[list[Detection], list[BBox]]:
+    """Keep only detections whose bounding box intersects at least one zone.
+
+    Parameters
+    ----------
+    detections:
+        Raw detections from a backend.
+    zones:
+        Each zone is a dict-like with ``name`` (str), ``points``
+        (list of (x, y) tuples), and optionally ``pattern`` (str | None).
+        These can be :class:`pyzm.models.zm.Zone` objects turned into dicts
+        via :meth:`as_dict`, or simple dicts.
+    image_shape:
+        ``(height, width)`` of the analysed image.  If *zones* is empty a
+        full-image zone is synthesised.
+
+    Returns
+    -------
+    kept:
+        Detections that intersect at least one zone and whose label matches
+        the zone's pattern (or the default ``.*``).
+    error_boxes:
+        Bounding boxes of detections that were filtered out.
+    """
+    # No zones = no filtering, pass everything through.
+    if not zones:
+        return detections, []
+
+    from shapely.geometry import Polygon  # optional dependency
+
+    h, w = image_shape
+
+    kept: list[Detection] = []
+    error_boxes: list[BBox] = []
+
+    for det in detections:
+        bbox_poly = Polygon(det.bbox.as_polygon_coords())
+        matched = False
+
+        for zone in zones:
+            # Normalise: accept Zone objects or dicts with 'value'/'points' key
+            zone_points = zone.get("points") or zone.get("value", [])
+            zone_pattern = zone.get("pattern")
+            zone_name = zone.get("name", "unnamed")
+
+            zone_poly = Polygon(zone_points)
+            if not bbox_poly.intersects(zone_poly):
+                logger.debug(
+                    "filter_by_zone: %s does NOT intersect zone %s",
+                    det.label, zone_name,
+                )
+                continue
+
+            # Zone intersects -- now check the pattern
+            pattern = zone_pattern or ".*"
+            if re.match(pattern, det.label):
+                logger.debug(
+                    "filter_by_zone: %s intersects zone %s and matches pattern %s",
+                    det.label, zone_name, pattern,
+                )
+                kept.append(det)
+                matched = True
+                break  # matched on first zone is enough
+            else:
+                logger.debug(
+                    "filter_by_zone: %s intersects zone %s but does NOT match pattern %s",
+                    det.label, zone_name, pattern,
+                )
+
+        if not matched:
+            error_boxes.append(det.bbox)
+
+    return kept, error_boxes
+
+
+# ---------------------------------------------------------------------------
+# Size filtering
+# ---------------------------------------------------------------------------
+
+def _parse_size_spec(spec: str, total_area: int) -> float:
+    """Parse a size spec like ``"50%"`` or ``"300px"`` into absolute pixels."""
+    m = re.match(r"(\d*\.?\d+)(px|%)?$", spec, re.IGNORECASE)
+    if not m:
+        logger.error("Invalid size spec: %s", spec)
+        return 0.0
+    value = float(m.group(1))
+    unit = m.group(2)
+    if unit == "%":
+        return value / 100.0 * total_area
+    # Default (no unit or "px") -> absolute pixels
+    return value
+
+
+def filter_by_size(
+    detections: list[Detection],
+    max_size: str | None,
+    image_shape: tuple[int, int],
+) -> list[Detection]:
+    """Filter detections whose area exceeds *max_size*.
+
+    *max_size* may be ``"50%"`` (of image area) or ``"300px"`` (absolute
+    pixel area).  If *max_size* is ``None`` or empty, all detections pass.
+    """
+    if not max_size:
+        return detections
+
+    h, w = image_shape
+    max_area = _parse_size_spec(max_size, h * w)
+    if max_area <= 0:
+        return detections
+
+    kept: list[Detection] = []
+    for det in detections:
+        if det.bbox.area > max_area:
+            logger.debug(
+                "filter_by_size: dropping %s (area %d > max %d)",
+                det.label, det.bbox.area, int(max_area),
+            )
+        else:
+            kept.append(det)
+    return kept
+
+
+# ---------------------------------------------------------------------------
+# Pattern filtering
+# ---------------------------------------------------------------------------
+
+def filter_by_pattern(
+    detections: list[Detection],
+    pattern: str,
+) -> list[Detection]:
+    """Keep only detections whose label matches *pattern* (regex)."""
+    if not pattern or pattern == ".*":
+        return detections
+
+    compiled = re.compile(pattern)
+    kept: list[Detection] = []
+    for det in detections:
+        if compiled.match(det.label):
+            kept.append(det)
+        else:
+            logger.debug(
+                "filter_by_pattern: dropping %s (does not match %s)",
+                det.label, pattern,
+            )
+    return kept
+
+
+# ---------------------------------------------------------------------------
+# Past-detection filtering
+# ---------------------------------------------------------------------------
+
+def filter_past_detections(
+    detections: list[Detection],
+    past_file: str,
+    max_diff_area: str = "5%",
+) -> list[Detection]:
+    """Compare detections with pickle-stored past detections and remove
+    duplicates whose bounding-box area difference is within *max_diff_area*.
+
+    After filtering, the current detections are saved back to *past_file*
+    for future comparisons.
+    """
+    import pickle  # lazy import
+
+    from shapely.geometry import Polygon  # optional dependency
+
+    # Load past detections
+    saved_boxes: list[list[int]] = []
+    saved_labels: list[str] = []
+    try:
+        with open(past_file, "rb") as fh:
+            saved_boxes = pickle.load(fh)
+            saved_labels = pickle.load(fh)
+    except FileNotFoundError:
+        logger.debug("No past-detection file found at %s", past_file)
+    except EOFError:
+        logger.debug("Empty past-detection file at %s, removing", past_file)
+        try:
+            os.remove(past_file)
+        except OSError:
+            pass
+    except Exception:
+        logger.exception("Error reading past detections from %s", past_file)
+        return detections
+
+    kept: list[Detection] = []
+    for det in detections:
+        det_poly = Polygon(det.bbox.as_polygon_coords())
+        found_match = False
+
+        for saved_idx, saved_box in enumerate(saved_boxes):
+            if saved_labels[saved_idx] != det.label:
+                continue
+
+            saved_bbox = BBox(x1=saved_box[0], y1=saved_box[1], x2=saved_box[2], y2=saved_box[3])
+            saved_poly = Polygon(saved_bbox.as_polygon_coords())
+
+            if not saved_poly.intersects(det_poly):
+                continue
+
+            # Compute area difference
+            if det_poly.contains(saved_poly):
+                diff_area = det_poly.difference(saved_poly).area
+                ref_area = det_poly.area
+            else:
+                diff_area = saved_poly.difference(det_poly).area
+                ref_area = saved_poly.area
+
+            max_pixels = _parse_size_spec(max_diff_area, int(ref_area)) if ref_area > 0 else 0
+
+            if diff_area <= max_pixels:
+                logger.debug(
+                    "filter_past_detections: %s at %s matches saved %s at %s (diff=%.0f <= max=%.0f), removing",
+                    det.label, det.bbox, saved_labels[saved_idx], saved_box,
+                    diff_area, max_pixels,
+                )
+                found_match = True
+                break
+
+        if not found_match:
+            kept.append(det)
+
+    # Save current detections for future comparison
+    if detections:
+        try:
+            with open(past_file, "wb") as fh:
+                pickle.dump([d.bbox.as_list() for d in detections], fh)
+                pickle.dump([d.label for d in detections], fh)
+            logger.debug("Saved %d detections to %s", len(detections), past_file)
+        except Exception:
+            logger.exception("Error saving past detections to %s", past_file)
+
+    return kept

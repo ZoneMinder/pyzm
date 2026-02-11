@@ -1,0 +1,528 @@
+"""Top-level Detector -- public API for pyzm v2 ML detection.
+
+Usage::
+
+    from pyzm import Detector
+
+    # Auto-discover all models in the default path
+    det = Detector()
+
+    # Pick specific models by name (resolved from base_path)
+    det = Detector(models=["yolov4", "yolo26s"])
+
+    # Custom model directory
+    det = Detector(models=["yolov4"], base_path="/my/models")
+
+    # Detect
+    result = det.detect("/path/to/image.jpg")
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from pyzm.ml.pipeline import ModelPipeline
+from pyzm.models.config import (
+    DetectorConfig,
+    FrameStrategy,
+    ModelConfig,
+    ModelFramework,
+    ModelType,
+    Processor,
+)
+from pyzm.models.detection import DetectionResult
+
+if TYPE_CHECKING:
+    import numpy as np
+    from pyzm.models.config import StreamConfig
+    from pyzm.models.zm import Zone
+
+logger = logging.getLogger("pyzm.ml")
+
+DEFAULT_BASE_MODEL_PATH = "/var/lib/zmeventnotification/models"
+
+# ---------------------------------------------------------------------------
+# Model file discovery
+# ---------------------------------------------------------------------------
+
+# Extensions we recognise as model weight files
+_WEIGHT_EXTS = {".weights", ".onnx", ".tflite"}
+# Extensions we recognise as label files
+_LABEL_EXTS = {".names", ".txt", ".labels"}
+
+
+def _find_file(directory: Path, ext: str) -> Path | None:
+    """Return the first file in *directory* matching the extension."""
+    for f in sorted(directory.iterdir()):
+        if f.is_file() and f.suffix == ext:
+            return f
+    return None
+
+
+def _find_labels(directory: Path) -> str | None:
+    """Find a labels file in *directory*, preferring .names > .txt > .labels."""
+    for ext in (".names", ".txt", ".labels"):
+        p = _find_file(directory, ext)
+        if p:
+            return str(p)
+    return None
+
+
+def _model_config_from_file(
+    weights_path: Path,
+    directory: Path,
+    processor: Processor = Processor.CPU,
+) -> ModelConfig:
+    """Build a ModelConfig from a discovered weights file."""
+    suffix = weights_path.suffix.lower()
+    name = weights_path.stem
+
+    if suffix == ".onnx":
+        return ModelConfig(
+            name=name,
+            type=ModelType.OBJECT,
+            framework=ModelFramework.OPENCV,
+            processor=processor,
+            weights=str(weights_path),
+        )
+    elif suffix == ".tflite":
+        return ModelConfig(
+            name=name,
+            type=ModelType.OBJECT,
+            framework=ModelFramework.CORAL,
+            processor=Processor.TPU,
+            weights=str(weights_path),
+            labels=_find_labels(directory),
+        )
+    else:
+        # .weights (Darknet)
+        cfg = _find_file(directory, ".cfg")
+        return ModelConfig(
+            name=name,
+            type=ModelType.OBJECT,
+            framework=ModelFramework.OPENCV,
+            processor=processor,
+            weights=str(weights_path),
+            config=str(cfg) if cfg else None,
+            labels=_find_labels(directory),
+        )
+
+
+def _discover_models(
+    base_path: Path,
+    processor: Processor = Processor.CPU,
+) -> list[ModelConfig]:
+    """Scan *base_path* for model files and return ModelConfigs.
+
+    Walks one level of subdirectories looking for weight files
+    (.weights, .onnx, .tflite).
+    """
+    if not base_path.is_dir():
+        logger.warning("Model base path %s does not exist", base_path)
+        return []
+
+    models: list[ModelConfig] = []
+    for entry in sorted(base_path.iterdir()):
+        if not entry.is_dir():
+            continue
+        for f in sorted(entry.iterdir()):
+            if f.is_file() and f.suffix.lower() in _WEIGHT_EXTS:
+                mc = _model_config_from_file(f, entry, processor)
+                logger.debug("Discovered model: %s (%s)", mc.name, f)
+                models.append(mc)
+
+    if not models:
+        logger.warning("No models found in %s", base_path)
+    return models
+
+
+def _resolve_model_name(
+    name: str,
+    base_path: Path,
+    processor: Processor = Processor.CPU,
+) -> ModelConfig:
+    """Resolve a model name string against a base directory.
+
+    Search order:
+    1. Directory named *name* containing model files
+    2. Any weight file whose stem matches *name* in any subdirectory
+    3. Fall back to preset defaults (no paths)
+    """
+    # 1. Direct directory match: e.g. "yolov4" -> base_path/yolov4/
+    candidate_dir = base_path / name
+    if candidate_dir.is_dir():
+        for f in sorted(candidate_dir.iterdir()):
+            if f.is_file() and f.suffix.lower() in _WEIGHT_EXTS:
+                return _model_config_from_file(f, candidate_dir, processor)
+
+    # 2. File stem match across all subdirs: e.g. "yolo26s" -> ultralytics/yolo26s.onnx
+    if base_path.is_dir():
+        for subdir in sorted(base_path.iterdir()):
+            if not subdir.is_dir():
+                continue
+            for f in sorted(subdir.iterdir()):
+                if f.is_file() and f.stem == name and f.suffix.lower() in _WEIGHT_EXTS:
+                    return _model_config_from_file(f, subdir, processor)
+
+    # 3. Fallback: preset without paths
+    logger.warning("Model '%s' not found in %s, using preset defaults (no paths)", name, base_path)
+    return _model_name_to_config(name)
+
+
+# ---------------------------------------------------------------------------
+# Model name -> sensible preset defaults (fallback when no base_path)
+# ---------------------------------------------------------------------------
+
+_MODEL_PRESETS: dict[str, dict[str, Any]] = {
+    "yolov4": {
+        "type": ModelType.OBJECT,
+        "framework": ModelFramework.OPENCV,
+        "processor": Processor.CPU,
+        "model_width": 416,
+        "model_height": 416,
+    },
+    "yolov4-tiny": {
+        "type": ModelType.OBJECT,
+        "framework": ModelFramework.OPENCV,
+        "processor": Processor.CPU,
+        "model_width": 416,
+        "model_height": 416,
+    },
+    "yolov7": {
+        "type": ModelType.OBJECT,
+        "framework": ModelFramework.OPENCV,
+        "processor": Processor.CPU,
+        "model_width": 640,
+        "model_height": 640,
+    },
+    "yolov7-tiny": {
+        "type": ModelType.OBJECT,
+        "framework": ModelFramework.OPENCV,
+        "processor": Processor.CPU,
+        "model_width": 640,
+        "model_height": 640,
+    },
+    "coral": {
+        "type": ModelType.OBJECT,
+        "framework": ModelFramework.CORAL,
+        "processor": Processor.TPU,
+    },
+    "face_dlib": {
+        "type": ModelType.FACE,
+        "framework": ModelFramework.FACE_DLIB,
+    },
+    "face_tpu": {
+        "type": ModelType.FACE,
+        "framework": ModelFramework.FACE_TPU,
+        "processor": Processor.TPU,
+    },
+    "plate_recognizer": {
+        "type": ModelType.ALPR,
+        "framework": ModelFramework.PLATE_RECOGNIZER,
+        "alpr_service": "plate_recognizer",
+    },
+    "openalpr": {
+        "type": ModelType.ALPR,
+        "framework": ModelFramework.OPENALPR,
+        "alpr_service": "open_alpr",
+    },
+    "aws_rekognition": {
+        "type": ModelType.OBJECT,
+        "framework": ModelFramework.REKOGNITION,
+    },
+}
+
+
+def _model_name_to_config(name: str) -> ModelConfig:
+    """Convert a simple model name string to a :class:`ModelConfig` with
+    sensible preset defaults (no file paths)."""
+    preset = _MODEL_PRESETS.get(name, {})
+    if not preset:
+        logger.warning("Unknown model preset '%s', defaulting to YOLO/OpenCV", name)
+        preset = _MODEL_PRESETS["yolov4"]
+
+    kwargs: dict[str, Any] = {"name": name}
+    kwargs.update(preset)
+    alpr_service = kwargs.pop("alpr_service", None)
+    mc = ModelConfig(**kwargs)
+    if alpr_service:
+        mc.alpr_service = alpr_service
+    return mc
+
+
+# ---------------------------------------------------------------------------
+# Detector
+# ---------------------------------------------------------------------------
+
+class Detector:
+    """Top-level detection API.
+
+    Parameters
+    ----------
+    config:
+        A fully specified :class:`DetectorConfig`.  Takes precedence over
+        *models* and *base_path*.
+    models:
+        A convenience shorthand -- a list of model name strings
+        (e.g. ``["yolov4", "yolo26s"]``) or :class:`ModelConfig` objects.
+        String names are resolved against *base_path* to find weight,
+        config, and label files automatically.
+    base_path:
+        Directory containing model subdirectories.  Defaults to
+        ``/var/lib/zmeventnotification/models``.  When *models* is
+        ``None`` and *config* is ``None``, all models in this directory
+        are auto-discovered.  When *models* contains name strings, they
+        are resolved against this path.
+    processor:
+        Hardware target for auto-discovered/resolved models.  Accepts
+        ``"cpu"``, ``"gpu"``, ``"tpu"`` or a :class:`Processor` enum.
+        Ignored when *config* is provided or when *models* contains
+        :class:`ModelConfig` objects (which carry their own processor).
+    """
+
+    def __init__(
+        self,
+        config: DetectorConfig | None = None,
+        models: list[str | ModelConfig] | None = None,
+        base_path: str | Path = DEFAULT_BASE_MODEL_PATH,
+        processor: str | Processor = Processor.CPU,
+    ) -> None:
+        bp = Path(base_path)
+        proc = Processor(processor) if isinstance(processor, str) else processor
+
+        if config is not None:
+            self._config = config
+        elif models is not None:
+            model_configs: list[ModelConfig] = []
+            for m in models:
+                if isinstance(m, str):
+                    model_configs.append(_resolve_model_name(m, bp, proc))
+                else:
+                    model_configs.append(m)
+            self._config = DetectorConfig(models=model_configs)
+        else:
+            # Auto-discover all models from base_path
+            discovered = _discover_models(bp, proc)
+            self._config = DetectorConfig(models=discovered)
+
+        self._pipeline: ModelPipeline | None = None
+
+    # -- private helpers ------------------------------------------------------
+
+    def _ensure_pipeline(self) -> ModelPipeline:
+        if self._pipeline is None:
+            self._pipeline = ModelPipeline(self._config)
+        return self._pipeline
+
+    @staticmethod
+    def _load_image(path: str) -> "np.ndarray":
+        import cv2  # lazy
+        img = cv2.imread(path)
+        if img is None:
+            raise FileNotFoundError(f"Could not read image: {path}")
+        return img
+
+    # -- public API -----------------------------------------------------------
+
+    def detect(
+        self,
+        input: "str | np.ndarray | list[tuple[int | str, np.ndarray]]",
+        zones: list["Zone"] | None = None,
+    ) -> DetectionResult:
+        """Run detection on one or more images.
+
+        Parameters
+        ----------
+        input:
+            - ``str``: path to an image file.
+            - ``np.ndarray``: a single BGR image array.
+            - ``list[tuple[frame_id, np.ndarray]]``: multiple frames.
+              The best frame is chosen by ``frame_strategy``.
+        zones:
+            Optional detection zone polygons.
+
+        Returns
+        -------
+        DetectionResult
+        """
+        import numpy as np  # lazy
+
+        pipeline = self._ensure_pipeline()
+
+        # Single image path
+        if isinstance(input, str):
+            image = self._load_image(input)
+            result = pipeline.run(image, zones=zones)
+            result.frame_id = "single"
+            return result
+
+        # Single numpy array
+        if isinstance(input, np.ndarray):
+            result = pipeline.run(input, zones=zones)
+            result.frame_id = "single"
+            return result
+
+        # Multiple frames: list of (frame_id, image) tuples
+        if isinstance(input, list):
+            return self._detect_multi_frame(input, zones, pipeline)
+
+        raise TypeError(f"Unsupported input type: {type(input)}")
+
+    def detect_event(
+        self,
+        zm_client: object,
+        event_id: int,
+        zones: list["Zone"] | None = None,
+        stream_config: "StreamConfig | None" = None,
+    ) -> DetectionResult:
+        """Extract frames from a ZM event and run detection.
+
+        Parameters
+        ----------
+        zm_client:
+            A :class:`pyzm.zm.ZMClient` (or compatible) that provides
+            ``get_event_frames(event_id, stream_config)`` returning
+            ``(frames, image_dimensions)`` where *frames* is a list of
+            ``(frame_id, np.ndarray)`` tuples and *image_dimensions* is a
+            dict with ``'original'`` and ``'resized'`` keys.
+        event_id:
+            ZoneMinder event ID.
+        zones:
+            Optional detection zones.
+        stream_config:
+            Controls frame extraction (which frames, resize, etc.).
+
+        Returns
+        -------
+        DetectionResult
+        """
+        from pyzm.models.config import StreamConfig as SC  # lazy
+
+        sc = stream_config or SC()
+
+        # Expect zm_client to have a method that returns frames
+        get_frames = getattr(zm_client, "get_event_frames", None)
+        if get_frames is None:
+            raise AttributeError(
+                "zm_client must provide a get_event_frames(event_id, stream_config) method"
+            )
+
+        result = get_frames(event_id, sc)
+
+        # Unpack (frames, image_dims) tuple
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+            frames, image_dims = result
+            original_shape = image_dims.get("original")
+        else:
+            frames = result
+            original_shape = None
+
+        if not frames:
+            logger.warning("No frames extracted for event %d", event_id)
+            return DetectionResult()
+
+        pipeline = self._ensure_pipeline()
+        return self._detect_multi_frame(frames, zones, pipeline, original_shape=original_shape)
+
+    # -- class methods --------------------------------------------------------
+
+    @classmethod
+    def from_config(cls, path: str) -> "Detector":
+        """Load a Detector from a YAML configuration file.
+
+        The YAML is expected to have a top-level structure that can be parsed
+        into a :class:`DetectorConfig`.
+        """
+        import yaml  # lazy
+
+        config_path = Path(path)
+        if not config_path.exists():
+            raise FileNotFoundError(f"Config file not found: {path}")
+
+        with open(config_path) as fh:
+            raw = yaml.safe_load(fh)
+
+        if raw is None:
+            raw = {}
+
+        detector_config = DetectorConfig.model_validate(raw)
+        return cls(config=detector_config)
+
+    @classmethod
+    def from_dict(cls, ml_options: dict) -> "Detector":
+        """Build a Detector from an ``ml_sequence`` dict.
+
+        This delegates to :meth:`DetectorConfig.from_dict` so existing
+        YAML configurations work directly.
+        """
+        detector_config = DetectorConfig.from_dict(ml_options)
+        return cls(config=detector_config)
+
+    # -- multi-frame logic ----------------------------------------------------
+
+    def _detect_multi_frame(
+        self,
+        frames: list[tuple[int | str, "np.ndarray"]],
+        zones: list["Zone"] | None,
+        pipeline: ModelPipeline,
+        original_shape: tuple[int, int] | None = None,
+    ) -> DetectionResult:
+        """Run detection on multiple frames and pick the best result using
+        ``frame_strategy``."""
+        strategy = self._config.frame_strategy
+        all_results: list[DetectionResult] = []
+
+        for frame_id, image in frames:
+            try:
+                result = pipeline.run(image, zones=zones, original_shape=original_shape)
+                result.frame_id = frame_id
+                all_results.append(result)
+            except Exception:
+                logger.exception("Error detecting frame %s", frame_id)
+                continue
+
+            # Short-circuit for 'first' strategy
+            if strategy == FrameStrategy.FIRST and result.matched:
+                logger.debug("Frame strategy 'first': returning frame %s", frame_id)
+                return result
+
+        if not all_results:
+            return DetectionResult()
+
+        # Pick best according to strategy
+        best = all_results[0]
+        for result in all_results[1:]:
+            if _is_better(result, best, strategy):
+                best = result
+
+        return best
+
+
+def _is_better(
+    candidate: DetectionResult,
+    current: DetectionResult,
+    strategy: FrameStrategy,
+) -> bool:
+    """Return True if *candidate* is a better result than *current* under the
+    given frame strategy."""
+    if strategy == FrameStrategy.FIRST:
+        # Already handled by short-circuit above; fallback to first match
+        return candidate.matched and not current.matched
+
+    if strategy == FrameStrategy.MOST:
+        return len(candidate.detections) > len(current.detections)
+
+    if strategy == FrameStrategy.MOST_UNIQUE:
+        return len(set(candidate.labels)) > len(set(current.labels))
+
+    if strategy == FrameStrategy.MOST_MODELS:
+        candidate_models = {d.model_name for d in candidate.detections}
+        current_models = {d.model_name for d in current.detections}
+        if len(candidate_models) != len(current_models):
+            return len(candidate_models) > len(current_models)
+        # Tie-break: more detections wins
+        return len(candidate.detections) > len(current.detections)
+
+    return False

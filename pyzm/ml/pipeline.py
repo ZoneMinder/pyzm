@@ -1,0 +1,264 @@
+"""ModelPipeline orchestrates the model sequence for a single frame.
+
+It groups models by type (object, face, alpr), runs them in sequence with
+the configured match strategy and fallback, applies pre_existing_labels
+checks, and runs zone/size/pattern filters.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING
+
+from pyzm.ml.backends.base import MLBackend
+from pyzm.ml.filters import (
+    filter_by_pattern,
+    filter_by_size,
+    filter_by_zone,
+)
+from pyzm.models.config import (
+    DetectorConfig,
+    MatchStrategy,
+    ModelConfig,
+    ModelFramework,
+    ModelType,
+)
+from pyzm.models.detection import BBox, Detection, DetectionResult
+
+if TYPE_CHECKING:
+    import numpy as np
+    from pyzm.models.zm import Zone
+
+logger = logging.getLogger("pyzm.ml")
+
+
+# ---------------------------------------------------------------------------
+# Backend factory
+# ---------------------------------------------------------------------------
+
+def _create_backend(model_config: ModelConfig) -> MLBackend:
+    """Create the right backend based on the model framework."""
+    fw = model_config.framework
+
+    if fw in (ModelFramework.OPENCV, ModelFramework.HOG, ModelFramework.VIRELAI):
+        from pyzm.ml.backends.yolo import YoloBackend
+        return YoloBackend(model_config)
+
+    if fw == ModelFramework.CORAL:
+        from pyzm.ml.backends.coral import CoralBackend
+        return CoralBackend(model_config)
+
+    if fw in (ModelFramework.FACE_DLIB, ModelFramework.FACE_TPU):
+        from pyzm.ml.backends.face_dlib import FaceDlibBackend
+        return FaceDlibBackend(model_config)
+
+    if fw in (ModelFramework.PLATE_RECOGNIZER, ModelFramework.OPENALPR):
+        from pyzm.ml.backends.alpr import AlprBackend
+        return AlprBackend(model_config)
+
+    if fw == ModelFramework.REKOGNITION:
+        from pyzm.ml.backends.rekognition import RekognitionBackend
+        return RekognitionBackend(model_config)
+
+    raise ValueError(f"Unknown model framework: {fw}")
+
+
+# ---------------------------------------------------------------------------
+# ModelPipeline
+# ---------------------------------------------------------------------------
+
+class ModelPipeline:
+    """Runs the full detection pipeline for a single image frame.
+
+    The pipeline:
+
+    1. Groups enabled models by :class:`ModelType` (object, face, alpr).
+    2. For each type (in config order), runs the model variants in sequence
+       applying the configured :class:`MatchStrategy`.
+    3. Applies ``pre_existing_labels`` gates between types.
+    4. Runs zone, size, and pattern filters on the combined results.
+    """
+
+    def __init__(self, detector_config: DetectorConfig) -> None:
+        self._config = detector_config
+        self._backends: list[tuple[ModelConfig, MLBackend]] = []
+        self._loaded = False
+
+    # -- public API -----------------------------------------------------------
+
+    def load(self) -> None:
+        """Pre-load all enabled backends."""
+        for mc in self._config.models:
+            if not mc.enabled:
+                logger.debug("Skipping disabled model: %s", mc.name or mc.framework)
+                continue
+            try:
+                backend = _create_backend(mc)
+                backend.load()
+                self._backends.append((mc, backend))
+            except Exception:
+                logger.exception("Error loading model %s", mc.name or mc.framework)
+        self._loaded = True
+
+    def run(
+        self,
+        image: "np.ndarray",
+        zones: list["Zone"] | None = None,
+        original_shape: tuple[int, int] | None = None,
+    ) -> DetectionResult:
+        """Run the full pipeline on *image* and return a :class:`DetectionResult`.
+
+        Parameters
+        ----------
+        image:
+            BGR numpy array (OpenCV format).
+        zones:
+            Optional list of :class:`~pyzm.models.zm.Zone` objects.  If
+            ``None``, a full-image zone is used.
+        original_shape:
+            ``(height, width)`` of the image *before* resizing.  When the
+            image was resized for detection, zone polygons (which are in
+            original coordinates) need to be rescaled to match.  ``None``
+            means no rescaling is needed.
+        """
+        if not self._loaded:
+            self.load()
+
+        import numpy as np  # lazy
+
+        h, w = image.shape[:2]
+
+        # Prepare zone dicts, rescaling polygon points if the image was resized
+        zone_dicts: list[dict] = []
+        if zones:
+            for z in zones:
+                points = z.points
+                if original_shape and (original_shape[0] != h or original_shape[1] != w):
+                    orig_h, orig_w = original_shape
+                    xfactor = w / orig_w
+                    yfactor = h / orig_h
+                    points = [(int(x * xfactor), int(y * yfactor)) for x, y in points]
+                zone_dicts.append({"name": z.name, "points": points, "pattern": z.pattern})
+
+        # Group backends by model type, preserving order
+        type_groups: dict[ModelType, list[tuple[ModelConfig, MLBackend]]] = defaultdict(list)
+        for mc, backend in self._backends:
+            type_groups[mc.type].append((mc, backend))
+
+        all_detections: list[Detection] = []
+        all_error_boxes: list[BBox] = []
+
+        # Track which types have been seen (for ordering by config)
+        seen_types: list[ModelType] = []
+        for mc in self._config.models:
+            if mc.type not in seen_types and mc.enabled:
+                seen_types.append(mc.type)
+
+        for mtype in seen_types:
+            variants = type_groups.get(mtype, [])
+            if not variants:
+                continue
+
+            # Pre-existing labels check: if any variant in this type has
+            # pre_existing_labels, verify that at least one was already detected.
+            type_pre_existing = []
+            for mc, _ in variants:
+                if mc.pre_existing_labels:
+                    type_pre_existing = mc.pre_existing_labels
+                    break
+
+            if type_pre_existing:
+                existing_labels = [d.label for d in all_detections]
+                if not any(lbl in existing_labels for lbl in type_pre_existing):
+                    logger.debug(
+                        "Skipping %s: pre_existing_labels %s not found in %s",
+                        mtype.value, type_pre_existing, existing_labels,
+                    )
+                    continue
+
+            best_for_type = self._run_model_variants(
+                variants, image, zone_dicts, (h, w),
+            )
+            all_detections.extend(best_for_type)
+
+        # Apply global pattern filter
+        all_detections = filter_by_pattern(all_detections, self._config.pattern)
+
+        # Apply global max_detection_size filter
+        all_detections = filter_by_size(all_detections, self._config.max_detection_size, (h, w))
+
+        # Apply zone filtering (returns kept and error_boxes)
+        all_detections, all_error_boxes = filter_by_zone(all_detections, zone_dicts, (h, w))
+
+        return DetectionResult(
+            detections=all_detections,
+            image=image,
+            image_dimensions={
+                "original": original_shape or (h, w),
+                "resized": (h, w) if original_shape else None,
+            },
+            error_boxes=all_error_boxes,
+        )
+
+    # -- private helpers ------------------------------------------------------
+
+    def _run_model_variants(
+        self,
+        variants: list[tuple[ModelConfig, MLBackend]],
+        image: "np.ndarray",
+        zone_dicts: list[dict],
+        image_shape: tuple[int, int],
+    ) -> list[Detection]:
+        """Run model variants for a single type using match_strategy."""
+        strategy = self._config.match_strategy
+        best: list[Detection] = []
+
+        for mc, backend in variants:
+            # Per-variant pre_existing_labels check
+            if mc.pre_existing_labels and best:
+                existing = [d.label for d in best]
+                if not any(lbl in existing for lbl in mc.pre_existing_labels):
+                    logger.debug(
+                        "Skipping variant %s: pre_existing_labels not met",
+                        backend.name,
+                    )
+                    continue
+
+            try:
+                raw = backend.detect(image)
+                if raw:
+                    det_summary = ", ".join(
+                        f"{d.label}:{d.confidence:.0%}" for d in raw
+                    )
+                    logger.debug("%s: %d detections [%s]", backend.name, len(raw), det_summary)
+                else:
+                    logger.debug("%s: no detections", backend.name)
+            except Exception:
+                logger.exception("Error running %s", backend.name)
+                continue
+
+            # Apply per-model pattern
+            raw = filter_by_pattern(raw, mc.pattern)
+
+            # Apply per-model max_detection_size
+            raw = filter_by_size(raw, mc.max_detection_size, image_shape)
+
+            if not raw:
+                continue
+
+            if strategy == MatchStrategy.FIRST:
+                return raw
+
+            if strategy == MatchStrategy.MOST:
+                if len(raw) > len(best):
+                    best = raw
+
+            elif strategy == MatchStrategy.MOST_UNIQUE:
+                if len({d.label for d in raw}) > len({d.label for d in best}):
+                    best = raw
+
+            elif strategy == MatchStrategy.UNION:
+                best.extend(raw)
+
+        return best

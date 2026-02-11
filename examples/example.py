@@ -59,61 +59,54 @@ if has_zmlog:
 
 i = input ('Try machine learning tests? [y/N]').lower()
 if i == 'y':
+    from pyzm import Detector
+    from pyzm.models.config import ModelConfig, ModelFramework, ModelType, Processor
 
-    import cv2
     fname = input ('Enter full path to image file:')
-    if fname:
-        print ('Reading {}'.format(fname))
-        img = cv2.imread(fname)
-    else:
-        print ('Reading /tmp/image.jpg')
-        img = cv2.imread('/tmp/image.jpg')
+    if not fname:
+        fname = '/tmp/image.jpg'
+    print ('Detecting on {}'.format(fname))
 
     i = input ('Try TPU tests? [y/N]').lower()
     if i == 'y':
-        options = {
-            'object_weights':'/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
-            'object_labels': '/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
-            'object_min_confidence': 0.3
-        }
-        import pyzm.ml.coral_edgetpu as tpu
-        m = tpu.Tpu(options=options)
-        b,l,c = m.detect(img)
-        print (b,l,c)
+        detector = Detector(models=[ModelConfig(
+            name='TPU',
+            type=ModelType.OBJECT,
+            framework=ModelFramework.CORAL,
+            processor=Processor.TPU,
+            weights='/var/lib/zmeventnotification/models/coral_edgetpu/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
+            labels='/var/lib/zmeventnotification/models/coral_edgetpu/coco_indexed.names',
+            min_confidence=0.3,
+        )])
+        result = detector.detect(fname)
+        print(result.boxes, result.labels, result.confidences)
 
     i = input ('Try OpenCV tests? [y/N]').lower()
     if i == 'y':
-        options = {
-            'object_weights':'/var/lib/zmeventnotification/models/yolov4/yolov4.weights',
-            'object_labels': '/var/lib/zmeventnotification/models/yolov4/coco.names',
-            'object_config': '/var/lib/zmeventnotification/models/yolov4/yolov4.cfg',
-            'object_processor': 'cpu',
-            'object_min_confidence': 0.3
-        }
-        import pyzm.ml.yolo as yolo
-        m = yolo.Yolo(options=options)
-    
-        b,l,c = m.detect(img)
-        print (b,l,c)
+        detector = Detector(models=[ModelConfig(
+            name='YoloV4',
+            type=ModelType.OBJECT,
+            framework=ModelFramework.OPENCV,
+            processor=Processor.CPU,
+            weights='/var/lib/zmeventnotification/models/yolov4/yolov4.weights',
+            config='/var/lib/zmeventnotification/models/yolov4/yolov4.cfg',
+            labels='/var/lib/zmeventnotification/models/yolov4/coco.names',
+            min_confidence=0.3,
+        )])
+        result = detector.detect(fname)
+        print(result.boxes, result.labels, result.confidences)
 
     i = input ('Try Face recognition tests? [y/N]').lower()
     if i == 'y':
-        options = {
-            'known_images_path': '/var/lib/zmeventnotification/known_faces',
-            'face_recog_dist_threshold':0.6,
-            'unknown_face_name':'klingon',
-            'save_unknown_faces':'no',
-            'save_unknown_faces_leeway_pixels':100,
-            'unknown_images_path':'/var/lib/zmeventnotification/unknown_faces',
-            'face_detection_framework': 'dlib',
-            'face_recognition_framework': 'dlib',
-
-
-        }
-        import pyzm.ml.face as face
-        m = face.Face(options=options)
-        b,l,c = m.detect(img)
-        print (b,l,c)
+        detector = Detector(models=[ModelConfig(
+            name='dlib face',
+            type=ModelType.FACE,
+            framework=ModelFramework.FACE_DLIB,
+            known_faces_dir='/var/lib/zmeventnotification/known_faces',
+            face_recog_dist_threshold=0.6,
+        )])
+        result = detector.detect(fname)
+        print(result.boxes, result.labels, result.confidences)
 
 cam_name='DemoVirtualCam1'
 api_options = {

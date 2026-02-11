@@ -1,16 +1,18 @@
 Example Program(s)
 ------------------
 
-Simple event extraction example
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. literalinclude:: ../examples/events.py
+pyzm v2 quick-start
+~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/example_v2.py
 
-Various examples
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. literalinclude:: ../examples/example.py
-
-Detecting a video stream
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+Detecting a ZM event stream
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. literalinclude:: ../examples/stream.py
+
+Detecting a local image
+~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/image.py
+
+Various legacy examples (API, ES, shared memory)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/example.py

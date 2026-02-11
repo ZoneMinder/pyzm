@@ -28,7 +28,8 @@ INSTALL_REQUIRES=[
     'Pillow',
     'psutil >=5.7.3',
     'python-dotenv',
-    'onnx>=1.12.0'
+    'onnx>=1.12.0',
+    'pydantic>=2.0.0'
     ]
 
 
@@ -72,7 +73,6 @@ setup(name = NAME,
                     'pyzm.helpers.States',
                     'pyzm.helpers.State',
                     'pyzm.helpers.Configs',
-                    'pyzm.helpers.Media',
                     'pyzm.helpers.utils',
                     'pyzm.helpers.globals',
 
@@ -80,12 +80,32 @@ setup(name = NAME,
                     'pyzm.ZMEventNotification',
                     'pyzm.ZMMemory',
 
+                    # v2 modules
+                    'pyzm.client',
+                    'pyzm.log',
+                    'pyzm.models.config',
+                    'pyzm.models.detection',
+                    'pyzm.models.zm',
+                    'pyzm.zm.api',
+                    'pyzm.zm.auth',
+                    'pyzm.zm.media',
+                    'pyzm.zm.shm',
+                    'pyzm.ml.detector',
+                    'pyzm.ml.pipeline',
+                    'pyzm.ml.filters',
+                    'pyzm.ml.backends.base',
+                    'pyzm.ml.backends.yolo',
+                    'pyzm.ml.backends.coral',
+                    'pyzm.ml.backends.face_dlib',
+                    'pyzm.ml.backends.alpr',
+                    'pyzm.ml.backends.rekognition',
+
+                    # Low-level ML implementations (wrapped by v2 backends)
                     'pyzm.ml.alpr',
                     'pyzm.ml.face',
                     'pyzm.ml.face_dlib',
                     'pyzm.ml.face_tpu',
                     'pyzm.ml.face_train_dlib',
-                    'pyzm.ml.object',
                     'pyzm.ml.coral_edgetpu',
                     'pyzm.ml.aws_rekognition',
                     'pyzm.ml.hog',
@@ -93,7 +113,6 @@ setup(name = NAME,
                     'pyzm.ml.yolo',
                     'pyzm.ml.yolo_darknet',
                     'pyzm.ml.yolo_onnx',
-                    'pyzm.ml.detect_sequence'
                     ]
       )
 

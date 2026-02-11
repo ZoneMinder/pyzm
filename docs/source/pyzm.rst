@@ -72,10 +72,41 @@ Memory
 Machine Learning
 ------------------
 
-.. automodule:: pyzm.ml.detect_sequence
+.. automodule:: pyzm.ml.detector
     :members:
     :special-members: __init__
     :undoc-members:
 
+.. automodule:: pyzm.ml.pipeline
+    :members:
+    :special-members: __init__
+    :undoc-members:
+
+.. automodule:: pyzm.ml.filters
+    :members:
+    :undoc-members:
+
+Configuration Models
+---------------------
+
+.. automodule:: pyzm.models.config
+    :members:
+    :undoc-members:
+
+.. automodule:: pyzm.models.detection
+    :members:
+    :undoc-members:
+
+.. automodule:: pyzm.models.zm
+    :members:
+    :undoc-members:
+
+ZoneMinder Client
+------------------
+
+.. automodule:: pyzm.client
+    :members:
+    :special-members: __init__
+    :undoc-members:
 
 

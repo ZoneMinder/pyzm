@@ -18,7 +18,6 @@ from pyzm.helpers.Base import Base
 # Class to handle face recognition
 import portalocker
 import re
-from pyzm.helpers.Media import MediaStream
 from pyzm.helpers.utils import Timer
 import pyzm.helpers.globals as g
 
