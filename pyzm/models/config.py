@@ -111,6 +111,9 @@ class ModelConfig(BaseModel):
 
     # Face-specific
     known_faces_dir: str | None = None
+    unknown_faces_dir: str | None = None
+    save_unknown_faces: bool = False
+    save_unknown_faces_leeway_pixels: int = 0
     face_model: str = "cnn"
     face_train_model: str = "cnn"
     face_recog_dist_threshold: float = 0.6
@@ -154,6 +157,9 @@ class DetectorConfig(BaseModel):
     # Past-detection matching
     match_past_detections: bool = False
     past_det_max_diff_area: str = "5%"
+    past_det_max_diff_area_labels: dict[str, str] = Field(default_factory=dict)
+    ignore_past_detection_labels: list[str] = Field(default_factory=list)
+    aliases: list[list[str]] = Field(default_factory=list)
     image_path: str = "/tmp"
 
     @classmethod
@@ -184,6 +190,13 @@ class DetectorConfig(BaseModel):
         strategy = MatchStrategy(general.get("same_model_sequence_strategy", "first"))
         frame_strat = FrameStrategy(general.get("frame_strategy", "most_models"))
 
+        # Per-label past-detection area overrides: car_past_det_max_diff_area, etc.
+        label_area_overrides: dict[str, str] = {}
+        for k, v in general.items():
+            if k.endswith("_past_det_max_diff_area") and k != "past_det_max_diff_area":
+                label = k.removesuffix("_past_det_max_diff_area")
+                label_area_overrides[label] = str(v)
+
         return cls(
             models=models,
             match_strategy=strategy,
@@ -192,6 +205,9 @@ class DetectorConfig(BaseModel):
             pattern=general.get("pattern", ".*"),
             match_past_detections=general.get("match_past_detections") == "yes",
             past_det_max_diff_area=general.get("past_det_max_diff_area", "5%"),
+            past_det_max_diff_area_labels=label_area_overrides,
+            ignore_past_detection_labels=general.get("ignore_past_detection_labels", []),
+            aliases=general.get("aliases", []),
             image_path=general.get("image_path", "/tmp"),
         )
 
@@ -247,6 +263,9 @@ def _seq_item_to_model_config(
         model_width=int(seq["model_width"]) if "model_width" in seq else None,
         model_height=int(seq["model_height"]) if "model_height" in seq else None,
         known_faces_dir=seq.get("known_images_path"),
+        unknown_faces_dir=seq.get("unknown_images_path"),
+        save_unknown_faces=seq.get("save_unknown_faces", "no") == "yes",
+        save_unknown_faces_leeway_pixels=int(seq.get("save_unknown_faces_leeway_pixels", 0)),
         face_model=seq.get("face_model", "cnn"),
         face_train_model=seq.get("face_train_model", "cnn"),
         face_recog_dist_threshold=float(seq.get("face_recog_dist_threshold", 0.6)),

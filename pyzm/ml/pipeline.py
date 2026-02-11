@@ -16,6 +16,7 @@ from pyzm.ml.filters import (
     filter_by_pattern,
     filter_by_size,
     filter_by_zone,
+    filter_past_detections,
 )
 from pyzm.models.config import (
     DetectorConfig,
@@ -190,6 +191,19 @@ class ModelPipeline:
 
         # Apply zone filtering (returns kept and error_boxes)
         all_detections, all_error_boxes = filter_by_zone(all_detections, zone_dicts, (h, w))
+
+        # Apply past-detection deduplication
+        if self._config.match_past_detections and all_detections:
+            import os
+            past_file = os.path.join(self._config.image_path, "past_detections.pkl")
+            all_detections = filter_past_detections(
+                all_detections,
+                past_file,
+                max_diff_area=self._config.past_det_max_diff_area,
+                label_area_overrides=self._config.past_det_max_diff_area_labels,
+                ignore_labels=self._config.ignore_past_detection_labels,
+                aliases=self._config.aliases,
+            )
 
         return DetectionResult(
             detections=all_detections,

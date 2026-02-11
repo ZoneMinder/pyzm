@@ -318,3 +318,51 @@ class TestFilterPastDetections:
         dets = [_det("person", 10, 10, 50, 50)]
         result = filter_past_detections(dets, past_file, "5%")
         assert len(result) == 1
+
+    def test_aliases_match_across_labels(self, tmp_path):
+        from pyzm.ml.filters import filter_past_detections
+
+        past_file = str(tmp_path / "past.pkl")
+        # Save a "bus" detection
+        with open(past_file, "wb") as fh:
+            pickle.dump([[10, 10, 50, 50]], fh)
+            pickle.dump(["bus"], fh)
+
+        # "car" at the same location, aliased with bus -> should be filtered
+        dets = [_det("car", 10, 10, 50, 50)]
+        result = filter_past_detections(
+            dets, past_file, "5%", aliases=[["car", "bus", "truck"]],
+        )
+        assert len(result) == 0
+
+    def test_ignore_labels_always_kept(self, tmp_path):
+        from pyzm.ml.filters import filter_past_detections
+
+        past_file = str(tmp_path / "past.pkl")
+        # Save a "dog" detection at same spot
+        with open(past_file, "wb") as fh:
+            pickle.dump([[10, 10, 50, 50]], fh)
+            pickle.dump(["dog"], fh)
+
+        # "dog" at the same location but ignored -> should be kept
+        dets = [_det("dog", 10, 10, 50, 50)]
+        result = filter_past_detections(
+            dets, past_file, "5%", ignore_labels=["dog"],
+        )
+        assert len(result) == 1
+
+    def test_per_label_area_override(self, tmp_path):
+        from pyzm.ml.filters import filter_past_detections
+
+        past_file = str(tmp_path / "past.pkl")
+        with open(past_file, "wb") as fh:
+            pickle.dump([[10, 10, 50, 50]], fh)
+            pickle.dump(["car"], fh)
+
+        # Car at slightly shifted position — with default 5% would be filtered,
+        # but with a very strict 0% override it should pass
+        dets = [_det("car", 11, 11, 51, 51)]
+        result = filter_past_detections(
+            dets, past_file, "50%", label_area_overrides={"car": "0px"},
+        )
+        assert len(result) == 1

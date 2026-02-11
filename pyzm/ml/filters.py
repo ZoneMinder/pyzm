@@ -184,9 +184,22 @@ def filter_past_detections(
     detections: list[Detection],
     past_file: str,
     max_diff_area: str = "5%",
+    label_area_overrides: dict[str, str] | None = None,
+    ignore_labels: list[str] | None = None,
+    aliases: list[list[str]] | None = None,
 ) -> list[Detection]:
     """Compare detections with pickle-stored past detections and remove
     duplicates whose bounding-box area difference is within *max_diff_area*.
+
+    Parameters
+    ----------
+    label_area_overrides:
+        Per-label area tolerance, e.g. ``{"car": "10%"}``.
+    ignore_labels:
+        Labels to skip entirely (always kept, never matched).
+    aliases:
+        Groups of equivalent labels, e.g. ``[["car","bus","truck"]]``.
+        A ``car`` detection matches a saved ``bus`` if they're aliased.
 
     After filtering, the current detections are saved back to *past_file*
     for future comparisons.
@@ -194,6 +207,14 @@ def filter_past_detections(
     import pickle  # lazy import
 
     from shapely.geometry import Polygon  # optional dependency
+
+    label_area_overrides = label_area_overrides or {}
+    ignore_labels = ignore_labels or []
+    alias_map: dict[str, str] = {}
+    for group in (aliases or []):
+        canonical = group[0]
+        for label in group:
+            alias_map[label] = canonical
 
     # Load past detections
     saved_boxes: list[list[int]] = []
@@ -216,11 +237,18 @@ def filter_past_detections(
 
     kept: list[Detection] = []
     for det in detections:
+        # Skip ignored labels
+        if det.label in ignore_labels:
+            kept.append(det)
+            continue
+
         det_poly = Polygon(det.bbox.as_polygon_coords())
+        det_canonical = alias_map.get(det.label, det.label)
         found_match = False
 
         for saved_idx, saved_box in enumerate(saved_boxes):
-            if saved_labels[saved_idx] != det.label:
+            saved_canonical = alias_map.get(saved_labels[saved_idx], saved_labels[saved_idx])
+            if saved_canonical != det_canonical:
                 continue
 
             saved_bbox = BBox(x1=saved_box[0], y1=saved_box[1], x2=saved_box[2], y2=saved_box[3])
@@ -237,7 +265,9 @@ def filter_past_detections(
                 diff_area = saved_poly.difference(det_poly).area
                 ref_area = saved_poly.area
 
-            max_pixels = _parse_size_spec(max_diff_area, int(ref_area)) if ref_area > 0 else 0
+            # Use per-label override if available
+            effective_max = label_area_overrides.get(det.label, max_diff_area)
+            max_pixels = _parse_size_spec(effective_max, int(ref_area)) if ref_area > 0 else 0
 
             if diff_area <= max_pixels:
                 logger.debug(
