@@ -1,0 +1,26 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: Unit tests (fast, no external deps)",
+    "integration: Integration tests (multi-step workflows)",
+    "slow: Slow tests",
+]
+addopts = "-v --strict-markers --tb=short"
+
+[tool.coverage.run]
+source = ["pyzm"]
+omit = [
+    "pyzm/ml/*",
+    "pyzm/ZMLog.py",
+    "pyzm/ZMMemory.py",
+    "pyzm/ZMEventNotification.py",
+    "pyzm/helpers/Media.py",
+    "pyzm/helpers/utils.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+]
