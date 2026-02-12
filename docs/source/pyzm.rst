@@ -101,6 +101,17 @@ Configuration Models
     :members:
     :undoc-members:
 
+Remote ML Detection Server
+----------------------------
+
+.. automodule:: pyzm.serve.app
+    :members:
+    :undoc-members:
+
+.. automodule:: pyzm.serve.auth
+    :members:
+    :undoc-members:
+
 ZoneMinder Client
 ------------------
 

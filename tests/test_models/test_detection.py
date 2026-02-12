@@ -226,6 +226,59 @@ class TestDetectionResult:
         with pytest.raises(ValueError, match="No image"):
             dr.annotate()
 
+    # -- from_dict (round-trip) -------------------------------------------------
+
+    def test_from_dict_round_trip(self):
+        """to_dict() -> from_dict() reproduces detections."""
+        dets = self._make_detections()
+        eb = BBox(x1=0, y1=0, x2=5, y2=5)
+        original = DetectionResult(
+            detections=dets,
+            frame_id=7,
+            image_dimensions={"original": (480, 640)},
+            error_boxes=[eb],
+        )
+        wire = original.to_dict()
+        # Remove image from wire (from_dict always sets image=None)
+        wire.pop("image", None)
+
+        restored = DetectionResult.from_dict(wire)
+        assert restored.labels == original.labels
+        assert restored.confidences == original.confidences
+        assert restored.boxes == original.boxes
+        assert restored.frame_id == 7
+        assert restored.image_dimensions == {"original": (480, 640)}
+        assert len(restored.error_boxes) == 1
+        assert restored.error_boxes[0].as_list() == [0, 0, 5, 5]
+        assert restored.image is None
+
+    def test_from_dict_empty(self):
+        """from_dict({}) produces an empty DetectionResult."""
+        dr = DetectionResult.from_dict({})
+        assert dr.matched is False
+        assert dr.labels == []
+        assert dr.error_boxes == []
+        assert dr.frame_id is None
+
+    def test_from_dict_preserves_model_names(self):
+        """model_names are restored correctly."""
+        wire = {
+            "labels": ["person", "car"],
+            "boxes": [[10, 20, 50, 80], [60, 30, 90, 70]],
+            "confidences": [0.97, 0.85],
+            "model_names": ["yolov4", "yolov7"],
+        }
+        dr = DetectionResult.from_dict(wire)
+        assert [d.model_name for d in dr.detections] == ["yolov4", "yolov7"]
+
+    def test_from_dict_error_boxes(self):
+        """error_boxes are reconstructed as BBox objects."""
+        wire = {"error_boxes": [[0, 0, 10, 10], [5, 5, 20, 20]]}
+        dr = DetectionResult.from_dict(wire)
+        assert len(dr.error_boxes) == 2
+        assert dr.error_boxes[0] == BBox(0, 0, 10, 10)
+        assert dr.error_boxes[1] == BBox(5, 5, 20, 20)
+
     @pytest.mark.integration
     def test_annotate_with_mock_cv2(self):
         """Test annotate() by mocking cv2 to avoid requiring it."""

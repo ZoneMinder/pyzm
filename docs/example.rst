@@ -13,6 +13,10 @@ Detecting a local image
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 .. literalinclude:: ../examples/image.py
 
+Remote detection via pyzm.serve
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/remote.py
+
 Various legacy examples (API, ES, shared memory)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. literalinclude:: ../examples/example.py

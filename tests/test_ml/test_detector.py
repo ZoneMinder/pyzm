@@ -555,3 +555,108 @@ class TestIsBetter:
         r2 = DetectionResult(detections=[])
         assert _is_better(r1, r2, FrameStrategy.FIRST) is True
         assert _is_better(r2, r1, FrameStrategy.FIRST) is False
+
+
+# ===================================================================
+# TestDetectorRemoteMode
+# ===================================================================
+
+class TestDetectorRemoteMode:
+    """Tests for Detector gateway / remote mode."""
+
+    def test_init_with_gateway(self):
+        from pyzm.ml.detector import Detector
+
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000")
+        assert det._gateway == "http://gpu:5000"
+        assert det._gateway_timeout == 60
+
+    def test_init_gateway_trailing_slash_stripped(self):
+        from pyzm.ml.detector import Detector
+
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000/")
+        assert det._gateway == "http://gpu:5000"
+
+    def test_init_gateway_none_by_default(self):
+        from pyzm.ml.detector import Detector
+
+        det = Detector(models=["yolov4"])
+        assert det._gateway is None
+
+    def test_from_dict_picks_up_ml_gateway(self):
+        from pyzm.ml.detector import Detector
+
+        ml_options = {
+            "general": {
+                "model_sequence": "object",
+                "same_model_sequence_strategy": "first",
+                "ml_gateway": "http://gpu:5000",
+                "ml_user": "admin",
+                "ml_password": "secret",
+                "ml_timeout": "30",
+            },
+            "object": {
+                "general": {},
+                "sequence": [{"name": "yolov4", "object_framework": "opencv"}],
+            },
+        }
+        det = Detector.from_dict(ml_options)
+        assert det._gateway == "http://gpu:5000"
+        assert det._gateway_username == "admin"
+        assert det._gateway_password == "secret"
+        assert det._gateway_timeout == 30
+
+    def test_from_dict_no_gateway(self):
+        from pyzm.ml.detector import Detector
+
+        ml_options = {
+            "general": {"model_sequence": "object", "same_model_sequence_strategy": "first"},
+            "object": {
+                "general": {},
+                "sequence": [{"name": "yolov4", "object_framework": "opencv"}],
+            },
+        }
+        det = Detector.from_dict(ml_options)
+        assert det._gateway is None
+
+    @patch("pyzm.ml.detector.Detector._remote_detect")
+    def test_detect_routes_to_remote(self, mock_remote):
+        """When gateway is set, detect() calls _remote_detect."""
+        from pyzm.ml.detector import Detector
+
+        mock_remote.return_value = DetectionResult(detections=[_det("person")])
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000")
+
+        import types
+        mock_np = types.ModuleType("numpy")
+
+        class FakeNdarray:
+            pass
+
+        mock_np.ndarray = FakeNdarray
+        image = MagicMock()
+        image.__class__ = FakeNdarray
+
+        with patch.dict("sys.modules", {"numpy": mock_np}):
+            result = det.detect(image)
+
+        mock_remote.assert_called_once()
+        assert result.frame_id == "single"
+
+    @patch("pyzm.ml.detector.Detector._remote_detect")
+    def test_detect_string_routes_to_remote(self, mock_remote):
+        """When gateway is set, detect(path) loads image locally then remotes."""
+        from pyzm.ml.detector import Detector
+
+        mock_remote.return_value = DetectionResult(detections=[_det("car")])
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000")
+
+        mock_cv2 = MagicMock()
+        mock_image = MagicMock()
+        mock_cv2.imread.return_value = mock_image
+
+        with patch.dict("sys.modules", {"cv2": mock_cv2}):
+            result = det.detect("/path/to/image.jpg")
+
+        mock_remote.assert_called_once()
+        assert result.labels == ["car"]

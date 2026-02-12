@@ -371,3 +371,22 @@ class StreamConfig(BaseModel):
                 kwargs[key] = str(d[key])
 
         return cls(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Serve configuration
+# ---------------------------------------------------------------------------
+
+class ServerConfig(BaseModel):
+    """Configuration for the pyzm ML detection server (``pyzm.serve``)."""
+    host: str = "0.0.0.0"
+    port: int = 5000
+    models: list[str] = Field(default_factory=lambda: ["yolov4"])
+    base_path: str = "/var/lib/zmeventnotification/models"
+    processor: Processor = Processor.CPU
+    detector_config: DetectorConfig | None = None
+    auth_enabled: bool = False
+    auth_username: str = "admin"
+    auth_password: SecretStr = SecretStr("")
+    token_expiry_seconds: int = 3600
+    token_secret: str = "change-me"

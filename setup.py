@@ -63,6 +63,14 @@ setup(name = NAME,
       url = URL,
       license = LICENSE,
       install_requires=INSTALL_REQUIRES,
+      extras_require={
+          'serve': [
+              'fastapi>=0.100',
+              'uvicorn>=0.20',
+              'python-multipart>=0.0.5',
+              'PyJWT>=2.0',
+          ],
+      },
       py_modules = [
                     'pyzm.api',
                     'pyzm.helpers.Base',
@@ -100,6 +108,11 @@ setup(name = NAME,
                     'pyzm.ml.backends.face_dlib',
                     'pyzm.ml.backends.alpr',
                     'pyzm.ml.backends.rekognition',
+
+                    # Serve (remote ML detection server)
+                    'pyzm.serve',
+                    'pyzm.serve.app',
+                    'pyzm.serve.auth',
 
                     # Low-level ML implementations (wrapped by v2 backends)
                     'pyzm.ml.alpr',

@@ -280,6 +280,16 @@ class Detector:
         ``"cpu"``, ``"gpu"``, ``"tpu"`` or a :class:`Processor` enum.
         Ignored when *config* is provided or when *models* contains
         :class:`ModelConfig` objects (which carry their own processor).
+    gateway:
+        URL of a remote ``pyzm.serve`` server (e.g. ``http://gpu:5000``).
+        When set, ``detect()`` sends images to the remote server instead
+        of running inference locally.
+    gateway_timeout:
+        HTTP timeout in seconds for remote detection requests.
+    gateway_username:
+        Username for remote server authentication (optional).
+    gateway_password:
+        Password for remote server authentication (optional).
     """
 
     def __init__(
@@ -288,6 +298,11 @@ class Detector:
         models: list[str | ModelConfig] | None = None,
         base_path: str | Path = DEFAULT_BASE_MODEL_PATH,
         processor: str | Processor = Processor.CPU,
+        *,
+        gateway: str | None = None,
+        gateway_timeout: int = 60,
+        gateway_username: str | None = None,
+        gateway_password: str | None = None,
     ) -> None:
         bp = Path(base_path)
         proc = Processor(processor) if isinstance(processor, str) else processor
@@ -309,6 +324,13 @@ class Detector:
 
         self._pipeline: ModelPipeline | None = None
 
+        # Remote gateway
+        self._gateway = gateway.rstrip("/") if gateway else None
+        self._gateway_timeout = gateway_timeout
+        self._gateway_username = gateway_username
+        self._gateway_password = gateway_password
+        self._gateway_token: str | None = None
+
     # -- private helpers ------------------------------------------------------
 
     def _ensure_pipeline(self) -> ModelPipeline:
@@ -323,6 +345,63 @@ class Detector:
         if img is None:
             raise FileNotFoundError(f"Could not read image: {path}")
         return img
+
+    # -- remote gateway helpers -----------------------------------------------
+
+    def _ensure_gateway_token(self) -> str | None:
+        """Authenticate with the remote gateway and cache the token."""
+        if self._gateway_token:
+            return self._gateway_token
+        if not self._gateway_username:
+            return None
+
+        import requests
+
+        resp = requests.post(
+            f"{self._gateway}/login",
+            json={
+                "username": self._gateway_username,
+                "password": self._gateway_password or "",
+            },
+            timeout=self._gateway_timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        self._gateway_token = data.get("access_token")
+        return self._gateway_token
+
+    def _remote_detect(
+        self,
+        image: "np.ndarray",
+        zones: list["Zone"] | None = None,
+    ) -> DetectionResult:
+        """Send an image to the remote gateway for detection."""
+        import cv2
+        import requests
+
+        _, jpeg = cv2.imencode(".jpg", image)
+        files = {"file": ("image.jpg", jpeg.tobytes(), "image/jpeg")}
+        form_data: dict[str, str] = {}
+        if zones:
+            import json
+            form_data["zones"] = json.dumps([z.as_dict() for z in zones])
+
+        headers: dict[str, str] = {}
+        token = self._ensure_gateway_token()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        resp = requests.post(
+            f"{self._gateway}/detect",
+            files=files,
+            data=form_data,
+            headers=headers,
+            timeout=self._gateway_timeout,
+        )
+        resp.raise_for_status()
+        result = DetectionResult.from_dict(resp.json())
+        result.image = image
+        return result
 
     # -- public API -----------------------------------------------------------
 
@@ -348,6 +427,21 @@ class Detector:
         DetectionResult
         """
         import numpy as np  # lazy
+
+        if self._gateway:
+            # Remote mode: send to gateway
+            if isinstance(input, str):
+                image = self._load_image(input)
+                result = self._remote_detect(image, zones)
+                result.frame_id = "single"
+                return result
+            if isinstance(input, np.ndarray):
+                result = self._remote_detect(input, zones)
+                result.frame_id = "single"
+                return result
+            if isinstance(input, list):
+                return self._detect_multi_frame_remote(input, zones)
+            raise TypeError(f"Unsupported input type: {type(input)}")
 
         pipeline = self._ensure_pipeline()
 
@@ -423,6 +517,9 @@ class Detector:
             logger.warning("No frames extracted for event %d", event_id)
             return DetectionResult()
 
+        if self._gateway:
+            return self._detect_multi_frame_remote(frames, zones, original_shape=original_shape)
+
         pipeline = self._ensure_pipeline()
         return self._detect_multi_frame(frames, zones, pipeline, original_shape=original_shape)
 
@@ -455,10 +552,18 @@ class Detector:
         """Build a Detector from an ``ml_sequence`` dict.
 
         This delegates to :meth:`DetectorConfig.from_dict` so existing
-        YAML configurations work directly.
+        YAML configurations work directly.  If ``ml_options["general"]``
+        contains ``ml_gateway``, the detector is created in remote mode.
         """
         detector_config = DetectorConfig.from_dict(ml_options)
-        return cls(config=detector_config)
+        general = ml_options.get("general", {})
+        return cls(
+            config=detector_config,
+            gateway=general.get("ml_gateway"),
+            gateway_username=general.get("ml_user"),
+            gateway_password=general.get("ml_password"),
+            gateway_timeout=int(general.get("ml_timeout", 60)),
+        )
 
     # -- multi-frame logic ----------------------------------------------------
 
@@ -492,6 +597,41 @@ class Detector:
             return DetectionResult()
 
         # Pick best according to strategy
+        best = all_results[0]
+        for result in all_results[1:]:
+            if _is_better(result, best, strategy):
+                best = result
+
+        return best
+
+    def _detect_multi_frame_remote(
+        self,
+        frames: list[tuple[int | str, "np.ndarray"]],
+        zones: list["Zone"] | None,
+        original_shape: tuple[int, int] | None = None,
+    ) -> DetectionResult:
+        """Run remote detection on multiple frames and pick the best result."""
+        strategy = self._config.frame_strategy
+        all_results: list[DetectionResult] = []
+
+        for frame_id, image in frames:
+            try:
+                result = self._remote_detect(image, zones)
+                result.frame_id = frame_id
+                if original_shape:
+                    result.image_dimensions["original"] = original_shape
+                all_results.append(result)
+            except Exception:
+                logger.exception("Error in remote detection for frame %s", frame_id)
+                continue
+
+            if strategy == FrameStrategy.FIRST and result.matched:
+                logger.debug("Frame strategy 'first': returning frame %s", frame_id)
+                return result
+
+        if not all_results:
+            return DetectionResult()
+
         best = all_results[0]
         for result in all_results[1:]:
             if _is_better(result, best, strategy):

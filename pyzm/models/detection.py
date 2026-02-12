@@ -167,6 +167,35 @@ class DetectionResult:
 
         return image
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "DetectionResult":
+        """Reconstruct a DetectionResult from a wire dict (inverse of ``to_dict``).
+
+        The *image* field is left as ``None`` — the caller already has the
+        original image and can attach it after reconstruction.
+        """
+        labels = data.get("labels", [])
+        boxes = data.get("boxes", [])
+        confidences = data.get("confidences", [])
+        model_names = data.get("model_names", [])
+
+        detections: list[Detection] = []
+        for i, label in enumerate(labels):
+            bbox = BBox(*boxes[i]) if i < len(boxes) else BBox(0, 0, 0, 0)
+            conf = confidences[i] if i < len(confidences) else 0.0
+            mname = model_names[i] if i < len(model_names) else ""
+            detections.append(Detection(label=label, confidence=conf, bbox=bbox, model_name=mname))
+
+        error_boxes = [BBox(*eb) for eb in data.get("error_boxes", [])]
+
+        return cls(
+            detections=detections,
+            frame_id=data.get("frame_id"),
+            image=None,
+            image_dimensions=data.get("image_dimensions", {}),
+            error_boxes=error_boxes,
+        )
+
     # -- Convenience for backward compat with dict access -----------------
 
     def to_dict(self) -> dict:
