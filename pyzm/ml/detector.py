@@ -284,6 +284,11 @@ class Detector:
         URL of a remote ``pyzm.serve`` server (e.g. ``http://gpu:5000``).
         When set, ``detect()`` sends images to the remote server instead
         of running inference locally.
+    gateway_mode:
+        ``"image"`` (default) sends JPEG-encoded frames to the server.
+        ``"url"`` sends frame URLs so the server fetches images directly
+        from ZoneMinder.  Only applies to ``detect_event()``; single-image
+        ``detect()`` calls always use image mode.
     gateway_timeout:
         HTTP timeout in seconds for remote detection requests.
     gateway_username:
@@ -300,6 +305,7 @@ class Detector:
         processor: str | Processor = Processor.CPU,
         *,
         gateway: str | None = None,
+        gateway_mode: str = "image",
         gateway_timeout: int = 60,
         gateway_username: str | None = None,
         gateway_password: str | None = None,
@@ -326,6 +332,7 @@ class Detector:
 
         # Remote gateway
         self._gateway = gateway.rstrip("/") if gateway else None
+        self._gateway_mode = gateway_mode
         self._gateway_timeout = gateway_timeout
         self._gateway_username = gateway_username
         self._gateway_password = gateway_password
@@ -402,6 +409,38 @@ class Detector:
         result = DetectionResult.from_dict(resp.json())
         result.image = image
         return result
+
+    def _remote_detect_urls(
+        self,
+        frame_urls: list[dict[str, str]],
+        zm_auth: str,
+        zones: list["Zone"] | None = None,
+        verify_ssl: bool = True,
+    ) -> DetectionResult:
+        """Send frame URLs to the remote gateway for server-side fetching."""
+        import requests
+
+        headers: dict[str, str] = {}
+        token = self._ensure_gateway_token()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        payload: dict[str, object] = {
+            "urls": frame_urls,
+            "zm_auth": zm_auth,
+            "verify_ssl": verify_ssl,
+        }
+        if zones:
+            payload["zones"] = [z.as_dict() for z in zones]
+
+        resp = requests.post(
+            f"{self._gateway}/detect_urls",
+            json=payload,
+            headers=headers,
+            timeout=self._gateway_timeout,
+        )
+        resp.raise_for_status()
+        return DetectionResult.from_dict(resp.json())
 
     # -- public API -----------------------------------------------------------
 
@@ -496,6 +535,23 @@ class Detector:
 
         sc = stream_config or SC()
 
+        # URL mode: send frame URLs to the server instead of fetching frames locally
+        if self._gateway and self._gateway_mode == "url":
+            api = getattr(zm_client, "api", None)
+            if api is None:
+                raise AttributeError("zm_client.api required for URL-mode gateway")
+
+            portal_url = api.portal_url
+            auth_str = api.auth.get_auth_string()
+            verify_ssl = api.config.verify_ssl
+
+            frame_ids = sc.frame_set if sc.frame_set else ["snapshot"]
+            frame_urls = [
+                {"frame_id": str(fid), "url": f"{portal_url}/index.php?view=image&eid={event_id}&fid={fid}"}
+                for fid in frame_ids
+            ]
+            return self._remote_detect_urls(frame_urls, auth_str, zones, verify_ssl)
+
         # Expect zm_client to have a method that returns frames
         get_frames = getattr(zm_client, "get_event_frames", None)
         if get_frames is None:
@@ -560,6 +616,7 @@ class Detector:
         return cls(
             config=detector_config,
             gateway=general.get("ml_gateway"),
+            gateway_mode=general.get("ml_gateway_mode", "image"),
             gateway_username=general.get("ml_user"),
             gateway_password=general.get("ml_password"),
             gateway_timeout=int(general.get("ml_timeout", 60)),

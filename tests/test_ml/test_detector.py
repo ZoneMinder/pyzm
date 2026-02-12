@@ -660,3 +660,162 @@ class TestDetectorRemoteMode:
 
         mock_remote.assert_called_once()
         assert result.labels == ["car"]
+
+    def test_init_gateway_mode_default(self):
+        from pyzm.ml.detector import Detector
+
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000")
+        assert det._gateway_mode == "image"
+
+    def test_init_gateway_mode_url(self):
+        from pyzm.ml.detector import Detector
+
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000", gateway_mode="url")
+        assert det._gateway_mode == "url"
+
+    def test_from_dict_picks_up_ml_gateway_mode(self):
+        from pyzm.ml.detector import Detector
+
+        ml_options = {
+            "general": {
+                "model_sequence": "object",
+                "same_model_sequence_strategy": "first",
+                "ml_gateway": "http://gpu:5000",
+                "ml_gateway_mode": "url",
+            },
+            "object": {
+                "general": {},
+                "sequence": [{"name": "yolov4", "object_framework": "opencv"}],
+            },
+        }
+        det = Detector.from_dict(ml_options)
+        assert det._gateway_mode == "url"
+
+    def test_from_dict_gateway_mode_defaults_to_image(self):
+        from pyzm.ml.detector import Detector
+
+        ml_options = {
+            "general": {
+                "model_sequence": "object",
+                "same_model_sequence_strategy": "first",
+                "ml_gateway": "http://gpu:5000",
+            },
+            "object": {
+                "general": {},
+                "sequence": [{"name": "yolov4", "object_framework": "opencv"}],
+            },
+        }
+        det = Detector.from_dict(ml_options)
+        assert det._gateway_mode == "image"
+
+    @patch("pyzm.ml.detector.Detector._remote_detect_urls")
+    def test_detect_event_url_mode(self, mock_remote_urls):
+        """URL-mode detect_event sends frame URLs instead of fetching frames."""
+        from pyzm.ml.detector import Detector
+
+        mock_remote_urls.return_value = DetectionResult(detections=[_det("person")])
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000", gateway_mode="url")
+
+        # Mock zm_client with api.portal_url and api.auth
+        mock_zm = MagicMock()
+        mock_zm.api.portal_url = "https://zm.example.com/zm"
+        mock_zm.api.auth.get_auth_string.return_value = "token=abc123"
+        mock_zm.api.config.verify_ssl = False
+
+        from pyzm.models.config import StreamConfig
+        sc = StreamConfig(frame_set=["snapshot", "alarm"])
+
+        result = det.detect_event(mock_zm, 12345, stream_config=sc)
+
+        mock_remote_urls.assert_called_once()
+        call_args = mock_remote_urls.call_args
+        frame_urls = call_args[0][0]
+        assert len(frame_urls) == 2
+        assert frame_urls[0]["frame_id"] == "snapshot"
+        assert "eid=12345" in frame_urls[0]["url"]
+        assert "fid=snapshot" in frame_urls[0]["url"]
+        assert frame_urls[1]["frame_id"] == "alarm"
+        assert call_args[0][1] == "token=abc123"  # zm_auth
+        assert call_args[0][3] is False  # verify_ssl
+        assert result.labels == ["person"]
+
+    @patch("pyzm.ml.detector.Detector._remote_detect_urls")
+    def test_detect_event_url_mode_default_frame_set(self, mock_remote_urls):
+        """URL-mode with empty frame_set defaults to ['snapshot']."""
+        from pyzm.ml.detector import Detector
+
+        mock_remote_urls.return_value = DetectionResult()
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000", gateway_mode="url")
+
+        mock_zm = MagicMock()
+        mock_zm.api.portal_url = "https://zm.example.com/zm"
+        mock_zm.api.auth.get_auth_string.return_value = ""
+        mock_zm.api.config.verify_ssl = True
+
+        from pyzm.models.config import StreamConfig
+        sc = StreamConfig(frame_set=[])
+
+        det.detect_event(mock_zm, 999, stream_config=sc)
+        frame_urls = mock_remote_urls.call_args[0][0]
+        assert len(frame_urls) == 1
+        assert frame_urls[0]["frame_id"] == "snapshot"
+
+    def test_detect_event_url_mode_requires_api(self):
+        """URL-mode raises AttributeError if zm_client has no .api."""
+        from pyzm.ml.detector import Detector
+
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000", gateway_mode="url")
+
+        mock_zm = MagicMock(spec=[])  # no attributes
+        with pytest.raises(AttributeError, match="zm_client.api required"):
+            det.detect_event(mock_zm, 12345)
+
+    @patch("requests.post")
+    def test_remote_detect_urls_sends_post(self, mock_post):
+        """_remote_detect_urls POSTs JSON to /detect_urls."""
+        from pyzm.ml.detector import Detector
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "labels": ["car"], "boxes": [[10, 20, 50, 80]],
+            "confidences": [0.9], "model_names": ["yolov4"],
+        }
+        mock_post.return_value = mock_resp
+
+        det = Detector(models=["yolov4"], gateway="http://gpu:5000", gateway_mode="url")
+
+        frame_urls = [{"frame_id": "snapshot", "url": "http://zm/image?eid=1&fid=snapshot"}]
+        result = det._remote_detect_urls(frame_urls, "token=abc", verify_ssl=False)
+
+        mock_post.assert_called_once()
+        call_kwargs = mock_post.call_args
+        assert call_kwargs[0][0] == "http://gpu:5000/detect_urls"
+        payload = call_kwargs[1]["json"]
+        assert payload["urls"] == frame_urls
+        assert payload["zm_auth"] == "token=abc"
+        assert payload["verify_ssl"] is False
+        assert result.labels == ["car"]
+
+    @patch("requests.post")
+    def test_remote_detect_urls_with_auth(self, mock_post):
+        """_remote_detect_urls includes Bearer token when gateway auth is set."""
+        from pyzm.ml.detector import Detector
+
+        # Mock login
+        mock_login_resp = MagicMock()
+        mock_login_resp.json.return_value = {"access_token": "jwt123"}
+        # Mock detect_urls
+        mock_detect_resp = MagicMock()
+        mock_detect_resp.json.return_value = {"labels": [], "boxes": [], "confidences": []}
+        mock_post.side_effect = [mock_login_resp, mock_detect_resp]
+
+        det = Detector(
+            models=["yolov4"], gateway="http://gpu:5000", gateway_mode="url",
+            gateway_username="admin", gateway_password="secret",
+        )
+
+        det._remote_detect_urls([{"frame_id": "1", "url": "http://zm/img"}], "token=x")
+
+        # Second call is detect_urls
+        detect_call = mock_post.call_args_list[1]
+        assert detect_call[1]["headers"]["Authorization"] == "Bearer jwt123"

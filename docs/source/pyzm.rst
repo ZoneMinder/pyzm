@@ -1,16 +1,22 @@
 pyzm package
 ============
 
-API
---------
+Legacy API
+-----------
+
+The original ZoneMinder API wrapper. For new code, prefer :class:`~pyzm.client.ZMClient`.
+
 .. automodule:: pyzm.api
     :members:
     :special-members: __init__
     :undoc-members:
     :show-inheritance:
 
-Classes returned by the API
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Legacy helper classes
+~~~~~~~~~~~~~~~~~~~~~~
+
+Wrapper objects returned by the legacy ``pyzm.api.ZMApi`` class.
+
 .. automodule:: pyzm.helpers.Monitors
     :members:
     :undoc-members:
@@ -49,6 +55,10 @@ Classes returned by the API
 
 Logging
 --------
+
+Logging utilities for pyzm. ``setup_logging()`` creates a standard ``logging.Logger``
+with optional ZoneMinder database and syslog integration.
+
 .. automodule:: pyzm.ZMLog
     :members:
     :special-members: __init__
@@ -56,6 +66,10 @@ Logging
 
 Event Notification
 ---------------------
+
+WebSocket client for receiving real-time event notifications from the
+ZoneMinder Event Server (``zmeventnotification.pl``).
+
 .. automodule:: pyzm.ZMEventNotification
     :members:
     :special-members: __init__
@@ -63,6 +77,10 @@ Event Notification
 
 Memory
 -------
+
+Direct access to ZoneMinder's shared memory segments for low-latency
+monitor state and trigger data.
+
 .. automodule:: pyzm.ZMMemory
     :members:
     :special-members: __init__
@@ -71,6 +89,9 @@ Memory
 
 Machine Learning
 ------------------
+
+The ML detection pipeline. ``Detector`` is the main entry point --
+it manages backends, model sequencing, and result filtering.
 
 .. automodule:: pyzm.ml.detector
     :members:
@@ -89,6 +110,9 @@ Machine Learning
 Configuration Models
 ---------------------
 
+Pydantic v2 models for all pyzm configuration: ZM client settings,
+detector/model parameters, and stream extraction options.
+
 .. automodule:: pyzm.models.config
     :members:
     :undoc-members:
@@ -104,6 +128,9 @@ Configuration Models
 Remote ML Detection Server
 ----------------------------
 
+A FastAPI-based server that loads models once and serves detection requests
+over HTTP. See the :doc:`serve guide </guide/serve>` for usage.
+
 .. automodule:: pyzm.serve.app
     :members:
     :undoc-members:
@@ -114,6 +141,9 @@ Remote ML Detection Server
 
 ZoneMinder Client
 ------------------
+
+The v2 typed client for the ZoneMinder REST API. Returns dataclass models
+(``Monitor``, ``Event``, ``Zone``) instead of raw dicts.
 
 .. automodule:: pyzm.client
     :members:

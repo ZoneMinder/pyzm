@@ -1,27 +1,98 @@
-.. pyzm documentation master file, created by
-   sphinx-quickstart on Sun Jul 28 16:01:30 2019.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+pyzm -- Python for ZoneMinder
+==============================
 
+**pyzm** is a Python library for interacting with the
+`ZoneMinder <https://www.zoneminder.com/>`_ surveillance system.
+It provides:
 
-Welcome to pyzm's documentation!
-================================
+- A typed client for the ZoneMinder REST API (monitors, events, states)
+- An ML detection pipeline supporting YOLO, Coral EdgeTPU, face recognition, and ALPR
+- A remote ML detection server (``pyzm.serve``) for offloading GPU work
+- Pydantic v2 configuration models and typed detection results
 
-`Github Repository <https://github.com/pliablepixels/pyzm>`__
+`Source on GitHub <https://github.com/pliablepixels/pyzm>`__
 
-.. toctree::
-   :maxdepth: 4
-   :caption: Contents:
+What's new in v2
+-----------------
 
-   source/modules
-   example
+pyzm v2 is a major rewrite of the library:
+
+- **Typed API client** -- ``ZMClient`` replaces the old ``pyzm.api.ZMApi``.
+  Returns dataclass models (``Monitor``, ``Event``, ``Zone``) instead of raw dicts.
+- **Unified ML detector** -- ``Detector`` is the single entry point for all
+  detection backends. No more importing ``pyzm.ml.yolo.Yolo`` directly.
+- **Pydantic v2 config** -- ``DetectorConfig``, ``ModelConfig``, ``StreamConfig``
+  replace INI-style config parsing. YAML configs are loaded via ``from_dict()``.
+- **Typed results** -- ``DetectionResult`` with ``.labels``, ``.summary``,
+  ``.annotate()`` instead of nested dicts.
+- **Remote detection** -- ``pyzm.serve`` is a built-in FastAPI server. Use
+  ``Detector(gateway=...)`` to send images to a GPU box over HTTP.
+- **Event tagging** -- ``ZMClient.tag_event()`` creates and associates object
+  tags on events (ZM >= 1.37.44).
 
 Installation
-==================
+--------------
 
-::
+.. code-block:: bash
 
-  sudo -H pip3 install pyzm
+   pip install pyzm
+
+For the remote ML server:
+
+.. code-block:: bash
+
+   pip install pyzm[serve]
+
+Requirements
+--------------
+
+- Python 3.10+
+- Pydantic >= 2.0
+- OpenCV (``cv2``) for ML detection
+- A running ZoneMinder instance (for API features)
+
+Quick example
+--------------
+
+.. code-block:: python
+
+   from pyzm import ZMClient, Detector
+
+   # Connect to ZoneMinder
+   zm = ZMClient(url="https://zm.example.com/zm/api",
+                  user="admin", password="secret")
+
+   for m in zm.monitors():
+       print(f"{m.name}: {m.function} ({m.width}x{m.height})")
+
+   # Detect objects in a local image
+   detector = Detector(models=["yolov4"])
+   result = detector.detect("/path/to/image.jpg")
+
+   if result.matched:
+       print(result.summary)       # "person:97% car:85%"
+       result.annotate()           # draw bounding boxes on the image
+
+.. toctree::
+   :maxdepth: 2
+   :caption: User Guide
+
+   guide/quickstart
+   guide/migration
+   guide/detection
+   guide/serve
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Examples
+
+   example
+
+.. toctree::
+   :maxdepth: 3
+   :caption: API Reference
+
+   source/modules
 
 
 Indices and tables
