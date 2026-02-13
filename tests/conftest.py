@@ -26,6 +26,14 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "integration: marks tests requiring optional deps (cv2, shapely, numpy)",
     )
+    config.addinivalue_line(
+        "markers",
+        "e2e: end-to-end tests requiring real models and images on disk",
+    )
+    config.addinivalue_line(
+        "markers",
+        "serve: tests that start a pyzm.serve subprocess",
+    )
 
 
 # ---------------------------------------------------------------------------
