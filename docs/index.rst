@@ -95,6 +95,13 @@ Quick example
 
    source/modules
 
+.. toctree::
+   :hidden:
+   :caption: Related Projects
+
+   Event Server v7+ <https://zmeventnotification.readthedocs.io/en/latest/>
+   zmNg <https://github.com/pliablepixels/zmNg>
+
 
 Related Projects
 ==================
