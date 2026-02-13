@@ -4,6 +4,9 @@ markers = [
     "unit: Unit tests (fast, no external deps)",
     "integration: Integration tests (multi-step workflows)",
     "slow: Slow tests",
+    "e2e: All end-to-end tests (require live ZoneMinder)",
+    "e2e_readonly: E2E tests that only read data (safe to run anytime)",
+    "e2e_write: E2E tests that create/modify/delete data (opt-in via ZM_E2E_WRITE=1)",
 ]
 addopts = "-v --strict-markers --tb=short"
 

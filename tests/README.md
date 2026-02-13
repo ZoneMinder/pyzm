@@ -124,3 +124,62 @@ pytest tests/unit/test_api_auth.py -v
 - `pyzm.ZMEventNotification` — Requires WebSocket
 - `pyzm.helpers.Media` — Requires cv2/numpy
 - `pyzm.helpers.utils` — `draw_bbox` requires cv2; `Timer`/`read_config`/`template_fill` are simple utilities
+
+---
+
+## E2E Tests (End-to-End)
+
+### Overview
+
+E2E tests run against a **live ZoneMinder instance**. They catch bugs that unit tests miss because unit tests mock HTTP responses with hand-crafted JSON fixtures.
+
+| Category | Example | Why unit tests miss it |
+|----------|---------|----------------------|
+| Response structure drift | ZM returns `StartDateTime` but pyzm expects `StartTime` | Fixture uses whatever pyzm expects |
+| flash() instead of JSON | `MonitorsController.delete()` returns HTML redirect | Fixture mocks clean JSON |
+| Filter URL building bugs | pyzm builds wrong filter path -> wrong results | Mock returns whatever you tell it |
+| Type coercion mismatches | ZM returns `"1"` (string), pyzm assumes `int` | Fixture can use any type |
+| Auth flow against real server | JWT format, token refresh timing, credential format | Mock always returns 200 |
+
+### E2E Environment Setup
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ZM_API_URL` | Yes | Full API URL, e.g. `https://zm.local/zm/api` |
+| `ZM_USER` | Yes | ZoneMinder username |
+| `ZM_PASSWORD` | Yes | ZoneMinder password |
+| `ZM_E2E_WRITE` | No | Set to `1` to enable write-tier tests |
+
+If env vars are unset, all E2E tests are skipped automatically.
+
+### Running E2E Tests
+
+```bash
+# Readonly only (safe, no data changes)
+ZM_API_URL=https://zm.local/zm/api ZM_USER=admin ZM_PASSWORD=secret \
+  pytest tests/e2e/ -m e2e_readonly
+
+# Write tests (creates/modifies/deletes with cleanup)
+ZM_API_URL=https://zm.local/zm/api ZM_USER=admin ZM_PASSWORD=secret ZM_E2E_WRITE=1 \
+  pytest tests/e2e/ -m e2e_write
+
+# All E2E
+ZM_API_URL=https://zm.local/zm/api ZM_USER=admin ZM_PASSWORD=secret ZM_E2E_WRITE=1 \
+  pytest tests/e2e/
+
+# Collect-only (verify discovery without a live instance)
+pytest tests/e2e/ -v --co -m e2e_readonly
+```
+
+### E2E Tiers
+
+- **Readonly** (`e2e_readonly`): list, find, get, filter operations. Safe to run repeatedly.
+- **Write** (`e2e_write`): create, modify, delete operations. Require `ZM_E2E_WRITE=1`. All write tests clean up:
+  - Monitors prefixed `pyzm_e2e_test_` are deleted in teardown
+  - Config values saved before mutation and restored in teardown
+  - States recorded and restored after switching
+
+### Known pyzm Bugs Documented as E2E Tests
+
+- `Configs.find(name="nonexistent")` raises `TypeError` at `Configs.py:64` (no null check on `match`)
+- Monitor/event delete may return `None` (flash redirect) instead of JSON
