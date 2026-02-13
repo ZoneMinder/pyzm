@@ -265,6 +265,8 @@ class Detector:
             self._pipeline = ModelPipeline(self._config)
             if lazy:
                 self._pipeline.prepare()
+            else:
+                self._pipeline.load()
         return self._pipeline
 
     @staticmethod
