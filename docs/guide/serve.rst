@@ -221,6 +221,26 @@ processor, and input dimensions.
      - opencv
      - cpu
      - ONNX/Darknet YOLOv7-tiny, 640x640 input
+   * - ``yolo11n``
+     - object
+     - opencv
+     - cpu
+     - Ultralytics YOLO11 nano ONNX, 640x640 input
+   * - ``yolo11s``
+     - object
+     - opencv
+     - cpu
+     - Ultralytics YOLO11 small ONNX, 640x640 input
+   * - ``yolo26n``
+     - object
+     - opencv
+     - cpu
+     - Ultralytics YOLO26 nano ONNX, 640x640 input
+   * - ``yolo26s``
+     - object
+     - opencv
+     - cpu
+     - Ultralytics YOLO26 small ONNX, 640x640 input
    * - ``coral``
      - object
      - coral_edgetpu
