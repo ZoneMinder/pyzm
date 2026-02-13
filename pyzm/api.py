@@ -283,7 +283,7 @@ class ZMApi (Base):
                 return r.json()
             elif r.headers.get('content-type').startswith('image/'):
                 return r
-            elif type=='delete':
+            elif type in ('delete', 'put'):
                 return None
             else:
                 # A non 0 byte response will usually mean its an image eid request that needs re-login
