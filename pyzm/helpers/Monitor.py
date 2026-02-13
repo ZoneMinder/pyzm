@@ -31,7 +31,7 @@ class Monitor(Base):
         Returns:
             bool: Enabled or not
         """
-        return self.monitor['Monitor']['Enabled'] == '1'
+        return str(self.monitor['Monitor']['Enabled']) == '1'
 
     def function(self):
         """returns monitor function

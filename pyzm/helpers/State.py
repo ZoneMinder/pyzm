@@ -32,7 +32,7 @@ class State(Base):
         Returns:
             bool: True if active
         """
-        return self.state['State']['IsActive'] == '1'
+        return str(self.state['State']['IsActive']) == '1'
 
     def definition(self):
         """Returns the description text of this state

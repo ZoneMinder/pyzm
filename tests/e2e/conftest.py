@@ -110,6 +110,8 @@ def e2e_monitor_factory(zm_api_live):
             name = "pyzm_e2e_test_" + name
         opts = {
             "name": name,
+            "type": kwargs.pop("type", "Ffmpeg"),
+            "device": kwargs.pop("device", ""),
             "function": kwargs.pop("function", "Monitor"),
             "enabled": kwargs.pop("enabled", False),
             "width": kwargs.pop("width", 640),

@@ -224,6 +224,18 @@ class TestConfigs:
         assert configs.find() is None
 
     @responses.activate
+    def test_configs_find_nonexistent_returns_none(self, zm_api, configs_response):
+        """find() returns None when no config matches."""
+        responses.add(
+            responses.GET,
+            "https://zm.example.com/zm/api/configs.json",
+            json=configs_response,
+            status=200,
+        )
+        configs = zm_api.configs()
+        assert configs.find(name="ZM_NONEXISTENT_XYZ") is None
+
+    @responses.activate
     def test_configs_set_name_none_returns_none(self, zm_api, configs_response):
         """set(name=None) returns None (early guard)."""
         responses.add(

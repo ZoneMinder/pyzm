@@ -66,16 +66,12 @@ class TestConfigFind:
         assert result["value"] in ("builtin", "remote"), \
             f"Unexpected ZM_AUTH_TYPE value: {result['value']}"
 
-    def test_find_nonexistent_raises_typeerror(self, zm_api_live):
-        """Documents pyzm bug: Configs.find() at line 64 crashes when no match.
-
-        Configs.find() doesn't check if `match` is None before accessing
-        match['Config']['Id']. This raises TypeError.
-        Unlike Monitors.find() and States.find() which return None.
-        """
+    def test_find_nonexistent_returns_none(self, zm_api_live):
+        """Configs.find() returns None when no match — consistent with
+        Monitors.find() and States.find()."""
         configs = zm_api_live.configs({"force_reload": True})
-        with pytest.raises(TypeError):
-            configs.find(name="ZM_PYZM_E2E_NONEXISTENT_CONFIG_XYZ")
+        result = configs.find(name="ZM_PYZM_E2E_NONEXISTENT_CONFIG_XYZ")
+        assert result is None
 
 
 # ---------------------------------------------------------------------------

@@ -205,7 +205,7 @@ class TestMonitorSetParameter:
         monitors = zm_api_live.monitors({"force_reload": True})
         updated = monitors.find(name="pyzm_e2e_test_setparam_raw")
         assert updated is not None
-        assert updated.get()["Colours"] == "4"
+        assert str(updated.get()["Colours"]) == "4"
 
 
 @pytest.mark.e2e_write
