@@ -81,6 +81,7 @@ Quick example
    guide/migration
    guide/detection
    guide/serve
+   guide/testing
 
 .. toctree::
    :maxdepth: 2
