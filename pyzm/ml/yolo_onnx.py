@@ -12,6 +12,10 @@ class YoloOnnx(YoloBase):
         super().__init__(options, default_dim=640)
         self.is_end2end = False
         self.pre_nms_layer = None
+        # Letterbox state (set per-detect call)
+        self._lb_scale = 1.0
+        self._lb_pad_w = 0
+        self._lb_pad_h = 0
 
     def _load_onnx_metadata(self):
         """Load metadata from ONNX model (labels, end2end flag, pre-NMS layer)."""
@@ -81,6 +85,42 @@ class YoloOnnx(YoloBase):
         self._setup_gpu(cv2_ver)
         self.populate_class_labels()
 
+    def _letterbox(self, image):
+        """Resize image with aspect ratio preserved and pad to model dimensions.
+
+        Stores scale and padding offsets in self._lb_scale, self._lb_pad_w,
+        self._lb_pad_h for coordinate de-projection in _forward_and_parse.
+        """
+        h, w = image.shape[:2]
+        target_w, target_h = self.model_width, self.model_height
+
+        scale = min(target_w / w, target_h / h)
+        new_w = int(round(w * scale))
+        new_h = int(round(h * scale))
+
+        resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+        # Pad to target size with gray (114, 114, 114) — Ultralytics default
+        pad_w = (target_w - new_w) // 2
+        pad_h = (target_h - new_h) // 2
+        padded = np.full((target_h, target_w, 3), 114, dtype=np.uint8)
+        padded[pad_h:pad_h + new_h, pad_w:pad_w + new_w] = resized
+
+        self._lb_scale = scale
+        self._lb_pad_w = pad_w
+        self._lb_pad_h = pad_h
+
+        return padded
+
+    def _create_blob(self, image):
+        """Override base: letterbox then normalize to [0,1] BGR->RGB blob."""
+        letterboxed = self._letterbox(image)
+        scale = 0.00392  # 1/255
+        return cv2.dnn.blobFromImage(letterboxed,
+                                     scale, (self.model_width, self.model_height), (0, 0, 0),
+                                     True,
+                                     crop=False)
+
     def _forward_and_parse(self, blob, Width, Height, conf_threshold):
         self.net.setInput(blob)
         if self.pre_nms_layer:
@@ -88,14 +128,10 @@ class YoloOnnx(YoloBase):
         else:
             outs = self.net.forward()
 
-        class_ids = []
-        confidences = []
-        boxes = []
-
-        # Both standard and end2end (via pre-NMS layer) produce
-        # ultralytics-format output: rows of [cx, cy, w, h, class_scores...]
-        # Standard shape: (1, 4+C, N) — needs transpose
-        # Pre-NMS shape:  (1, N, 4+C) — already transposed
+        # Output formats:
+        #   Standard (non-end2end): (1, 4+C, N) with [cx, cy, w, h, cls_scores...]
+        #   End2end pre-NMS layer:  (1, N, 4+C) with [x1, y1, x2, y2, cls_scores...]
+        #     (the end2end graph converts cxcywh -> xyxy before the NMS ops)
         output = outs[0] if isinstance(outs, (list, tuple)) else outs
         if output.ndim == 3:
             output = output.squeeze(0)
@@ -106,27 +142,50 @@ class YoloOnnx(YoloBase):
         else:
             predictions = output
 
-        g.logger.Debug(2, '{}: ONNX output shape={}, predictions={}'.format(
-            self.name, output.shape, predictions.shape))
+        g.logger.Debug(2, '{}: ONNX output shape={}, predictions={}, end2end={}'.format(
+            self.name, output.shape, predictions.shape, self.is_end2end))
 
-        x_factor = Width / self.model_width
-        y_factor = Height / self.model_height
+        # Vectorized: extract best class and confidence per prediction
+        class_scores = predictions[:, 4:]
+        best_class_ids = np.argmax(class_scores, axis=1)
+        best_confidences = class_scores[np.arange(len(best_class_ids)), best_class_ids]
 
-        for pred in predictions:
-            class_scores = pred[4:]
-            class_id = np.argmax(class_scores)
-            confidence = class_scores[class_id]
-            if confidence < conf_threshold:
-                continue
+        # Filter by confidence threshold
+        mask = best_confidences >= conf_threshold
+        filtered = predictions[mask]
+        filtered_ids = best_class_ids[mask]
+        filtered_confs = best_confidences[mask]
 
-            cx, cy, bw, bh = pred[0], pred[1], pred[2], pred[3]
-            x = (cx - bw / 2) * x_factor
-            y = (cy - bh / 2) * y_factor
-            w = bw * x_factor
-            h = bh * y_factor
+        if len(filtered) == 0:
+            return [], [], []
 
-            class_ids.append(class_id)
-            confidences.append(float(confidence))
-            boxes.append([x, y, w, h])
+        s = self._lb_scale
+        pw = self._lb_pad_w
+        ph = self._lb_pad_h
+
+        if self.is_end2end:
+            # End2end pre-NMS: pred[0:4] = [x1, y1, x2, y2] in letterbox space
+            x1 = (filtered[:, 0] - pw) / s
+            y1 = (filtered[:, 1] - ph) / s
+            x2 = (filtered[:, 2] - pw) / s
+            y2 = (filtered[:, 3] - ph) / s
+            x = x1
+            y = y1
+            w = x2 - x1
+            h = y2 - y1
+        else:
+            # Standard: pred[0:4] = [cx, cy, w, h] in letterbox space
+            cx = filtered[:, 0]
+            cy = filtered[:, 1]
+            bw = filtered[:, 2]
+            bh = filtered[:, 3]
+            x = (cx - bw / 2 - pw) / s
+            y = (cy - bh / 2 - ph) / s
+            w = bw / s
+            h = bh / s
+
+        class_ids = filtered_ids.tolist()
+        confidences = filtered_confs.tolist()
+        boxes = np.stack([x, y, w, h], axis=1).tolist()
 
         return class_ids, confidences, boxes
