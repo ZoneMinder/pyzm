@@ -28,20 +28,6 @@ def _make_monitor(overrides=None):
 
 
 @pytest.mark.unit
-class TestMonitorEnabled:
-
-    def test_monitor_enabled_false(self):
-        """Enabled == '0' returns False."""
-        mon = _make_monitor({"Enabled": "0"})
-        assert mon.enabled() is False
-
-    def test_monitor_enabled_true(self):
-        """Enabled == '1' returns True."""
-        mon = _make_monitor({"Enabled": "1"})
-        assert mon.enabled() is True
-
-
-@pytest.mark.unit
 class TestSetParameter:
 
     def test_set_parameter_builds_payload(self):

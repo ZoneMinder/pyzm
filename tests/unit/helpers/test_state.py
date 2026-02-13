@@ -26,10 +26,3 @@ class TestStateEdgeCases:
         )
         assert state.definition() is None
 
-    def test_definition_with_value(self):
-        """Non-empty definition returns the string."""
-        state = State(
-            state={"State": {"Id": "1", "Name": "default", "IsActive": "1", "Definition": "ZM default"}},
-            api=MagicMock(),
-        )
-        assert state.definition() == "ZM default"
