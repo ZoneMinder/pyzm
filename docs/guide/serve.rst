@@ -90,13 +90,13 @@ Scenario 2: ZM + hooks + pyzm (same box, no ES)
 
 Same as Scenario 1 but without the Event Server. ZoneMinder calls
 ``zm_detect.py`` directly via its ``EventStartCommand`` / ``EventEndCommand``
-filter settings.
+recording settings.
 
 .. code-block:: text
 
    ZoneMinder EventStartCommand --> zm_detect.py --> Detector (local)
 
-**ZoneMinder filter settings:**
+**ZoneMinder Console -> Click on Monitor Source -> Recording:**
 
 .. code-block:: text
 
