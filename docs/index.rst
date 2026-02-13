@@ -96,6 +96,16 @@ Quick example
    source/modules
 
 
+Related Projects
+==================
+
+`Event Notification Server v7+ <https://zmeventnotification.readthedocs.io/en/latest/>`__
+        Push notifications, WebSockets, and MQTT for ZoneMinder events
+`zmNg <https://github.com/pliablepixels/zmNg>`__
+        The newer-generation app for ZoneMinder
+`zmNinja Documentation <https://zmninja.readthedocs.io/en/latest/index.html>`__
+        Documentation for zmNinja
+
 Indices and tables
 ==================
 
