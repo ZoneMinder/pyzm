@@ -39,6 +39,7 @@ class ZMApi (Base):
             - disable_ssl_cert_check - if True will let you use self signed certs
             - basic_auth_user - basic auth username
             - basic_auth_password - basic auth password
+
             Note: you can connect your own customer logging class to the API in which case all modules will use your custom class. Your class will need to implement some methods for this to work. See :class:`pyzm.helpers.Base.SimpleLog` for method details.
         '''
         

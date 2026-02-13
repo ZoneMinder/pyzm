@@ -27,7 +27,7 @@ class Events(Base):
         """Returns list of event
         
         Returns:
-            list -- events of :class:`.Event`
+            list -- events of :class:`pyzm.helpers.Event.Event`
         """
         return self.events
 

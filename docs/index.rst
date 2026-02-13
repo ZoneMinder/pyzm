@@ -30,26 +30,8 @@ pyzm v2 is a major rewrite of the library:
 - **Event tagging** -- ``ZMClient.tag_event()`` creates and associates object
   tags on events (ZM >= 1.37.44).
 
-Installation
---------------
-
-.. code-block:: bash
-
-   pip install pyzm
-
-For the remote ML server:
-
-.. code-block:: bash
-
-   pip install pyzm[serve]
-
-Requirements
---------------
-
-- Python 3.10+
-- Pydantic >= 2.0
-- OpenCV (``cv2``) for ML detection
-- A running ZoneMinder instance (for API features)
+See :doc:`guide/installation` for detailed instructions, including notes on
+system-managed Python environments.
 
 Quick example
 --------------
@@ -77,6 +59,7 @@ Quick example
    :maxdepth: 2
    :caption: User Guide
 
+   guide/installation
    guide/quickstart
    guide/migration
    guide/detection
