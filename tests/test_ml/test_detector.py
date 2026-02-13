@@ -52,18 +52,14 @@ class TestDetectorInit:
         det = Detector(models=["yolov4"])
         assert len(det._config.models) == 1
         assert det._config.models[0].name == "yolov4"
-        assert det._config.models[0].framework == ModelFramework.OPENCV
-        assert det._config.models[0].type == ModelType.OBJECT
 
     def test_init_with_multiple_model_names(self):
         from pyzm.ml.detector import Detector
 
-        det = Detector(models=["yolov4", "face_dlib"])
+        det = Detector(models=["yolov4", "myface"])
         assert len(det._config.models) == 2
         assert det._config.models[0].name == "yolov4"
-        assert det._config.models[1].name == "face_dlib"
-        assert det._config.models[1].type == ModelType.FACE
-        assert det._config.models[1].framework == ModelFramework.FACE_DLIB
+        assert det._config.models[1].name == "myface"
 
     def test_init_with_model_config_objects(self):
         from pyzm.ml.detector import Detector
@@ -106,23 +102,13 @@ class TestDetectorInit:
         det = Detector(base_path="/nonexistent/path")
         assert det._config.models == []
 
-    def test_init_unknown_preset_defaults_to_yolov4(self):
+    def test_init_unknown_model_creates_bare_config(self):
         from pyzm.ml.detector import Detector
 
         det = Detector(models=["nonexistent_model"])
         mc = det._config.models[0]
         assert mc.name == "nonexistent_model"
-        # Should have defaulted to yolov4 preset
-        assert mc.framework == ModelFramework.OPENCV
-        assert mc.type == ModelType.OBJECT
-
-    def test_coral_preset(self):
-        from pyzm.ml.detector import Detector
-
-        det = Detector(models=["coral"])
-        mc = det._config.models[0]
-        assert mc.framework == ModelFramework.CORAL
-        assert mc.processor == Processor.TPU
+        assert mc.weights is None
 
 
 # ===================================================================
@@ -370,13 +356,20 @@ class TestModelDiscovery:
         assert mc.name == "yolo26s"
         assert mc.weights.endswith("yolo26s.onnx")
 
-    def test_resolve_falls_back_to_preset(self, tmp_path):
+    def test_resolve_falls_back_to_bare_config(self, tmp_path):
         from pyzm.ml.detector import _resolve_model_name
 
-        mc = _resolve_model_name("face_dlib", tmp_path)
-        assert mc.name == "face_dlib"
-        assert mc.type == ModelType.FACE
+        mc = _resolve_model_name("unknown_model", tmp_path)
+        assert mc.name == "unknown_model"
         assert mc.weights is None  # no files found
+        assert mc.processor == Processor.CPU  # default
+
+    def test_resolve_fallback_uses_provided_processor(self, tmp_path):
+        from pyzm.ml.detector import _resolve_model_name
+
+        mc = _resolve_model_name("unknown_model", tmp_path, Processor.GPU)
+        assert mc.name == "unknown_model"
+        assert mc.processor == Processor.GPU
 
     def test_detector_init_with_base_path(self, tmp_path):
         from pyzm.ml.detector import Detector

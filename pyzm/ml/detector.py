@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pyzm.ml.pipeline import ModelPipeline
 from pyzm.models.config import (
@@ -148,7 +148,7 @@ def _resolve_model_name(
     Search order:
     1. Directory named *name* containing model files
     2. Any weight file whose stem matches *name* in any subdirectory
-    3. Fall back to preset defaults (no paths)
+    3. Fall back to a bare ModelConfig with just the name and processor
     """
     # 1. Direct directory match: e.g. "yolov4" -> base_path/yolov4/
     candidate_dir = base_path / name
@@ -166,118 +166,10 @@ def _resolve_model_name(
                 if f.is_file() and f.stem == name and f.suffix.lower() in _WEIGHT_EXTS:
                     return _model_config_from_file(f, subdir, processor)
 
-    # 3. Fallback: preset without paths
-    logger.warning("Model '%s' not found in %s, using preset defaults (no paths)", name, base_path)
-    return _model_name_to_config(name)
-
-
-# ---------------------------------------------------------------------------
-# Model name -> sensible preset defaults (fallback when no base_path)
-# ---------------------------------------------------------------------------
-
-_MODEL_PRESETS: dict[str, dict[str, Any]] = {
-    "yolov4": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.OPENCV,
-        "processor": Processor.CPU,
-        "model_width": 416,
-        "model_height": 416,
-    },
-    "yolov4-tiny": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.OPENCV,
-        "processor": Processor.CPU,
-        "model_width": 416,
-        "model_height": 416,
-    },
-    "yolov7": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.OPENCV,
-        "processor": Processor.CPU,
-        "model_width": 640,
-        "model_height": 640,
-    },
-    "yolov7-tiny": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.OPENCV,
-        "processor": Processor.CPU,
-        "model_width": 640,
-        "model_height": 640,
-    },
-    "yolo11n": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.OPENCV,
-        "processor": Processor.CPU,
-        "model_width": 640,
-        "model_height": 640,
-    },
-    "yolo11s": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.OPENCV,
-        "processor": Processor.CPU,
-        "model_width": 640,
-        "model_height": 640,
-    },
-    "yolo26n": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.OPENCV,
-        "processor": Processor.CPU,
-        "model_width": 640,
-        "model_height": 640,
-    },
-    "yolo26s": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.OPENCV,
-        "processor": Processor.CPU,
-        "model_width": 640,
-        "model_height": 640,
-    },
-    "coral": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.CORAL,
-        "processor": Processor.TPU,
-    },
-    "face_dlib": {
-        "type": ModelType.FACE,
-        "framework": ModelFramework.FACE_DLIB,
-    },
-    "face_tpu": {
-        "type": ModelType.FACE,
-        "framework": ModelFramework.FACE_TPU,
-        "processor": Processor.TPU,
-    },
-    "plate_recognizer": {
-        "type": ModelType.ALPR,
-        "framework": ModelFramework.PLATE_RECOGNIZER,
-        "alpr_service": "plate_recognizer",
-    },
-    "openalpr": {
-        "type": ModelType.ALPR,
-        "framework": ModelFramework.OPENALPR,
-        "alpr_service": "open_alpr",
-    },
-    "aws_rekognition": {
-        "type": ModelType.OBJECT,
-        "framework": ModelFramework.REKOGNITION,
-    },
-}
-
-
-def _model_name_to_config(name: str) -> ModelConfig:
-    """Convert a simple model name string to a :class:`ModelConfig` with
-    sensible preset defaults (no file paths)."""
-    preset = _MODEL_PRESETS.get(name, {})
-    if not preset:
-        logger.warning("Unknown model preset '%s', defaulting to YOLO/OpenCV", name)
-        preset = _MODEL_PRESETS["yolov4"]
-
-    kwargs: dict[str, Any] = {"name": name}
-    kwargs.update(preset)
-    alpr_service = kwargs.pop("alpr_service", None)
-    mc = ModelConfig(**kwargs)
-    if alpr_service:
-        mc.alpr_service = alpr_service
-    return mc
+    # 3. Fallback: bare config with no paths — will fail at load time
+    #    if the backend actually needs weight files.
+    logger.warning("Model '%s' not found in %s, creating bare config (no paths)", name, base_path)
+    return ModelConfig(name=name, processor=processor)
 
 
 # ---------------------------------------------------------------------------

@@ -50,7 +50,7 @@ if zm.monitors():
 
 from pyzm import Detector
 
-# Quick start with a named preset
+# Quick start -- model names are resolved against base_path on disk
 detector = Detector(models=["yolov4"])
 
 # Or with explicit config:

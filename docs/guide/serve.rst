@@ -184,109 +184,29 @@ double transfer through the client.
 Available models
 -----------------
 
-Preset model names
-~~~~~~~~~~~~~~~~~~~
+Model names and discovery
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The following preset names are recognized by ``--models`` and the
-``Detector(models=[...])`` API. When models are found on disk under
-``--base-path``, the preset provides sensible defaults for framework,
-processor, and input dimensions.
+Model names passed via ``--models`` (or ``Detector(models=[...])``) are
+resolved against ``--base-path`` on disk. There are no hardcoded presets --
+any name you pass is looked up as follows:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 12 18 10 40
+1. **Directory match** -- ``base_path/<name>/`` containing a weight file
+2. **File stem match** -- any ``<name>.onnx``, ``<name>.weights``, or
+   ``<name>.tflite`` in any subdirectory of ``base_path``
 
-   * - Name
-     - Type
-     - Framework
-     - Processor
-     - Notes
-   * - ``yolov4``
-     - object
-     - opencv
-     - cpu
-     - Darknet YOLOv4, 416x416 input
-   * - ``yolov4-tiny``
-     - object
-     - opencv
-     - cpu
-     - Darknet YOLOv4-tiny, 416x416 input
-   * - ``yolov7``
-     - object
-     - opencv
-     - cpu
-     - ONNX/Darknet YOLOv7, 640x640 input
-   * - ``yolov7-tiny``
-     - object
-     - opencv
-     - cpu
-     - ONNX/Darknet YOLOv7-tiny, 640x640 input
-   * - ``yolo11n``
-     - object
-     - opencv
-     - cpu
-     - Ultralytics YOLO11 nano ONNX, 640x640 input
-   * - ``yolo11s``
-     - object
-     - opencv
-     - cpu
-     - Ultralytics YOLO11 small ONNX, 640x640 input
-   * - ``yolo26n``
-     - object
-     - opencv
-     - cpu
-     - Ultralytics YOLO26 nano ONNX, 640x640 input
-   * - ``yolo26s``
-     - object
-     - opencv
-     - cpu
-     - Ultralytics YOLO26 small ONNX, 640x640 input
-   * - ``coral``
-     - object
-     - coral_edgetpu
-     - tpu
-     - Requires Coral USB/PCIe Edge TPU
-   * - ``face_dlib``
-     - face
-     - face_dlib
-     - cpu
-     - dlib face recognition
-   * - ``face_tpu``
-     - face
-     - face_tpu
-     - tpu
-     - Face detection on Coral TPU
-   * - ``plate_recognizer``
-     - alpr
-     - plate_recognizer
-     - cpu
-     - Plate Recognizer cloud API (requires API key)
-   * - ``openalpr``
-     - alpr
-     - openalpr
-     - cpu
-     - OpenALPR cloud/local API
-   * - ``aws_rekognition``
-     - object
-     - aws_rekognition
-     - cpu
-     - AWS Rekognition cloud API (requires credentials)
+The framework is inferred from the file extension:
 
-
-Auto-discovered models
-~~~~~~~~~~~~~~~~~~~~~~~
-
-When ``models=None`` (auto-discover mode) or ``--models all``, pyzm scans
-``--base-path`` for model weight files. It looks one level deep into
-subdirectories for these extensions:
-
-- ``.onnx`` -- loaded via OpenCV DNN (ONNX runtime)
-- ``.weights`` -- loaded via OpenCV DNN (Darknet)
-- ``.tflite`` -- loaded via Coral Edge TPU runtime
+- ``.onnx`` -- OpenCV DNN (ONNX runtime)
+- ``.weights`` -- OpenCV DNN (Darknet format, also needs a ``.cfg`` file)
+- ``.tflite`` -- Coral Edge TPU runtime (processor forced to ``tpu``)
 
 Label files are auto-detected from the same directory (``.names``,
 ``.txt``, ``.labels``). For Darknet models, ``.cfg`` files are also
 discovered automatically.
+
+The ``--processor`` flag (``cpu``, ``gpu``, ``tpu``) applies to all
+discovered models (except ``.tflite`` which always uses ``tpu``).
 
 
 ``--models all`` (lazy loading)
