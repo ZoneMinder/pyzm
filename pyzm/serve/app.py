@@ -29,16 +29,17 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        lazy = config.models == ["all"]
         detector = Detector(
-            models=config.models,
+            models=None if lazy else config.models,
             base_path=config.base_path,
             processor=config.processor,
         )
-        # Eagerly load models so the first request doesn't pay the cost
-        detector._ensure_pipeline()
+        detector._ensure_pipeline(lazy=lazy)
         app.state.detector = detector
+        mode = "lazy" if lazy else "eager"
         logger.info(
-            "Detector ready: %d model(s) loaded", len(detector._config.models)
+            "Detector ready (%s): %d model(s)", mode, len(detector._config.models)
         )
         yield
 
@@ -59,6 +60,23 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
             hasattr(app.state, "detector") and app.state.detector._pipeline is not None
         )
         return {"status": "ok", "models_loaded": models_loaded}
+
+    @app.get("/models")
+    def list_models():
+        """Return the list of available models and their load status."""
+        detector: Detector = app.state.detector
+        pipeline = detector._pipeline
+        if pipeline is None:
+            return {"models": []}
+        result = []
+        for mc, backend in pipeline._backends:
+            result.append({
+                "name": mc.name or mc.framework.value,
+                "type": mc.type.value,
+                "framework": mc.framework.value,
+                "loaded": backend.is_loaded,
+            })
+        return {"models": result}
 
     @app.post("/detect", dependencies=auth_deps)
     async def detect(

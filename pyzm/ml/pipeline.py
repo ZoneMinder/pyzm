@@ -90,6 +90,8 @@ class ModelPipeline:
 
     def load(self) -> None:
         """Pre-load all enabled backends."""
+        if self._loaded:
+            return
         for mc in self._config.models:
             if not mc.enabled:
                 logger.debug("Skipping disabled model: %s", mc.name or mc.framework)
@@ -100,6 +102,26 @@ class ModelPipeline:
                 self._backends.append((mc, backend))
             except Exception:
                 logger.exception("Error loading model %s", mc.name or mc.framework)
+        self._loaded = True
+
+    def prepare(self) -> None:
+        """Create backend objects without loading weights (lazy mode).
+
+        Each backend will load its own weights on first ``detect()`` call
+        thanks to the ``if self._model is None: self.load()`` guard in
+        every backend's ``detect()`` method.
+        """
+        if self._loaded:
+            return
+        for mc in self._config.models:
+            if not mc.enabled:
+                continue
+            try:
+                backend = _create_backend(mc)
+                # Don't call backend.load() — weights load on first detect()
+                self._backends.append((mc, backend))
+            except Exception:
+                logger.exception("Error creating backend for %s", mc.name or mc.framework)
         self._loaded = True
 
     def run(

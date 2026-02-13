@@ -15,7 +15,11 @@ def main() -> None:
         "--models",
         nargs="+",
         default=["yolov4"],
-        help="Model names to load (default: yolov4)",
+        help=(
+            "Model names to load (space-separated, default: yolov4). "
+            "Use 'all' to auto-discover every model in --base-path "
+            "(loaded lazily on first request)."
+        ),
     )
     ap.add_argument("--base-path", default="/var/lib/zmeventnotification/models")
     ap.add_argument("--processor", default="cpu", choices=["cpu", "gpu", "tpu"])

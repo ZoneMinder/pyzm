@@ -36,30 +36,288 @@ Two detection modes are available:
   direct network access to ZM.
 
 
+Deployment scenarios
+---------------------
+
+Scenario 1: ZM + Event Server + hooks + pyzm (same box)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Everything runs on the same machine. The ZoneMinder Event Server (ES)
+triggers hook scripts which call ``zm_detect.py``, and detection runs
+locally via the ``Detector`` class.
+
+.. code-block:: text
+
+   ZoneMinder --> zmeventnotification.pl (ES)
+                     |
+                     v
+                  zm_event_start.sh
+                     |
+                     v
+                  zm_detect.py --> Detector (local GPU/CPU)
+
+**objectconfig.yml** (no ``remote`` section needed):
+
+.. code-block:: yaml
+
+   ml:
+     ml_sequence:
+       general:
+         model_sequence: "object"
+       object:
+         general:
+           pattern: "(person|car)"
+         sequence:
+           - name: YOLOv4
+             object_weights: "/var/lib/zmeventnotification/models/yolov4/yolov4.weights"
+             object_config: "/var/lib/zmeventnotification/models/yolov4/yolov4.cfg"
+             object_labels: "/var/lib/zmeventnotification/models/yolov4/coco.names"
+             object_framework: opencv
+             object_processor: gpu
+
+**Test locally:**
+
+.. code-block:: bash
+
+   sudo -u www-data python3 -m pyzm.zm_detect \
+       --config /etc/zm/objectconfig.yml \
+       --eventid 12345 \
+       --debug
+
+
+Scenario 2: ZM + hooks + pyzm (same box, no ES)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Same as Scenario 1 but without the Event Server. ZoneMinder calls
+``zm_detect.py`` directly via its ``EventStartCommand`` / ``EventEndCommand``
+filter settings.
+
+.. code-block:: text
+
+   ZoneMinder EventStartCommand --> zm_detect.py --> Detector (local)
+
+**ZoneMinder filter settings:**
+
+.. code-block:: text
+
+   EventStartCommand = /usr/bin/python3 -m pyzm.zm_detect -c /etc/zm/objectconfig.yml -e %EID% -m %MID% -r "%EC%" -n
+
+**objectconfig.yml** is the same as Scenario 1.
+
+
+Scenario 3: ZM box + remote GPU box (split architecture)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Detection runs on a separate GPU machine. The ZM box runs ``zm_detect.py``
+which sends requests to the remote ``pyzm.serve`` server over HTTP.
+
+.. code-block:: text
+
+   ZM box                              GPU box
+   +-------------------+               +------------------------+
+   | zm_detect.py      |   HTTP        | pyzm.serve             |
+   | Detector(         | ------------> |   --models all         |
+   |   gateway=...)    |               |   --processor gpu      |
+   |                   | <------------ |   --port 5000          |
+   +-------------------+  JSON result  +------------------------+
+
+**GPU box setup:**
+
+.. code-block:: bash
+
+   pip install pyzm[serve]
+   python -m pyzm.serve --models all --processor gpu --port 5000
+
+Or with specific models and auth:
+
+.. code-block:: bash
+
+   python -m pyzm.serve \
+       --models yolov4 yolov7 \
+       --processor gpu \
+       --port 5000 \
+       --auth --auth-user admin --auth-password secret \
+       --token-secret my-jwt-secret
+
+**ZM box objectconfig.yml** (image mode):
+
+.. code-block:: yaml
+
+   ml:
+     ml_sequence:
+       general:
+         model_sequence: "object"
+         ml_gateway: "http://192.168.1.100:5000"
+         ml_fallback_local: "yes"
+       object:
+         general:
+           pattern: "(person|car)"
+         sequence:
+           - object_framework: opencv
+             object_weights: "/var/lib/zmeventnotification/models/yolov4/yolov4.weights"
+             object_config: "/var/lib/zmeventnotification/models/yolov4/yolov4.cfg"
+             object_labels: "/var/lib/zmeventnotification/models/yolov4/coco.names"
+
+**ZM box objectconfig.yml** (URL mode -- server fetches frames from ZM):
+
+.. code-block:: yaml
+
+   ml:
+     ml_sequence:
+       general:
+         model_sequence: "object"
+         ml_gateway: "http://192.168.1.100:5000"
+         ml_gateway_mode: "url"
+         ml_fallback_local: "yes"
+       object:
+         general:
+           pattern: "(person|car)"
+         sequence:
+           - object_framework: opencv
+             object_weights: "/var/lib/zmeventnotification/models/yolov4/yolov4.weights"
+
+URL mode is useful when the GPU box has direct network access to ZoneMinder
+(same LAN or VPN). The server fetches frames directly from ZM, avoiding
+double transfer through the client.
+
+
+Available models
+-----------------
+
+Preset model names
+~~~~~~~~~~~~~~~~~~~
+
+The following preset names are recognized by ``--models`` and the
+``Detector(models=[...])`` API. When models are found on disk under
+``--base-path``, the preset provides sensible defaults for framework,
+processor, and input dimensions.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 12 18 10 40
+
+   * - Name
+     - Type
+     - Framework
+     - Processor
+     - Notes
+   * - ``yolov4``
+     - object
+     - opencv
+     - cpu
+     - Darknet YOLOv4, 416x416 input
+   * - ``yolov4-tiny``
+     - object
+     - opencv
+     - cpu
+     - Darknet YOLOv4-tiny, 416x416 input
+   * - ``yolov7``
+     - object
+     - opencv
+     - cpu
+     - ONNX/Darknet YOLOv7, 640x640 input
+   * - ``yolov7-tiny``
+     - object
+     - opencv
+     - cpu
+     - ONNX/Darknet YOLOv7-tiny, 640x640 input
+   * - ``coral``
+     - object
+     - coral_edgetpu
+     - tpu
+     - Requires Coral USB/PCIe Edge TPU
+   * - ``face_dlib``
+     - face
+     - face_dlib
+     - cpu
+     - dlib face recognition
+   * - ``face_tpu``
+     - face
+     - face_tpu
+     - tpu
+     - Face detection on Coral TPU
+   * - ``plate_recognizer``
+     - alpr
+     - plate_recognizer
+     - cpu
+     - Plate Recognizer cloud API (requires API key)
+   * - ``openalpr``
+     - alpr
+     - openalpr
+     - cpu
+     - OpenALPR cloud/local API
+   * - ``aws_rekognition``
+     - object
+     - aws_rekognition
+     - cpu
+     - AWS Rekognition cloud API (requires credentials)
+
+
+Auto-discovered models
+~~~~~~~~~~~~~~~~~~~~~~~
+
+When ``models=None`` (auto-discover mode) or ``--models all``, pyzm scans
+``--base-path`` for model weight files. It looks one level deep into
+subdirectories for these extensions:
+
+- ``.onnx`` -- loaded via OpenCV DNN (ONNX runtime)
+- ``.weights`` -- loaded via OpenCV DNN (Darknet)
+- ``.tflite`` -- loaded via Coral Edge TPU runtime
+
+Label files are auto-detected from the same directory (``.names``,
+``.txt``, ``.labels``). For Darknet models, ``.cfg`` files are also
+discovered automatically.
+
+
+``--models all`` (lazy loading)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When you pass ``--models all`` to the server, **every** model in
+``--base-path`` is discovered and registered, but weights are **not**
+loaded into memory at startup. Instead, each backend loads its weights
+on the first request that uses it.
+
+This is useful when you have many models but don't want to consume
+GPU memory for all of them upfront.
+
+.. code-block:: bash
+
+   python -m pyzm.serve --models all --base-path /data/models --processor gpu
+
+Use the ``GET /models`` endpoint to check which models are available
+and whether their weights have been loaded.
+
+
+Model directory layout
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   /var/lib/zmeventnotification/models/
+   +-- yolov4/
+   |   +-- yolov4.weights
+   |   +-- yolov4.cfg
+   |   +-- coco.names
+   +-- yolov7/
+   |   +-- yolov7.onnx
+   +-- ultralytics/
+   |   +-- yolo26n.onnx
+   |   +-- yolo26s.onnx
+   +-- coral/
+   |   +-- ssd_mobilenet_v2.tflite
+   |   +-- coco_labels.txt
+
+
 Server setup
 -------------
 
-Install with the ``serve`` extra:
+Installation
+~~~~~~~~~~~~~
 
 .. code-block:: bash
 
    pip install pyzm[serve]
 
-Start the server:
-
-.. code-block:: bash
-
-   python -m pyzm.serve --models yolov4 --port 5000
-
-With GPU and authentication:
-
-.. code-block:: bash
-
-   python -m pyzm.serve \
-       --models yolov4 \
-       --processor gpu \
-       --port 5000 \
-       --auth --auth-user admin --auth-password secret
 
 CLI options
 ~~~~~~~~~~~~
@@ -79,7 +337,8 @@ CLI options
      - Bind port
    * - ``--models``
      - ``yolov4``
-     - Model names (space-separated)
+     - Model names (space-separated). Use ``all`` to auto-discover every
+       model in ``--base-path`` (loaded lazily on first request).
    * - ``--base-path``
      - ``/var/lib/zmeventnotification/models``
      - Directory containing model subdirectories
@@ -95,9 +354,42 @@ CLI options
    * - ``--auth-password``
      - (empty)
      - Password (when auth enabled)
-   * - ``--token-expiry``
-     - ``3600``
-     - JWT token expiry in seconds
+   * - ``--token-secret``
+     - ``change-me``
+     - Secret key used to sign JWT tokens. **Change this in production.**
+   * - ``--config``
+     - (none)
+     - Path to a YAML config file (``ServerConfig``). Overrides CLI flags.
+
+
+YAML config file
+~~~~~~~~~~~~~~~~~
+
+Instead of CLI flags, you can provide a YAML config file via ``--config``:
+
+.. code-block:: bash
+
+   python -m pyzm.serve --config /etc/pyzm/serve.yml
+
+Example ``serve.yml``:
+
+.. code-block:: yaml
+
+   host: "0.0.0.0"
+   port: 5000
+   models:
+     - yolov4
+     - yolov7
+   base_path: "/var/lib/zmeventnotification/models"
+   processor: gpu
+   auth_enabled: true
+   auth_username: admin
+   auth_password: "my-secret-password"
+   token_secret: "a-strong-random-secret"
+   token_expiry_seconds: 3600
+
+All fields correspond to ``ServerConfig`` attributes. When using
+``--config``, CLI flags are ignored.
 
 
 Client usage
@@ -193,6 +485,10 @@ When the server is started with ``--auth``, clients must first obtain a
 JWT token via ``/login``, then pass it as a Bearer token on subsequent
 requests. The ``Detector`` gateway mode handles this automatically.
 
+The ``--token-secret`` flag controls the secret key used to sign JWT
+tokens. **Always set this to a strong random value in production.**
+The default (``change-me``) is insecure.
+
 Manual flow:
 
 .. code-block:: bash
@@ -222,6 +518,21 @@ Health check. Returns:
 .. code-block:: json
 
    {"status": "ok", "models_loaded": true}
+
+``GET /models``
+~~~~~~~~~~~~~~~~
+
+Returns the list of available models and their load status. Useful with
+``--models all`` to check which backends have been lazily loaded.
+
+.. code-block:: json
+
+   {
+     "models": [
+       {"name": "yolov4", "type": "object", "framework": "opencv", "loaded": true},
+       {"name": "yolov7", "type": "object", "framework": "opencv", "loaded": false}
+     ]
+   }
 
 ``POST /detect``
 ~~~~~~~~~~~~~~~~~

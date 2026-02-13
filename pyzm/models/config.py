@@ -390,3 +390,12 @@ class ServerConfig(BaseModel):
     auth_password: SecretStr = SecretStr("")
     token_expiry_seconds: int = 3600
     token_secret: str = "change-me"
+
+    @model_validator(mode="after")
+    def _validate_models_all(self) -> "ServerConfig":
+        if "all" in self.models and len(self.models) > 1:
+            raise ValueError(
+                "'all' cannot be combined with other model names; "
+                "use --models all by itself"
+            )
+        return self

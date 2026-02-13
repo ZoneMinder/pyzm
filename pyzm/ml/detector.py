@@ -340,9 +340,11 @@ class Detector:
 
     # -- private helpers ------------------------------------------------------
 
-    def _ensure_pipeline(self) -> ModelPipeline:
+    def _ensure_pipeline(self, lazy: bool = False) -> ModelPipeline:
         if self._pipeline is None:
             self._pipeline = ModelPipeline(self._config)
+            if lazy:
+                self._pipeline.prepare()
         return self._pipeline
 
     @staticmethod
