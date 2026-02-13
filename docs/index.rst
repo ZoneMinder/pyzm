@@ -99,14 +99,14 @@ Quick example
    :hidden:
    :caption: Related Projects
 
-   Event Server v7+ <https://zmeventnotification.readthedocs.io/en/latest/>
+   Event Server v7+ <https://zmeventnotificationv7.readthedocs.io/en/latest/>
    zmNg <https://github.com/pliablepixels/zmNg>
 
 
 Related Projects
 ==================
 
-`Event Notification Server v7+ <https://zmeventnotification.readthedocs.io/en/latest/>`__
+`Event Notification Server v7+ <https://zmeventnotificationv7.readthedocs.io/en/latest/>`__
         Push notifications, WebSockets, and MQTT for ZoneMinder events
 `zmNg <https://github.com/pliablepixels/zmNg>`__
         The newer-generation app for ZoneMinder
