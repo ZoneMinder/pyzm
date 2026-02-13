@@ -9,6 +9,10 @@ Pythonic ZoneMinder wrapper
 - Memory
 - Machine Learning Modules
 
+Installation
+=============
+See the [installation guide](https://pyzmv2.readthedocs.io/en/latest/guide/installation.html) on ReadTheDocs.
+
 Documentation & Examples
 =========================
 Latest documentation is available <a href='https://pyzmv2.readthedocs.io/en/latest/'>here</a>. The documentation includes a full example.
