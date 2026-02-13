@@ -259,7 +259,7 @@ def _seq_item_to_model_config(
         labels=seq.get(f"{prefix}_labels"),
         min_confidence=float(seq.get(f"{prefix}_min_confidence", seq.get("object_min_confidence", 0.3))),
         pattern=section_general.get("pattern", global_general.get("pattern", ".*")),
-        max_detection_size=seq.get("max_detection_size") or seq.get("max_size"),
+        max_detection_size=str(v) if (v := seq.get("max_detection_size") or seq.get("max_size")) is not None else None,
         model_width=int(seq["model_width"]) if "model_width" in seq else None,
         model_height=int(seq["model_height"]) if "model_height" in seq else None,
         known_faces_dir=seq.get("known_images_path"),

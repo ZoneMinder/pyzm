@@ -10,7 +10,7 @@ from setuptools import setup
 #Package meta-data.
 NAME = 'pyzm'
 DESCRIPTION = 'ZoneMinder API, Logger and other base utilities for python programmers'
-URL = 'https://github.com/ZoneMinder/pyzm/'
+URL = 'https://github.com/pliablepixels/pyzm'
 AUTHOR_EMAIL = 'info@zoneminder.com'
 AUTHOR = 'Pliable Pixels'
 LICENSE = 'GPL'
@@ -61,6 +61,11 @@ setup(name = NAME,
       author = AUTHOR,
       author_email = AUTHOR_EMAIL,
       url = URL,
+      project_urls={
+          'Documentation': 'https://pyzmv2.readthedocs.io/en/latest/',
+          'Source': 'https://github.com/pliablepixels/pyzm',
+          'Bug Tracker': 'https://github.com/pliablepixels/pyzm/issues',
+      },
       license = LICENSE,
       install_requires=INSTALL_REQUIRES,
       extras_require={

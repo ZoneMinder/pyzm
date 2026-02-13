@@ -1,7 +1,7 @@
 #!/bin/bash
 echo "rm -rf dist"
 rm -fr dist
-echo "python setup.py sdist"
-python3 setup.py sdist
+echo "python -m build"
+python3 -m build
 echo "twine upload dist/*"
-twine upload dist/*
+twine upload dist/* --verbose
