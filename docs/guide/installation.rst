@@ -6,7 +6,7 @@ Requirements
 
 - Python 3.10 or newer
 - Pydantic >= 2.0
-- OpenCV (``cv2``) -- required for ML detection features
+- OpenCV 4.13+ (``cv2``) -- required for ML detection features (ONNX YOLO models need 4.13+ for full operator support)
 - A running ZoneMinder instance (for API features)
 
 .. note::
