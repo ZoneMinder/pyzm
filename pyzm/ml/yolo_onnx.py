@@ -11,6 +11,7 @@ class YoloOnnx(YoloBase):
     def __init__(self, options={}):
         super().__init__(options, default_dim=640)
         self.is_end2end = False
+        self.is_native_e2e = False
         self.pre_nms_layer = None
         # Letterbox state (set per-detect call)
         self._lb_scale = 1.0
@@ -27,13 +28,28 @@ class YoloOnnx(YoloBase):
 
             if meta.get('end2end', '').lower() == 'true':
                 self.is_end2end = True
+
+                # Check output shape: native e2e (YOLO26) outputs (1, N, 6)
+                out_dims = model.graph.output[0].type.tensor_type.shape.dim
+                out_shape = [d.dim_value for d in out_dims]
+                if len(out_shape) == 3 and out_shape[2] == 6:
+                    self.is_native_e2e = True
+                    g.logger.Debug(1, '{}: Native end-to-end model (YOLO26-style) detected, '
+                                   'output shape={}'.format(self.name, out_shape))
+
+                # Always find pre-NMS layer as fallback
                 for i, node in enumerate(model.graph.node):
                     if (node.op_type == 'Transpose'
                             and i + 1 < len(model.graph.node)
                             and model.graph.node[i + 1].op_type == 'Split'):
                         self.pre_nms_layer = 'onnx_node!' + node.name
                         break
-                if self.pre_nms_layer:
+
+                if self.is_native_e2e:
+                    if self.pre_nms_layer:
+                        g.logger.Debug(2, '{}: Pre-NMS fallback layer: {}'.format(
+                            self.name, self.pre_nms_layer))
+                elif self.pre_nms_layer:
                     g.logger.Debug(1, '{}: End2end ONNX detected, will read pre-NMS layer: {}'.format(
                         self.name, self.pre_nms_layer))
                 else:
@@ -122,6 +138,9 @@ class YoloOnnx(YoloBase):
                                      crop=False)
 
     def _forward_and_parse(self, blob, Width, Height, conf_threshold):
+        if self.is_native_e2e:
+            return self._parse_native_e2e(blob, conf_threshold)
+
         self.net.setInput(blob)
         if self.pre_nms_layer:
             outs = self.net.forward(self.pre_nms_layer)
@@ -187,5 +206,64 @@ class YoloOnnx(YoloBase):
         class_ids = filtered_ids.tolist()
         confidences = filtered_confs.tolist()
         boxes = np.stack([x, y, w, h], axis=1).tolist()
+
+        return class_ids, confidences, boxes
+
+    def _parse_native_e2e(self, blob, conf_threshold):
+        """Parse native end-to-end output (YOLO26-style).
+
+        Output shape is (N, 6) with columns [x1, y1, x2, y2, conf, class_id].
+        No NMS is needed — the model produces non-overlapping predictions.
+        Falls back to pre-NMS layer if OpenCV produces garbled output.
+        """
+        self.net.setInput(blob)
+        outs = self.net.forward()
+
+        output = outs[0] if isinstance(outs, (list, tuple)) else outs
+        if output.ndim == 3:
+            output = output.squeeze(0)
+
+        g.logger.Debug(2, '{}: Native e2e output shape={}'.format(self.name, output.shape))
+
+        # Validate: garbled OpenCV output has many detections with identical
+        # confidence (e.g. all 0.1274).  Real output has diverse values.
+        confs = output[:, 4]
+        nonzero = confs[confs > 0.001]
+        if len(nonzero) > 10:
+            unique_count = len(np.unique(np.round(nonzero, 4)))
+            if unique_count < max(3, len(nonzero) * 0.1):
+                g.logger.Debug(1, '{}: Native e2e output looks garbled ({} unique conf values '
+                               'across {} detections), falling back to pre-NMS layer'.format(
+                                   self.name, unique_count, len(nonzero)))
+                if self.pre_nms_layer:
+                    self.is_native_e2e = False
+                    return self._forward_and_parse(blob, 0, 0, conf_threshold)
+                g.logger.Error('{}: No pre-NMS fallback available'.format(self.name))
+                return [], [], []
+
+        # Filter by confidence
+        mask = output[:, 4] >= conf_threshold
+        filtered = output[mask]
+
+        if len(filtered) == 0:
+            return [], [], []
+
+        s = self._lb_scale
+        pw = self._lb_pad_w
+        ph = self._lb_pad_h
+
+        # De-letterbox: coords are [x1, y1, x2, y2] in letterbox space
+        x1 = (filtered[:, 0] - pw) / s
+        y1 = (filtered[:, 1] - ph) / s
+        x2 = (filtered[:, 2] - pw) / s
+        y2 = (filtered[:, 3] - ph) / s
+
+        class_ids = filtered[:, 5].astype(int).tolist()
+        confidences = filtered[:, 4].tolist()
+        # Return as [x, y, w, h] for compatibility with base detect() method
+        boxes = np.stack([x1, y1, x2 - x1, y2 - y1], axis=1).tolist()
+
+        g.logger.Debug(2, '{}: Native e2e: {} detections above {}'.format(
+            self.name, len(class_ids), conf_threshold))
 
         return class_ids, confidences, boxes
