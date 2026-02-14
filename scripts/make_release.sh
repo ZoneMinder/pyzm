@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+SKIP_PYPI=false
+for arg in "$@"; do
+    case "$arg" in
+        --skip-pypi) SKIP_PYPI=true ;;
+        *) echo "Unknown option: $arg"; exit 1 ;;
+    esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_DIR"
@@ -30,13 +38,15 @@ for cmd in git-cliff gh; do
         exit 1
     fi
 done
-if ! python3 -m build --help &>/dev/null; then
-    echo "ERROR: python3 -m build not available. Install with: pip install build"
-    exit 1
-fi
-if ! command -v twine &>/dev/null; then
-    echo "ERROR: twine not found. Install with: pip install twine"
-    exit 1
+if [ "$SKIP_PYPI" = false ]; then
+    if ! python3 -m build --help &>/dev/null; then
+        echo "ERROR: python3 -m build not available. Install with: pip install build"
+        exit 1
+    fi
+    if ! command -v twine &>/dev/null; then
+        echo "ERROR: twine not found. Install with: pip install twine"
+        exit 1
+    fi
 fi
 export GITHUB_TOKEN=$(gh auth token)
 
@@ -82,9 +92,13 @@ echo "  Version:      v${VER}"
 echo "  Branch:       ${BRANCH}"
 echo "  Remote:       ${REMOTE_URL}"
 echo "  GitHub repo:  ${GH_REPO}"
-echo "  PyPI package: pyzm"
+echo "  PyPI upload:  $([ "$SKIP_PYPI" = true ] && echo "SKIPPED" || echo "yes")"
 echo
-echo "This will: generate CHANGELOG, commit, tag, push, build & upload to PyPI, and create GitHub release."
+if [ "$SKIP_PYPI" = true ]; then
+    echo "This will: generate CHANGELOG, commit, tag, push, and create GitHub release (PyPI skipped)."
+else
+    echo "This will: generate CHANGELOG, commit, tag, push, build & upload to PyPI, and create GitHub release."
+fi
 read -p "Proceed? [y/N] " confirm
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo "Aborted."
@@ -112,15 +126,20 @@ echo "  Done."
 echo
 
 # --- Step 5: Build and upload to PyPI ---
-echo "Building PyPI packages ..."
-rm -rf dist
-python3 -m build
-echo "  Done."
+if [ "$SKIP_PYPI" = false ]; then
+    echo "Building PyPI packages ..."
+    rm -rf dist
+    python3 -m build
+    echo "  Done."
 
-echo "Uploading to PyPI ..."
-twine upload dist/pyzm-"${VER}"* --verbose
-echo "  Done."
-echo
+    echo "Uploading to PyPI ..."
+    twine upload dist/pyzm-"${VER}"* --verbose
+    echo "  Done."
+    echo
+else
+    echo "Skipping PyPI build & upload (--skip-pypi)."
+    echo
+fi
 
 # --- Step 6: Create GitHub Release ---
 echo "Creating GitHub Release v${VER} ..."

@@ -60,6 +60,25 @@ pre_existing_labels, match_past_detections (aliases, ignore_labels, per-label ov
 Detector.from_dict, StreamConfig.from_dict, lazy/eager pipeline loading, remote pyzm.serve
 (health, detect, /models, --models all, auth, gateway mode), and more.
 
+Developer Notes (for myself)
+=============================
+To make a release:
+```
+./scripts/make_release.sh
+```
+
+To skip PyPI upload (e.g. package already published):
+```
+./scripts/make_release.sh --skip-pypi
+```
+
+To test a CHANGELOG:
+```
+# __version__ in pyzm/__init__.py should be updated
+# replace v2.0.3 with whatever future version
+GITHUB_TOKEN=$(gh auth token) git-cliff --tag "v2.0.3"
+```
+
 Limitations
 ============
 * Only for Python3
