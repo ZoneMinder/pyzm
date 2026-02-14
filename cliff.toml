@@ -43,6 +43,7 @@ commit_preprocessors = [
 ]
 commit_parsers = [
   { message = "^Merge", skip = true },
+  { message = "^https", skip = true },
   { message = "^feat", group = "Features" },
   { message = "^fix", group = "Bug Fixes" },
   { message = "^refactor", group = "Refactoring" },
