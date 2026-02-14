@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 
 
+## [2.0.4] - 2026-02-14
+
+### Bug Fixes
+
+- add ZM 1.36.34 SharedData struct layout (768 bytes) ([600768f](https://github.com/pliablepixels/pyzm/commit/600768f6c360cc0649b624116e961d0d7126ee20))
+
+### Features
+
+- add ZoneMinder live E2E tests and fix events filter bug ([26d1ecd](https://github.com/pliablepixels/pyzm/commit/26d1ecd01b8348ffe266db83254e1ec620374480))
+
+### Miscellaneous
+
+- remove unused make_package.sh ([b6d2218](https://github.com/pliablepixels/pyzm/commit/b6d2218a6181629c438cd1da60bda89117b023ce))
+- ver bump ([b52bc2e](https://github.com/pliablepixels/pyzm/commit/b52bc2e85c2d195f2f9609c713117e2413f95533))
+
 ## [2.0.3] - 2026-02-14
 
 ### Bug Fixes
@@ -26,6 +41,7 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
+- update CHANGELOG for v2.0.3 ([9be2ade](https://github.com/pliablepixels/pyzm/commit/9be2ade821241a9151e1d3f00cbe1544c7caa4c1))
 - update CHANGELOG for v2.0.3 ([8762414](https://github.com/pliablepixels/pyzm/commit/8762414c7c0de2ee63494820728e133fdd7534e5))
 - add developer release notes and --skip-pypi flag ([c726bce](https://github.com/pliablepixels/pyzm/commit/c726bcefdf6b4c40cbe61bc5b04375c1f3b573c7))
 - expand sidebar navigation to show subsection indicators ([09c4948](https://github.com/pliablepixels/pyzm/commit/09c494816440ac0eb531dc751e862b0db5103672))
