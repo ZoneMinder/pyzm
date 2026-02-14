@@ -160,54 +160,38 @@ class ZMClient:
         limit: int = 100,
     ) -> list[Event]:
         """Query events with optional filters."""
-        # Build ZM API filter query
-        filters: list[str] = []
-        idx = 1
+        # Use CakePHP URL-path filter syntax (e.g. events/index/Field:val)
+        # instead of filter[Query][terms] query strings which are broken
+        # on ZM >= 1.38.  REGEXP replaces LIKE to avoid % in URL paths.
+        path_parts: list[str] = []
 
         if event_id is not None:
-            filters.append(f"filter[Query][terms][{idx}][attr]=Id")
-            filters.append(f"filter[Query][terms][{idx}][op]==")
-            filters.append(f"filter[Query][terms][{idx}][val]={event_id}")
-            idx += 1
+            path_parts.append(f"Id:{event_id}")
 
         if monitor_id is not None:
-            filters.append(f"filter[Query][terms][{idx}][attr]=MonitorId")
-            filters.append(f"filter[Query][terms][{idx}][op]==")
-            filters.append(f"filter[Query][terms][{idx}][val]={monitor_id}")
-            idx += 1
+            path_parts.append(f"MonitorId:{monitor_id}")
 
         if since:
             parsed = _parse_human_time(since)
             if parsed:
-                filters.append(f"filter[Query][terms][{idx}][attr]=StartTime")
-                filters.append(f"filter[Query][terms][{idx}][op]=>=")
-                filters.append(f"filter[Query][terms][{idx}][val]={parsed}")
-                idx += 1
+                path_parts.append(f"StartTime >=:{parsed}")
 
         if until:
             parsed = _parse_human_time(until)
             if parsed:
-                filters.append(f"filter[Query][terms][{idx}][attr]=StartTime")
-                filters.append(f"filter[Query][terms][{idx}][op]=<=")
-                filters.append(f"filter[Query][terms][{idx}][val]={parsed}")
-                idx += 1
+                path_parts.append(f"StartTime <=:{parsed}")
 
         if min_alarm_frames is not None:
-            filters.append(f"filter[Query][terms][{idx}][attr]=AlarmFrames")
-            filters.append(f"filter[Query][terms][{idx}][op]=>=")
-            filters.append(f"filter[Query][terms][{idx}][val]={min_alarm_frames}")
-            idx += 1
+            path_parts.append(f"AlarmFrames >=:{min_alarm_frames}")
 
         if object_only:
-            filters.append(f"filter[Query][terms][{idx}][attr]=Notes")
-            filters.append(f"filter[Query][terms][{idx}][op]=LIKE")
-            filters.append(f"filter[Query][terms][{idx}][val]=%detected%")
-            idx += 1
+            path_parts.append("Notes REGEXP:detected")
 
-        query = "&".join(filters)
-        url = f"events/index.json?{query}&page=1&limit={limit}"
+        path_filter = "/".join(path_parts)
+        endpoint = f"events/index/{path_filter}.json" if path_filter else "events/index.json"
+        params = {"page": "1", "limit": str(limit)}
 
-        data = self._api.get(url)
+        data = self._api.get(endpoint, params=params)
         events_list = data.get("events", []) if data else []
         return [Event.from_api_dict(e) for e in events_list]
 

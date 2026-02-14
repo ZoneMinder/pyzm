@@ -16,3 +16,5 @@
     - If developing a feature, create a branch
     - Commit changes referring the issue
     - Wait for the user to confirm before you close the issue
+    - Always add test cases, both unit and e2e
+    - For e2e do not use ZM_E2E_WRITE - the user will run them manually

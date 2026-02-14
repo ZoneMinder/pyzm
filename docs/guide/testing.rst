@@ -1,9 +1,11 @@
 Testing
 ========
 
-pyzm has two tiers of tests: unit/integration tests that need no special
-hardware, and end-to-end (e2e) tests that run real ML models against real
-images.
+pyzm has three tiers of tests:
+
+1. **Unit / integration** — mock-based, no special hardware
+2. **ML end-to-end** — real ML models against real images
+3. **ZoneMinder end-to-end** — live ZM server API calls
 
 Running all tests
 ------------------
@@ -13,8 +15,8 @@ Running all tests
    pip install pytest
    python -m pytest tests/ -v
 
-This runs both unit and e2e tests.  The e2e tests are automatically
-skipped if the model directory or test image are missing.
+Both e2e tiers auto-skip when their prerequisites are missing, so this is
+always safe to run.
 
 
 Unit / integration tests
@@ -24,15 +26,15 @@ These tests mock backends and use no real models.  They run anywhere:
 
 .. code-block:: bash
 
-   python -m pytest tests/ -m "not e2e" -v
+   python -m pytest tests/ -m "not e2e and not zm_e2e" -v
 
 
-End-to-end tests
------------------
+ML end-to-end tests
+---------------------
 
-The ``tests/test_e2e/`` directory contains 89 tests that exercise every
+The ``tests/test_ml_e2e/`` directory contains 89 tests that exercise every
 objectconfig feature using real YOLO models and a real test image
-(``tests/test_e2e/bird.jpg``, included in the repository).
+(``tests/test_ml_e2e/bird.jpg``, included in the repository).
 
 **Prerequisites:**
 
@@ -42,29 +44,64 @@ objectconfig feature using real YOLO models and a real test image
 - For remote-serve tests: ``fastapi``, ``uvicorn``, ``requests``,
   ``python-jose``, ``passlib``
 
-**Run all e2e tests:**
+**Run all ML e2e tests:**
 
 .. code-block:: bash
 
-   python -m pytest tests/test_e2e/ -v
+   python -m pytest tests/test_ml_e2e/ -v
 
 **Skip the slower remote-serve tests** (which start real server subprocesses):
 
 .. code-block:: bash
 
-   python -m pytest tests/test_e2e/ -v -m "not serve"
+   python -m pytest tests/test_ml_e2e/ -v -m "not serve"
 
 **Run only remote-serve tests:**
 
 .. code-block:: bash
 
-   python -m pytest tests/test_e2e/ -v -m serve
+   python -m pytest tests/test_ml_e2e/ -v -m serve
 
 **Run a single test file:**
 
 .. code-block:: bash
 
-   python -m pytest tests/test_e2e/test_zone_filtering.py -v
+   python -m pytest tests/test_ml_e2e/test_zone_filtering.py -v
+
+
+ZoneMinder end-to-end tests
+-----------------------------
+
+The ``tests/test_zm_e2e/`` directory tests the ZM API layer (auth, monitors,
+events, zones, frames, state management) against a live ZoneMinder server.
+
+**One-time setup:**
+
+.. code-block:: bash
+
+   sudo pip install pytest --break-system-packages
+   cp tests/.env.zm_e2e.sample .env.zm_e2e
+   # edit .env.zm_e2e with your ZM_API_URL, ZM_USER, ZM_PASSWORD
+
+The ``.env.zm_e2e`` file is gitignored. Tests auto-skip when it is missing.
+
+Tests run as ``www-data`` so they can read ``/etc/zm/zm.conf`` for DB access.
+The ``-p no:cacheprovider`` flag avoids permission warnings on ``.pytest_cache/``.
+
+**Readonly tests** (auth, monitors, events, zones, frames, detection):
+
+.. code-block:: bash
+
+   sudo -u www-data python -m pytest tests/test_zm_e2e/ -v -p no:cacheprovider
+
+**Include write tests** (event notes, stop/start/restart, DB tagging):
+
+.. code-block:: bash
+
+   sudo -u www-data ZM_E2E_WRITE=1 python -m pytest tests/test_zm_e2e/ -v -p no:cacheprovider
+
+If your ZM config is in a non-standard location, set ``PYZM_CONFPATH`` in
+``.env.zm_e2e`` or as an environment variable.
 
 
 Test file reference
@@ -151,6 +188,10 @@ Pytest markers
    * - ``integration``
      - Tests requiring optional dependencies (cv2, shapely, numpy)
    * - ``e2e``
-     - End-to-end tests requiring real models and images on disk
+     - ML end-to-end tests requiring real models and images on disk
    * - ``serve``
      - Tests that start a ``pyzm.serve`` subprocess (slower, need fastapi/uvicorn)
+   * - ``zm_e2e``
+     - Tests requiring a live ZoneMinder instance (configured via ``.env.zm_e2e``)
+   * - ``zm_e2e_write``
+     - ZM E2E tests that mutate state (opt-in via ``ZM_E2E_WRITE=1``)

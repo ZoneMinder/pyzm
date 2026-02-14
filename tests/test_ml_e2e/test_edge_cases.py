@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_e2e.conftest import BIRD_IMAGE, BASE_PATH, find_one_model
+from tests.test_ml_e2e.conftest import BIRD_IMAGE, BASE_PATH, find_one_model
 
 
 class TestEdgeCases:

@@ -6,7 +6,7 @@ They require:
   - Models at /var/lib/zmeventnotification/models/ (yolov4 at minimum)
 
 Run all e2e tests:
-    python -m pytest tests/test_e2e/ -v --tb=short
+    python -m pytest tests/test_ml_e2e/ -v --tb=short
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def pytest_collection_modifyitems(config, items):
     skip_models = pytest.mark.skip(reason=f"Model base path {BASE_PATH} not found")
     skip_image = pytest.mark.skip(reason=f"Test image {BIRD_IMAGE} not found")
     for item in items:
-        if "test_e2e" in str(item.fspath):
+        if "test_ml_e2e" in str(item.fspath):
             if not os.path.isdir(BASE_PATH):
                 item.add_marker(skip_models)
             if not os.path.isfile(BIRD_IMAGE):

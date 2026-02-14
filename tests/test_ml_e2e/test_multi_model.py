@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_e2e.conftest import BIRD_IMAGE, BASE_PATH
+from tests.test_ml_e2e.conftest import BIRD_IMAGE, BASE_PATH
 
 
 class TestMultiModelPipeline:

@@ -33,32 +33,41 @@ Features
 Testing
 ========
 
-pyzm has two test tiers:
+pyzm has three test tiers:
 
 **Unit / integration tests** (no hardware required):
 ```bash
 pip install pytest
-python -m pytest tests/ -m "not e2e" -v
+python -m pytest tests/ -m "not e2e and not zm_e2e" -v
 ```
 
-**End-to-end tests** (require real ML models on disk):
+**ML end-to-end tests** (require real ML models on disk):
 ```bash
 # Requires models in /var/lib/zmeventnotification/models/
-# and the test image at tests/test_e2e/bird.jpg (included in repo)
-python -m pytest tests/test_e2e/ -v
+# and the test image at tests/test_ml_e2e/bird.jpg (included in repo)
+python -m pytest tests/test_ml_e2e/ -v
 
 # Skip the slower remote-serve tests:
-python -m pytest tests/test_e2e/ -v -m "not serve"
-
-# Run only remote-serve tests:
-python -m pytest tests/test_e2e/ -v -m serve
+python -m pytest tests/test_ml_e2e/ -v -m "not serve"
 ```
 
-The e2e suite covers every objectconfig feature: pattern matching, zone/polygon filtering,
-size filtering, min_confidence, disabled models, match strategies, frame strategies,
-pre_existing_labels, match_past_detections (aliases, ignore_labels, per-label overrides),
-Detector.from_dict, StreamConfig.from_dict, lazy/eager pipeline loading, remote pyzm.serve
-(health, detect, /models, --models all, auth, gateway mode), and more.
+**ZoneMinder end-to-end tests** (require a live ZM server):
+
+One-time setup:
+```bash
+sudo pip install pytest --break-system-packages
+cp tests/.env.zm_e2e.sample .env.zm_e2e   # edit with your ZM server details
+```
+
+```bash
+# Readonly tests (auth, monitors, events, zones, frames, detection):
+sudo -u www-data python -m pytest tests/test_zm_e2e/ -v -p no:cacheprovider
+
+# Include write tests (event notes, stop/start/restart, DB tagging):
+sudo -u www-data ZM_E2E_WRITE=1 python -m pytest tests/test_zm_e2e/ -v -p no:cacheprovider
+```
+
+ZM E2E tests auto-skip when `.env.zm_e2e` is missing, so `pytest tests/` is always safe.
 
 Developer Notes (for myself)
 =============================

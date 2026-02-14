@@ -5,7 +5,7 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 
-from tests.test_e2e.conftest import BIRD_IMAGE, BASE_PATH, det, find_one_model
+from tests.test_ml_e2e.conftest import BIRD_IMAGE, BASE_PATH, det, find_one_model
 
 
 class TestMatchPastDetections:

@@ -280,9 +280,9 @@ class TestZMClientEvents:
 
         client.events(monitor_id=2)
 
-        # Verify the URL includes MonitorId filter
+        # Verify the URL uses CakePHP path filter syntax
         call_url = mock_api.get.call_args[0][0]
-        assert "MonitorId" in call_url
+        assert "MonitorId:2" in call_url
 
     @patch("pyzm.client.ZMAPI")
     def test_events_filter_building(self, mock_zmapi_cls):
@@ -301,11 +301,11 @@ class TestZMClientEvents:
         )
 
         call_url = mock_api.get.call_args[0][0]
-        assert "MonitorId" in call_url
-        assert "AlarmFrames" in call_url
-        assert "Notes" in call_url
-        assert "detected" in call_url
-        assert "limit=50" in call_url
+        assert "MonitorId:1" in call_url
+        assert "AlarmFrames >=:5" in call_url
+        assert "Notes REGEXP:detected" in call_url
+        call_params = mock_api.get.call_args[1].get("params", {})
+        assert call_params["limit"] == "50"
 
     @patch("pyzm.client.ZMAPI")
     def test_event_single_fetch(self, mock_zmapi_cls):

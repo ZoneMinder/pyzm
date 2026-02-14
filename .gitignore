@@ -16,3 +16,4 @@ __pycache__/
 .cache
 .idea/*
 .pypirc
+.env.zm_e2e

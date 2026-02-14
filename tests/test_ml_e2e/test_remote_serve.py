@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from tests.test_e2e.conftest import (
+from tests.test_ml_e2e.conftest import (
     BIRD_IMAGE, BASE_PATH,
     find_one_model, start_serve, stop_serve, wait_for_serve,
 )

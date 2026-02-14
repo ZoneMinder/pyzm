@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tests.test_e2e.conftest import BIRD_IMAGE, BASE_PATH, find_one_model, load_image
+from tests.test_ml_e2e.conftest import BIRD_IMAGE, BASE_PATH, find_one_model, load_image
 
 
 class TestBasicDetection:

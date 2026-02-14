@@ -34,6 +34,14 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "serve: tests that start a pyzm.serve subprocess",
     )
+    config.addinivalue_line(
+        "markers",
+        "zm_e2e: tests requiring a live ZoneMinder instance",
+    )
+    config.addinivalue_line(
+        "markers",
+        "zm_e2e_write: zm_e2e tests that mutate ZM state (opt-in via ZM_E2E_WRITE=1)",
+    )
 
 
 # ---------------------------------------------------------------------------
