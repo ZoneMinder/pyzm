@@ -28,7 +28,7 @@ logger = logging.getLogger("pyzm.zm")
 # Each entry is ``(field_name, struct_format_char)``.
 # Format chars ending with ``'s'`` (e.g. ``'256s'``) are byte-string fields.
 
-# ZM <= 1.36 (size == 760 on typical 64-bit builds)
+# ZM <= 1.36.33
 _LAYOUT_760 = [
     ("size", "I"), ("last_write_index", "i"), ("last_read_index", "i"),
     ("state", "I"),
@@ -45,7 +45,25 @@ _LAYOUT_760 = [
     ("video_fifo", "64s"), ("audio_fifo", "64s"),
 ]
 
-# ZM 1.38+ (size == 872 on typical 64-bit builds)
+# ZM 1.36.34+ (added image_count after last_read_index — ZM commit 194b55a)
+_LAYOUT_764 = [
+    ("size", "I"), ("last_write_index", "i"), ("last_read_index", "i"),
+    ("image_count", "i"),
+    ("state", "I"),
+    ("capture_fps", "d"), ("analysis_fps", "d"),
+    ("last_event", "Q"), ("action", "I"),
+    ("brightness", "i"), ("hue", "i"), ("color", "i"), ("contrast", "i"),
+    ("alarm_x", "i"), ("alarm_y", "i"),
+    ("valid", "?"), ("active", "?"), ("signal", "?"), ("format", "?"),
+    ("imagesize", "I"), ("last_frame_score", "I"),
+    ("audio_frequency", "I"), ("audio_channels", "I"),
+    ("startup_time", "q"), ("heartbeat_time", "q"),
+    ("last_write_time", "q"), ("last_read_time", "q"),
+    ("control_state", "256s"), ("alarm_cause", "256s"),
+    ("video_fifo", "64s"), ("audio_fifo", "64s"),
+]
+
+# ZM 1.38+
 _LAYOUT_872 = [
     ("size", "I"), ("last_write_index", "i"), ("last_read_index", "i"),
     ("image_count", "i"), ("state", "I"),
@@ -80,7 +98,7 @@ def _build_struct_info(
 # Registry keyed by struct size.  Adding a new ZM version is a single
 # ``_LAYOUT_xxx`` appended to this list.
 _REGISTRY: dict[int, tuple[str, list[str], list[str]]] = {}
-for _layout in [_LAYOUT_760, _LAYOUT_872]:
+for _layout in [_LAYOUT_760, _LAYOUT_764, _LAYOUT_872]:
     _fmt, _fields, _str_fields = _build_struct_info(_layout)
     _REGISTRY[struct.calcsize(_fmt)] = (_fmt, _fields, _str_fields)
 
