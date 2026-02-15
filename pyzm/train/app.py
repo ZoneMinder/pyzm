@@ -725,73 +725,8 @@ def _section_export(args: argparse.Namespace) -> None:
 # Main
 # ===================================================================
 
-_CUSTOM_CSS = """
-<style>
-    /* Dark, muted colour scheme */
-    .stApp { background-color: #1a1a2e; color: #c8c8d4; }
-    section[data-testid="stSidebar"] { background-color: #16213e; }
-
-    /* Compact typography */
-    h1, h2, h3 { font-weight: 500; letter-spacing: -0.02em; }
-    .stMarkdown h2 { font-size: 1.3rem; color: #e0e0e8; margin-bottom: 0.3rem; }
-    .stMarkdown h3 { font-size: 1.05rem; color: #a0a0b0; }
-    p, label, .stCaption, .stTextInput label, .stSelectbox label,
-    .stMultiSelect label, .stNumberInput label {
-        font-size: 0.85rem !important; color: #b0b0c0 !important;
-    }
-
-    /* Streamlit metric cards */
-    [data-testid="stMetric"] {
-        background: #16213e; border-radius: 6px; padding: 0.6rem 0.8rem;
-        border: 1px solid #2a2a4a;
-    }
-    [data-testid="stMetricValue"] { font-size: 1.1rem !important; color: #e0e0e8; }
-    [data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: #808098; }
-
-    /* Expanders */
-    .streamlit-expanderHeader {
-        font-size: 0.9rem !important; font-weight: 500;
-        color: #c8c8d4 !important; background: #16213e;
-        border-radius: 4px;
-    }
-    .streamlit-expanderContent { border-left: 2px solid #2a2a4a; }
-
-    /* Buttons */
-    .stButton > button {
-        font-size: 0.82rem; padding: 0.35rem 1rem;
-        border-radius: 4px; border: 1px solid #3a3a5a;
-        background: #16213e; color: #c8c8d4;
-    }
-    .stButton > button[kind="primary"] {
-        background: #0f3460; border-color: #0f3460; color: #e0e0e8;
-    }
-    .stButton > button:hover { border-color: #5a5a8a; }
-
-    /* Inputs */
-    .stTextInput input, .stNumberInput input, .stSelectbox select {
-        background: #16213e !important; border: 1px solid #2a2a4a !important;
-        color: #c8c8d4 !important; font-size: 0.85rem !important;
-        border-radius: 4px;
-    }
-
-    /* Progress bar */
-    .stProgress > div > div { background-color: #0f3460; }
-
-    /* File uploader */
-    [data-testid="stFileUploader"] {
-        border: 1px dashed #3a3a5a; border-radius: 6px; padding: 0.5rem;
-    }
-
-    /* Reduce padding overall */
-    .block-container { padding-top: 1.5rem; padding-bottom: 1rem; }
-    .stVerticalBlock { gap: 0.5rem; }
-</style>
-"""
-
-
 def main() -> None:
     st.set_page_config(page_title="pyZM: Customize your own ML model", layout="wide")
-    st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)
 
     args = _parse_app_args()
     project_root = Path(args.project_dir) if args.project_dir else DEFAULT_PROJECT_ROOT
