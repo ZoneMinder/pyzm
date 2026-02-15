@@ -1,7 +1,7 @@
 """Auto-labeling using existing pyzm Detector.
 
-Runs a pre-trained YOLO model on uploaded images to pre-label known classes,
-saving users from having to manually annotate every object.
+Runs a single pre-trained YOLO model on uploaded images to pre-label known
+classes, saving users from having to manually annotate every object.
 """
 
 from __future__ import annotations
@@ -61,16 +61,20 @@ def detections_to_annotations(
 
 def auto_label(
     image_paths: list[Path],
+    model_name: str,
     base_path: str,
     processor: str,
     target_classes: list[str],
 ) -> dict[Path, list[Annotation]]:
-    """Run existing YOLO model on images and return pre-annotations.
+    """Run a single YOLO model on images and return pre-annotations.
 
     Parameters
     ----------
     image_paths:
         Images to auto-label.
+    model_name:
+        Specific model to use (e.g. ``"yolo11s"``).  Only this model
+        is loaded -- no auto-discovery.
     base_path:
         Model base path for pyzm Detector.
     processor:
@@ -85,7 +89,11 @@ def auto_label(
     import cv2
     from pyzm.ml.detector import Detector
 
-    det = Detector(base_path=base_path, processor=processor)
+    det = Detector(
+        models=[model_name],
+        base_path=base_path,
+        processor=processor,
+    )
 
     results: dict[Path, list[Annotation]] = {}
     for img_path in image_paths:
