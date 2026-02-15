@@ -362,7 +362,7 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
                 group["sources"] = [s.strip() for s in src_text.split(",") if s.strip()]
         with col_del:
             st.write("")  # align button with inputs
-            if st.button("X", key=f"grp_del_{idx}", use_container_width=True):
+            if st.button("X", key=f"grp_del_{idx}", width="stretch"):
                 to_delete = idx
 
     if to_delete is not None:
@@ -496,7 +496,7 @@ def _run_auto_detect(ds: YOLODataset, args: argparse.Namespace) -> None:
             label_visibility="collapsed",
         )
     with col_btn:
-        run_detect = st.button("Auto-label all images", use_container_width=True)
+        run_detect = st.button("Auto-label all images", width="stretch")
 
     if run_detect:
         use_trained = has_trained and detect_model.startswith("trained")
@@ -662,10 +662,10 @@ def _annotation_canvas(
                     f"<div style='border:{border}; border-radius:4px; padding:2px; cursor:pointer;'>",
                     unsafe_allow_html=True,
                 )
-                st.image(thumb, use_container_width=True)
+                st.image(thumb, width="stretch")
                 st.markdown("</div>", unsafe_allow_html=True)
                 label_text = f"{len(anns)}" if anns else "-"
-                if st.button(label_text, key=f"sel_{idx}", use_container_width=True):
+                if st.button(label_text, key=f"sel_{idx}", width="stretch"):
                     st.session_state["selected_image_idx"] = idx
                     st.rerun()
 
@@ -681,13 +681,13 @@ def _annotation_canvas(
     # Navigation
     nav_col1, nav_col2, nav_col3 = st.columns([1, 3, 1])
     with nav_col1:
-        if st.button("Prev", disabled=selected_idx == 0, use_container_width=True):
+        if st.button("Prev", disabled=selected_idx == 0, width="stretch"):
             st.session_state["selected_image_idx"] = selected_idx - 1
             st.rerun()
     with nav_col2:
         st.caption(f"{img_path.name}  ({selected_idx + 1}/{len(images)})")
     with nav_col3:
-        if st.button("Next", disabled=selected_idx >= len(images) - 1, use_container_width=True):
+        if st.button("Next", disabled=selected_idx >= len(images) - 1, width="stretch"):
             st.session_state["selected_image_idx"] = selected_idx + 1
             st.rerun()
 
@@ -746,7 +746,7 @@ def _annotation_canvas(
 
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
-        if st.button("Save", type="primary", use_container_width=True):
+        if st.button("Save", type="primary", width="stretch"):
             if canvas_result and canvas_result.json_data:
                 new_anns = _canvas_rects_to_annotations(
                     canvas_result.json_data, class_name_to_id,
@@ -755,7 +755,7 @@ def _annotation_canvas(
                 ds.update_annotations(img_path.name, new_anns)
                 st.toast(f"Saved {len(new_anns)} annotations")
     with btn_col2:
-        if st.button("Clear", use_container_width=True):
+        if st.button("Clear", width="stretch"):
             ds.update_annotations(img_path.name, [])
             st.rerun()
 
@@ -916,7 +916,7 @@ def _section_export(args: argparse.Namespace) -> None:
                     x1, y1, x2, y2 = d["bbox"]
                     draw.rectangle([x1, y1, x2, y2], outline="lime", width=2)
                     draw.text((x1, max(0, y1 - 12)), f"{d['label']} {d['confidence']:.0%}", fill="lime")
-                st.image(draw_img, use_container_width=True)
+                st.image(draw_img, width="stretch")
                 if dets:
                     st.caption(", ".join(f"{d['label']} {d['confidence']:.0%}" for d in dets))
                 else:
