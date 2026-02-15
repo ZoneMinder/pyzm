@@ -3,11 +3,38 @@
 All notable changes to this project will be documented in this file.
 
 
+## [2.0.5] - 2026-02-15
+
+### Bug Fixes
+
+- add confidence tiebreak and FIRST_NEW strategy ([c0973be](https://github.com/pliablepixels/pyzm/commit/c0973be1d4edf4cab016a4082d20d25bdcaef8c2))
+
+### Documentation
+
+- update guides for upstream fixes ([1996662](https://github.com/pliablepixels/pyzm/commit/199666217a6366f1bf1a9cf87afe40fe8f77a9a2))
+
+### Features
+
+- add version bump option when tag already exists ([94bf651](https://github.com/pliablepixels/pyzm/commit/94bf651bf45f310994d00b6b851a7f578f0d6839))
+- add ZM-native logging via setup_zm_logging(), drop SQLAlchemy ([ee6d739](https://github.com/pliablepixels/pyzm/commit/ee6d7394368c836239f864a639616b94cdd28041))
+- add session-level lock interface for EdgeTPU ([4d59d82](https://github.com/pliablepixels/pyzm/commit/4d59d82dfbb6afcd2cf704e4a35571af05aadc7e))
+- support ignore_pattern in zone filtering ([5c66d3f](https://github.com/pliablepixels/pyzm/commit/5c66d3fcf087fecad1eb2981dd2d706f4310e96d))
+- add event_frames() for per-frame metadata ([f52d358](https://github.com/pliablepixels/pyzm/commit/f52d35811a61d06cc99ce417a514d9076d202471))
+- add analysis_fps, bandwidth to MonitorStatus ([607d720](https://github.com/pliablepixels/pyzm/commit/607d72094e261adf8fce5b82290e361456b16bc1))
+
+### Miscellaneous
+
+- bump version to v2.0.5 ([56003ad](https://github.com/pliablepixels/pyzm/commit/56003ad933f7845ccd1c43174e9ce60be86c0baa))
+
 ## [2.0.4] - 2026-02-14
 
 ### Bug Fixes
 
 - add ZM 1.36.34 SharedData struct layout (768 bytes) ([600768f](https://github.com/pliablepixels/pyzm/commit/600768f6c360cc0649b624116e961d0d7126ee20))
+
+### Documentation
+
+- update CHANGELOG for v2.0.4 ([ab3eb45](https://github.com/pliablepixels/pyzm/commit/ab3eb45165817c57a70d78f4d493986b5cc8ff78))
 
 ### Features
 
