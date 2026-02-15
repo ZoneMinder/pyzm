@@ -361,11 +361,16 @@ def _section_upload() -> YOLODataset | None:
         return None
 
     ds = YOLODataset(project_dir=Path(pdir), classes=classes)
+
+    # Rotate uploader key after each batch so the widget resets and
+    # doesn't re-trigger on the next rerun.
+    upload_key = st.session_state.get("_upload_key", 0)
     uploaded = st.file_uploader(
         "Drag and drop images",
         type=["jpg", "jpeg", "png", "bmp", "webp"],
         accept_multiple_files=True,
         label_visibility="collapsed",
+        key=f"uploader_{upload_key}",
     )
     if uploaded:
         added = 0
@@ -374,12 +379,15 @@ def _section_upload() -> YOLODataset | None:
             tmp.write_bytes(f.read())
             ds.add_image(tmp, [])
             added += 1
+        st.session_state["_upload_key"] = upload_key + 1
         st.toast(f"Added {added} images")
         st.rerun()
 
     images = ds.staged_images()
     if images:
         st.caption(f"{len(images)} images in project")
+    else:
+        st.caption("Upload images to get started.")
     return ds
 
 
@@ -747,21 +755,24 @@ def main() -> None:
     )
 
     # --- Step 2: Upload ---
-    with st.expander("2. Upload Images", expanded=True):
+    has_images = bool(ds.staged_images())
+    with st.expander("2. Upload Images", expanded=not has_images):
         _section_upload()
 
+    if not ds.staged_images():
+        return
+
     # --- Step 3: Auto-detect ---
-    if ds.staged_images():
-        with st.expander("3. Auto-Detect", expanded=True):
-            _section_auto_detect(ds, args)
+    with st.expander("3. Auto-Detect", expanded=True):
+        _section_auto_detect(ds, args)
 
-        # --- Step 4: Label ---
-        with st.expander("4. Review & Label", expanded=True):
-            _section_label(ds)
+    # --- Step 4: Label ---
+    with st.expander("4. Review & Label", expanded=True):
+        _section_label(ds)
 
-        # --- Step 5: Train ---
-        with st.expander("5. Train", expanded=bool(st.session_state.get("training_active") or st.session_state.get("train_result"))):
-            _section_train(ds, args)
+    # --- Step 5: Train ---
+    with st.expander("5. Train", expanded=bool(st.session_state.get("training_active") or st.session_state.get("train_result"))):
+        _section_train(ds, args)
 
         # --- Step 6: Export ---
         best_pt = Path(st.session_state["project_dir"]) / "runs" / "train" / "weights" / "best.pt"
