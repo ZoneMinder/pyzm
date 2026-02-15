@@ -168,19 +168,9 @@ result = detector.detect("/tmp/image.jpg")
 # 5. LOGGING
 # ============================================================================
 
-from pyzm.log import setup_logging
+from pyzm.log import setup_zm_logging
 
-# Console debug logging
-logger = setup_logging(debug=True, component="myapp")
-logger.info("Hello from pyzm")
-logger.debug("Detail", extra={"zm_debug_level": 3})
-
-# With ZM database logging (optional)
-# logger = setup_logging(
-#     debug=True,
-#     component="myapp",
-#     zm_db_host="localhost",
-#     zm_db_user="zmuser",
-#     zm_db_password="zmpass",
-#     zm_db_name="zm",
-# )
+# ZM-native logging (reads zm.conf + DB Config table automatically)
+adapter = setup_zm_logging(name="myapp", override={"dump_console": True})
+adapter.Info("Hello from pyzm")
+adapter.Debug(3, "Detail")

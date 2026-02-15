@@ -1,7 +1,7 @@
 """Direct MySQL connection to the ZoneMinder database.
 
 Reads credentials from ``/etc/zm/zm.conf`` (and ``conf.d/*.conf``) —
-the same files that ZMLog.py and ZM itself use.
+the same files that ZM itself uses.
 """
 
 from __future__ import annotations

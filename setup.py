@@ -88,7 +88,6 @@ setup(name = NAME,
                     'pyzm.helpers.utils',
                     'pyzm.helpers.globals',
 
-                    'pyzm.ZMLog',
                     'pyzm.ZMEventNotification',
                     'pyzm.ZMMemory',
 

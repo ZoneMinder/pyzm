@@ -125,13 +125,15 @@ Logging
 
 .. code-block:: python
 
-   from pyzm.log import setup_logging
+   from pyzm.log import setup_zm_logging
 
-   logger = setup_logging(debug=True, component="myapp")
-   logger.info("Something happened")
-   logger.debug("Verbose message", extra={"zm_debug_level": 3})
+   adapter = setup_zm_logging(name="myapp")
+   adapter.Info("Something happened")
+   adapter.Debug(3, "Verbose message")
 
-``setup_logging()`` returns a standard ``logging.Logger``. The old
+``setup_zm_logging()`` returns a :class:`ZMLogAdapter` with the same
+``Debug``/``Info``/``Warning``/``Error``/``Fatal`` API as the old ``ZMLog``.
+It reads ``zm.conf`` and the DB ``Config`` table automatically. The old
 ``pyzm.ZMLog`` module is still importable for backward compatibility.
 
 
@@ -258,7 +260,7 @@ What's preserved
 
 These legacy modules are still importable for backward compatibility:
 
-- ``pyzm.ZMLog`` -- legacy logging (wraps ``setup_logging`` internally)
+- ``pyzm.ZMLog`` -- **removed**; use ``from pyzm.log import setup_zm_logging``
 - ``pyzm.ZMMemory`` -- shared-memory access
 - ``pyzm.ZMEventNotification`` -- websocket notifications
 - ``pyzm.api`` -- the old ``ZMApi`` class

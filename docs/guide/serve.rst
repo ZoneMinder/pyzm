@@ -100,7 +100,7 @@ recording settings.
 
 .. code-block:: text
 
-   EventStartCommand = /usr/bin/python3 -m pyzm.zm_detect -c /etc/zm/objectconfig.yml -e %EID% -m %MID% -r "%EC%" -n --pyzm-debug
+   EventStartCommand = /usr/bin/python3 -m pyzm.zm_detect -c /etc/zm/objectconfig.yml -e %EID% -m %MID% -r "%EC%" -n
 
 **objectconfig.yml** is the same as Scenario 1.
 

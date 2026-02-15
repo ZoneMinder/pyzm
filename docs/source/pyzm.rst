@@ -56,12 +56,11 @@ Wrapper objects returned by the legacy ``pyzm.api.ZMApi`` class.
 Logging
 --------
 
-Logging utilities for pyzm. ``setup_logging()`` creates a standard ``logging.Logger``
-with optional ZoneMinder database and syslog integration.
+Logging utilities for pyzm. ``setup_zm_logging()`` provides ZM-native logging
+(file, database, syslog) matching Perl's Logger.pm format.
 
-.. automodule:: pyzm.ZMLog
-    :members:
-    :special-members: __init__
+.. automodule:: pyzm.log
+    :members: setup_zm_logging, ZMLogAdapter
     :undoc-members:
 
 Event Notification

@@ -197,25 +197,20 @@ Logging
 
 .. code-block:: python
 
-   from pyzm.log import setup_logging
+   from pyzm.log import setup_zm_logging
 
-   # Console debug logging
-   logger = setup_logging(debug=True, component="myapp")
-   logger.info("Hello from pyzm")
-   logger.debug("Verbose detail", extra={"zm_debug_level": 3})
+   # ZM-native logging (reads zm.conf, DB Config table, env vars)
+   adapter = setup_zm_logging(name="myapp")
+   adapter.Info("Hello from pyzm")
+   adapter.Debug(1, "Verbose detail")
 
-To also log to ZoneMinder's Logs database table:
+   # Override log levels or enable console output
+   adapter = setup_zm_logging(name="myapp", override={
+       "dump_console": True,
+       "log_debug": True,
+       "log_level_debug": 5,
+   })
 
-.. code-block:: python
-
-   logger = setup_logging(
-       debug=True,
-       component="myapp",
-       zm_db_host="localhost",
-       zm_db_user="zmuser",
-       zm_db_password="zmpass",
-       zm_db_name="zm",
-   )
-
-``setup_logging()`` returns a standard ``logging.Logger``. The optional
-``ZMLogHandler`` writes to ZM's database and/or syslog.
+``setup_zm_logging()`` returns a :class:`ZMLogAdapter` that writes to ZM's
+log file, database, and syslog using the same format as ZM's Perl Logger.pm.
+All pyzm library internals automatically share the same log handlers.

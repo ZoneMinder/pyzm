@@ -17,11 +17,10 @@ has_zmlog = False
 print ('Using pyzm version: {}'.format(pyzm.__version__))
 if use_zmlog:
     try:
-        import pyzm.ZMLog as zmlog #only if you want to log to ZM
+        from pyzm.log import setup_zm_logging
         has_zmlog = True
     except ImportError as e:
-        print ('Could not import ZMLog, function will be disabled:'+str(e))
-        zmlog = None
+        print ('Could not import pyzm.log, function will be disabled:'+str(e))
         
 
 if use_zmes:
@@ -53,7 +52,7 @@ zm_log_override = {
 }
 
 if has_zmlog:
-    zmlog.init(name='apitest',override=zm_log_override)
+    zmlog = setup_zm_logging(name='apitest', override=zm_log_override)
     print ("Log inited")
    
 
@@ -293,6 +292,7 @@ try:
 except Exception as e:
     print ('Error: {}'.format(str(e)))
 
-zmlog.close()
+if has_zmlog:
+    zmlog.close()
 
 
