@@ -16,9 +16,15 @@ class Zone:
     name: str
     points: list[tuple[int, int]]
     pattern: str | None = None
+    ignore_pattern: str | None = None
 
     def as_dict(self) -> dict:
-        return {"name": self.name, "value": self.points, "pattern": self.pattern}
+        return {
+            "name": self.name,
+            "value": self.points,
+            "pattern": self.pattern,
+            "ignore_pattern": self.ignore_pattern,
+        }
 
 
 @dataclass
@@ -77,6 +83,8 @@ class MonitorStatus:
     """Runtime status of a monitor."""
     state: str = ""          # "Idle", "Alarm", etc.
     fps: float = 0.0
+    analysis_fps: float = 0.0
+    bandwidth: int = 0       # CaptureBandwidth in bytes
     capturing: str = "None"  # "None", "Capturing", etc.
 
 
@@ -109,6 +117,8 @@ class Monitor:
             status=MonitorStatus(
                 state=status_data.get("Status", ""),
                 fps=float(status_data.get("CaptureFPS", 0) or 0),
+                analysis_fps=float(status_data.get("AnalysisFPS", 0) or 0),
+                bandwidth=int(status_data.get("CaptureBandwidth", 0) or 0),
                 capturing=status_data.get("Capturing", "None"),
             ),
         )
