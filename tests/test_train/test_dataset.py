@@ -76,6 +76,18 @@ class TestYOLODataset:
         loaded = YOLODataset.load(dataset.project_dir)
         assert loaded.classes == ["person", "car", "package"]
 
+    def test_class_groups_persist(self, tmp_path: Path):
+        groups = {"vehicle": ["car", "truck"], "person": ["person"]}
+        ds = YOLODataset(
+            project_dir=tmp_path / "grouped",
+            classes=["person", "vehicle"],
+            class_groups=groups,
+        )
+        ds.init_project()
+        loaded = YOLODataset.load(ds.project_dir)
+        assert loaded.class_groups == groups
+        assert loaded.classes == ["person", "vehicle"]
+
     def test_add_image(self, dataset: YOLODataset, sample_images: list[Path]):
         anns = [Annotation(class_id=0, cx=0.5, cy=0.5, w=0.3, h=0.4)]
         dest = dataset.add_image(sample_images[0], anns)

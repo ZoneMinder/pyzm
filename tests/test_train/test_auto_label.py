@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pyzm.models.detection import BBox, Detection, DetectionResult
-from pyzm.train.auto_label import _bbox_to_annotation, detections_to_annotations
+from pyzm.train.auto_label import (
+    _bbox_to_annotation,
+    build_class_mapping,
+    detections_to_annotations,
+)
 from pyzm.train.dataset import Annotation
 
 
@@ -80,11 +84,63 @@ class TestDetectionsToAnnotations:
         ])
         anns = detections_to_annotations(result, ["person"], img_w=640, img_h=480)
         ann = anns[0]
-        # cx = (100+300)/2 / 640 = 200/640 = 0.3125
         assert ann.cx == pytest.approx(0.3125)
-        # cy = (120+360)/2 / 480 = 240/480 = 0.5
         assert ann.cy == pytest.approx(0.5)
-        # w = (300-100)/640 = 200/640 = 0.3125
         assert ann.w == pytest.approx(0.3125)
-        # h = (360-120)/480 = 240/480 = 0.5
         assert ann.h == pytest.approx(0.5)
+
+    def test_class_mapping_groups(self):
+        """car and truck both map to vehicle."""
+        result = DetectionResult(detections=[
+            Detection(label="car", confidence=0.9, bbox=BBox(10, 20, 110, 120)),
+            Detection(label="truck", confidence=0.8, bbox=BBox(200, 200, 400, 400)),
+            Detection(label="person", confidence=0.7, bbox=BBox(50, 50, 100, 100)),
+        ])
+        mapping = {"car": "vehicle", "truck": "vehicle", "person": "person"}
+        anns = detections_to_annotations(
+            result, ["person", "vehicle"],
+            img_w=640, img_h=480,
+            class_mapping=mapping,
+        )
+        assert len(anns) == 3
+        # car -> vehicle (class_id=1), truck -> vehicle (class_id=1), person (class_id=0)
+        assert anns[0].class_id == 1  # car -> vehicle
+        assert anns[1].class_id == 1  # truck -> vehicle
+        assert anns[2].class_id == 0  # person
+
+    def test_class_mapping_drops_unmapped(self):
+        """Detections not in mapping are dropped."""
+        result = DetectionResult(detections=[
+            Detection(label="car", confidence=0.9, bbox=BBox(10, 20, 110, 120)),
+            Detection(label="dog", confidence=0.8, bbox=BBox(50, 50, 100, 100)),
+        ])
+        mapping = {"car": "vehicle"}
+        anns = detections_to_annotations(
+            result, ["vehicle"],
+            img_w=640, img_h=480,
+            class_mapping=mapping,
+        )
+        assert len(anns) == 1
+        assert anns[0].class_id == 0  # car -> vehicle
+
+
+# ---------------------------------------------------------------------------
+# build_class_mapping
+# ---------------------------------------------------------------------------
+
+class TestBuildClassMapping:
+    def test_basic(self):
+        groups = {
+            "vehicle": ["car", "truck", "bus"],
+            "person": ["person"],
+        }
+        m = build_class_mapping(groups)
+        assert m == {"car": "vehicle", "truck": "vehicle", "bus": "vehicle", "person": "person"}
+
+    def test_empty(self):
+        assert build_class_mapping({}) == {}
+
+    def test_case_normalisation(self):
+        m = build_class_mapping({"Animal": ["Cat", "Dog"]})
+        assert m["cat"] == "Animal"
+        assert m["dog"] == "Animal"

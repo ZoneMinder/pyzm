@@ -2,6 +2,7 @@
 
 Runs a single pre-trained YOLO model on uploaded images to pre-label known
 classes, saving users from having to manually annotate every object.
+Supports class mapping (e.g. car/truck/bus -> vehicle).
 """
 
 from __future__ import annotations
@@ -37,26 +38,68 @@ def detections_to_annotations(
     target_classes: list[str],
     img_w: int,
     img_h: int,
+    class_mapping: dict[str, str] | None = None,
 ) -> list[Annotation]:
     """Convert DetectionResult detections to Annotation list.
 
-    Only detections whose label is in *target_classes* are kept.
-    The class_id is the index in *target_classes*.
+    Parameters
+    ----------
+    result:
+        Detection output from pyzm Detector.
+    target_classes:
+        Final ordered class names (group names). Index = class_id.
+    img_w, img_h:
+        Image dimensions for normalisation.
+    class_mapping:
+        Optional dict mapping source label -> target label, e.g.
+        ``{"car": "vehicle", "truck": "vehicle"}``.  If ``None``,
+        detections are matched directly against *target_classes*.
     """
     annotations: list[Annotation] = []
-    class_map = {name.lower(): idx for idx, name in enumerate(target_classes)}
+    target_map = {name.lower(): idx for idx, name in enumerate(target_classes)}
+
     for det in result.detections:
-        label_lower = det.label.lower()
-        if label_lower not in class_map:
+        source = det.label.lower()
+
+        # Map source label to target group name
+        if class_mapping:
+            target = class_mapping.get(source)
+            if target is None:
+                continue
+            target = target.lower()
+        else:
+            target = source
+
+        if target not in target_map:
             continue
+
         b = det.bbox
         ann = _bbox_to_annotation(
             b.x1, b.y1, b.x2, b.y2,
-            class_id=class_map[label_lower],
+            class_id=target_map[target],
             img_w=img_w, img_h=img_h,
         )
         annotations.append(ann)
     return annotations
+
+
+def build_class_mapping(class_groups: dict[str, list[str]]) -> dict[str, str]:
+    """Build a flat source->target mapping from class groups.
+
+    Parameters
+    ----------
+    class_groups:
+        ``{"vehicle": ["car", "truck", "bus"], "person": ["person"], ...}``
+
+    Returns
+    -------
+    ``{"car": "vehicle", "truck": "vehicle", "bus": "vehicle", "person": "person", ...}``
+    """
+    mapping: dict[str, str] = {}
+    for group_name, sources in class_groups.items():
+        for src in sources:
+            mapping[src.lower()] = group_name
+    return mapping
 
 
 def auto_label(
@@ -65,6 +108,7 @@ def auto_label(
     base_path: str,
     processor: str,
     target_classes: list[str],
+    class_mapping: dict[str, str] | None = None,
 ) -> dict[Path, list[Annotation]]:
     """Run a single YOLO model on images and return pre-annotations.
 
@@ -73,18 +117,15 @@ def auto_label(
     image_paths:
         Images to auto-label.
     model_name:
-        Specific model to use (e.g. ``"yolo11s"``).  Only this model
-        is loaded -- no auto-discovery.
+        Specific model to use (e.g. ``"yolo11s"``).
     base_path:
         Model base path for pyzm Detector.
     processor:
         ``"cpu"`` or ``"gpu"``.
     target_classes:
-        Ordered class names.  Only detections matching these are returned.
-
-    Returns
-    -------
-    dict mapping image path -> list of Annotations.
+        Final ordered class names (group names if grouping is used).
+    class_mapping:
+        Optional source->target mapping from :func:`build_class_mapping`.
     """
     import cv2
     from pyzm.ml.detector import Detector
@@ -113,7 +154,9 @@ def auto_label(
             continue
 
         results[img_path] = detections_to_annotations(
-            det_result, target_classes, img_w=w, img_h=h,
+            det_result, target_classes,
+            img_w=w, img_h=h,
+            class_mapping=class_mapping,
         )
         logger.info(
             "Auto-labeled %s: %d annotations",

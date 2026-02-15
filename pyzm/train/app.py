@@ -158,7 +158,7 @@ def _canvas_rects_to_annotations(
 # ===================================================================
 
 def _section_config(args: argparse.Namespace, project_root: Path) -> None:
-    """Project setup -- model selection, classes, project name."""
+    """Project setup -- model selection, class groups, project name."""
 
     # Load existing projects
     existing = []
@@ -185,17 +185,16 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
                 st.session_state["project_name"] = selected
                 st.session_state["project_dir"] = str(pdir)
                 st.session_state["classes"] = ds.classes
-                st.session_state["classes_input"] = ", ".join(ds.classes)
+                st.session_state["class_groups"] = ds.class_groups
                 meta = json.loads((pdir / "project.json").read_text())
                 st.session_state["base_model"] = meta.get("base_model", "yolo11s")
                 st.rerun()
 
-    # --- Model selection: list every .onnx/.pt individually ---
+    # --- Model selection ---
     available = _scan_models(args.base_path)
     model_names = [m["name"] for m in available]
     model_paths = {m["name"]: m["path"] for m in available}
 
-    # Default to yolo11s
     default_idx = 0
     for i, name in enumerate(model_names):
         if name == "yolo11s":
@@ -209,50 +208,129 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
         format_func=lambda n: f"{n}  ({model_paths[n]})",
     )
 
-    # --- Classes: auto-read from model, let user pick + add custom ---
+    # --- Class grouping ---
     model_path = model_paths.get(base_model, "")
-    coco_classes = _read_model_classes(model_path)
+    model_classes = _read_model_classes(model_path)
 
-    if coco_classes:
+    if model_classes:
         st.caption(
-            f"This model knows {len(coco_classes)} classes. "
-            "The common ones are pre-selected below. "
-            "Add your own custom classes in the text box."
-        )
-        # Pre-select the most useful COCO classes
-        common = {"person", "bicycle", "car", "motorcycle", "bus", "truck",
-                  "cat", "dog", "bird", "horse", "bear"}
-        defaults = [c for c in coco_classes if c in common]
-
-        kept_classes = st.multiselect(
-            "Keep these existing classes",
-            options=coco_classes,
-            default=defaults,
-            key="kept_coco",
+            f"This model knows {len(model_classes)} classes. "
+            "Define your output classes below. You can group multiple "
+            "model classes into one (e.g. car + truck + bus -> vehicle)."
         )
     else:
-        kept_classes = []
+        st.caption("Could not read classes from model. Define classes manually.")
 
+    # Initialise groups from session or defaults
+    if "class_groups_edit" not in st.session_state:
+        saved = st.session_state.get("class_groups", {})
+        if saved:
+            st.session_state["class_groups_edit"] = [
+                {"name": name, "sources": srcs}
+                for name, srcs in saved.items()
+            ]
+        else:
+            # Sensible defaults
+            st.session_state["class_groups_edit"] = [
+                {"name": "person", "sources": ["person"]},
+            ]
+
+    groups = st.session_state["class_groups_edit"]
+
+    # Render each group row
+    to_delete = None
+    used_sources: set[str] = set()
+    for g in groups:
+        used_sources.update(g["sources"])
+
+    for idx, group in enumerate(groups):
+        col_name, col_sources, col_del = st.columns([2, 5, 1])
+        with col_name:
+            new_name = st.text_input(
+                "Class name", value=group["name"],
+                key=f"grp_name_{idx}",
+                label_visibility="collapsed",
+                placeholder="e.g. vehicle",
+            )
+            group["name"] = new_name.strip()
+        with col_sources:
+            if model_classes:
+                # Show model classes available for this group
+                # Include currently assigned + anything not used by other groups
+                other_used = set()
+                for j, g in enumerate(groups):
+                    if j != idx:
+                        other_used.update(g["sources"])
+                available_for_group = [
+                    c for c in model_classes
+                    if c not in other_used or c in group["sources"]
+                ]
+                group["sources"] = st.multiselect(
+                    "Model classes",
+                    options=available_for_group,
+                    default=[s for s in group["sources"] if s in available_for_group],
+                    key=f"grp_src_{idx}",
+                    label_visibility="collapsed",
+                )
+            else:
+                src_text = st.text_input(
+                    "Source classes (comma-sep)",
+                    value=", ".join(group["sources"]),
+                    key=f"grp_src_{idx}",
+                    label_visibility="collapsed",
+                )
+                group["sources"] = [s.strip() for s in src_text.split(",") if s.strip()]
+        with col_del:
+            if st.button("X", key=f"grp_del_{idx}"):
+                to_delete = idx
+
+    if to_delete is not None:
+        groups.pop(to_delete)
+        st.rerun()
+
+    if st.button("+ Add class"):
+        groups.append({"name": "", "sources": []})
+        st.rerun()
+
+    # Custom classes (no model source -- purely new)
     custom_input = st.text_input(
-        "Add custom classes (comma-separated)",
+        "Custom classes with no model equivalent (comma-separated)",
         value=st.session_state.get("custom_classes_input", ""),
         placeholder="e.g. package, my_pet",
-        help="New object types you want to detect that the model doesn't know yet",
     )
     custom_classes = [c.strip() for c in custom_input.split(",") if c.strip()]
 
-    all_classes = kept_classes + [c for c in custom_classes if c not in kept_classes]
+    # Build final class list and groups dict
+    class_groups_dict: dict[str, list[str]] = {}
+    final_classes: list[str] = []
+    for g in groups:
+        name = g["name"]
+        if not name:
+            continue
+        final_classes.append(name)
+        class_groups_dict[name] = g["sources"]
+    for c in custom_classes:
+        if c not in final_classes:
+            final_classes.append(c)
+            class_groups_dict[c] = []  # no source mapping
 
-    if all_classes:
-        st.caption(f"Final class list ({len(all_classes)}): {', '.join(all_classes)}")
+    if final_classes:
+        parts = []
+        for cls in final_classes:
+            srcs = class_groups_dict.get(cls, [])
+            if srcs and srcs != [cls]:
+                parts.append(f"**{cls}** ({', '.join(srcs)})")
+            else:
+                parts.append(f"**{cls}**")
+        st.caption("Output classes: " + " | ".join(parts))
 
     if st.button("Create / Update Project", type="primary", disabled=not project_name.strip()):
-        if not all_classes:
-            st.error("Select at least one existing class or add a custom class.")
+        if not final_classes:
+            st.error("Define at least one class.")
             return
 
         pdir = _project_dir(project_root, project_name)
-        ds = YOLODataset(project_dir=pdir, classes=all_classes)
+        ds = YOLODataset(project_dir=pdir, classes=final_classes, class_groups=class_groups_dict)
         ds.init_project()
 
         # Save base_model into project.json
@@ -263,8 +341,8 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
 
         st.session_state["project_name"] = project_name
         st.session_state["project_dir"] = str(pdir)
-        st.session_state["classes"] = all_classes
-        st.session_state["classes_input"] = ", ".join(all_classes)
+        st.session_state["classes"] = final_classes
+        st.session_state["class_groups"] = class_groups_dict
         st.session_state["custom_classes_input"] = custom_input
         st.session_state["base_model"] = base_model
         st.rerun()
@@ -317,6 +395,7 @@ def _section_auto_detect(ds: YOLODataset, args: argparse.Namespace) -> None:
 
     base_model = st.session_state.get("base_model", "yolo11s")
     classes = st.session_state.get("classes", [])
+    class_groups = st.session_state.get("class_groups", {})
 
     # Count how many are already annotated
     annotated = sum(1 for img in images if ds.annotations_for(img.name))
@@ -324,10 +403,18 @@ def _section_auto_detect(ds: YOLODataset, args: argparse.Namespace) -> None:
     if annotated:
         st.caption(f"{annotated} labeled, {unannotated} unlabeled")
 
+    # Show mapping summary if groups are non-trivial
+    non_trivial = {k: v for k, v in class_groups.items() if v and v != [k]}
+    if non_trivial:
+        mapping_parts = [f"{', '.join(srcs)} -> **{name}**" for name, srcs in non_trivial.items()]
+        st.caption("Class mapping: " + " | ".join(mapping_parts))
+
     if st.button(f"Auto-detect using {base_model}"):
         progress_bar = st.progress(0, text=f"Running {base_model} on {len(images)} images...")
         try:
-            from pyzm.train.auto_label import auto_label
+            from pyzm.train.auto_label import auto_label, build_class_mapping
+
+            class_mapping = build_class_mapping(class_groups) if class_groups else None
 
             results = auto_label(
                 image_paths=images,
@@ -335,6 +422,7 @@ def _section_auto_detect(ds: YOLODataset, args: argparse.Namespace) -> None:
                 base_path=args.base_path,
                 processor=args.processor,
                 target_classes=classes,
+                class_mapping=class_mapping,
             )
             total_anns = 0
             for img_path, anns in results.items():
@@ -637,14 +725,79 @@ def _section_export(args: argparse.Namespace) -> None:
 # Main
 # ===================================================================
 
+_CUSTOM_CSS = """
+<style>
+    /* Dark, muted colour scheme */
+    .stApp { background-color: #1a1a2e; color: #c8c8d4; }
+    section[data-testid="stSidebar"] { background-color: #16213e; }
+
+    /* Compact typography */
+    h1, h2, h3 { font-weight: 500; letter-spacing: -0.02em; }
+    .stMarkdown h2 { font-size: 1.3rem; color: #e0e0e8; margin-bottom: 0.3rem; }
+    .stMarkdown h3 { font-size: 1.05rem; color: #a0a0b0; }
+    p, label, .stCaption, .stTextInput label, .stSelectbox label,
+    .stMultiSelect label, .stNumberInput label {
+        font-size: 0.85rem !important; color: #b0b0c0 !important;
+    }
+
+    /* Streamlit metric cards */
+    [data-testid="stMetric"] {
+        background: #16213e; border-radius: 6px; padding: 0.6rem 0.8rem;
+        border: 1px solid #2a2a4a;
+    }
+    [data-testid="stMetricValue"] { font-size: 1.1rem !important; color: #e0e0e8; }
+    [data-testid="stMetricLabel"] { font-size: 0.75rem !important; color: #808098; }
+
+    /* Expanders */
+    .streamlit-expanderHeader {
+        font-size: 0.9rem !important; font-weight: 500;
+        color: #c8c8d4 !important; background: #16213e;
+        border-radius: 4px;
+    }
+    .streamlit-expanderContent { border-left: 2px solid #2a2a4a; }
+
+    /* Buttons */
+    .stButton > button {
+        font-size: 0.82rem; padding: 0.35rem 1rem;
+        border-radius: 4px; border: 1px solid #3a3a5a;
+        background: #16213e; color: #c8c8d4;
+    }
+    .stButton > button[kind="primary"] {
+        background: #0f3460; border-color: #0f3460; color: #e0e0e8;
+    }
+    .stButton > button:hover { border-color: #5a5a8a; }
+
+    /* Inputs */
+    .stTextInput input, .stNumberInput input, .stSelectbox select {
+        background: #16213e !important; border: 1px solid #2a2a4a !important;
+        color: #c8c8d4 !important; font-size: 0.85rem !important;
+        border-radius: 4px;
+    }
+
+    /* Progress bar */
+    .stProgress > div > div { background-color: #0f3460; }
+
+    /* File uploader */
+    [data-testid="stFileUploader"] {
+        border: 1px dashed #3a3a5a; border-radius: 6px; padding: 0.5rem;
+    }
+
+    /* Reduce padding overall */
+    .block-container { padding-top: 1.5rem; padding-bottom: 1rem; }
+    .stVerticalBlock { gap: 0.5rem; }
+</style>
+"""
+
+
 def main() -> None:
-    st.set_page_config(page_title="pyzm Train", layout="wide")
+    st.set_page_config(page_title="pyZM: Customize your own ML model", layout="wide")
+    st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)
 
     args = _parse_app_args()
     project_root = Path(args.project_dir) if args.project_dir else DEFAULT_PROJECT_ROOT
     project_root.mkdir(parents=True, exist_ok=True)
 
-    st.markdown("## pyzm YOLO Fine-Tuning")
+    st.markdown("## pyZM: Customize your own ML model")
 
     # --- Step 1: Config ---
     with st.expander("1. Project", expanded=not st.session_state.get("project_dir")):

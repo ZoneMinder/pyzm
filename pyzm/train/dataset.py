@@ -81,9 +81,15 @@ class YOLODataset:
         Ordered class names.  Index in this list == class_id in labels.
     """
 
-    def __init__(self, project_dir: Path, classes: list[str]) -> None:
+    def __init__(
+        self,
+        project_dir: Path,
+        classes: list[str],
+        class_groups: dict[str, list[str]] | None = None,
+    ) -> None:
         self.project_dir = Path(project_dir)
         self.classes = list(classes)
+        self.class_groups: dict[str, list[str]] = class_groups or {}
 
         # Unsplit staging area
         self._images_dir = self.project_dir / "images" / "all"
@@ -112,6 +118,7 @@ class YOLODataset:
     def _save_project_json(self) -> None:
         meta = {
             "classes": self.classes,
+            "class_groups": self.class_groups,
         }
         (self.project_dir / "project.json").write_text(
             json.dumps(meta, indent=2)
@@ -121,7 +128,11 @@ class YOLODataset:
     def load(cls, project_dir: Path) -> YOLODataset:
         """Load an existing project from its ``project.json``."""
         meta = json.loads((Path(project_dir) / "project.json").read_text())
-        return cls(project_dir=project_dir, classes=meta["classes"])
+        return cls(
+            project_dir=project_dir,
+            classes=meta["classes"],
+            class_groups=meta.get("class_groups", {}),
+        )
 
     # ------------------------------------------------------------------
     # Adding data
