@@ -538,15 +538,19 @@ def _section_data(ds: YOLODataset, args: argparse.Namespace) -> None:
 
     # --- Explain the workflow ---
     if custom and known:
+        non_trivial = {k: v for k, v in class_groups.items() if v and v != [k]}
+        remap_note = ""
+        if non_trivial:
+            merges = ", ".join(f"{'+'.join(v)}→**{k}**" for k, v in non_trivial.items())
+            remap_note = f" Regrouping: {merges}."
         st.caption(
-            f"**Known classes** ({', '.join(known)}): the base model already detects these — "
-            "they'll be auto-labeled. "
-            f"**Custom classes** ({', '.join(custom)}): upload images containing these objects "
-            "and annotate them below."
+            f"Upload images that contain your objects.{remap_note} "
+            f"**{', '.join(known)}** will be auto-labeled by the base model. "
+            f"You'll annotate **{', '.join(custom)}** manually."
         )
     elif custom:
         st.caption(
-            f"Upload images containing your custom objects ({', '.join(custom)}) "
+            f"Upload images containing your custom objects (**{', '.join(custom)}**) "
             "and annotate where each object appears."
         )
     else:
@@ -566,19 +570,8 @@ def _section_data(ds: YOLODataset, args: argparse.Namespace) -> None:
                 "train a smaller model with only your selected classes."
             )
 
-    # --- Per-custom-class uploaders ---
-    if custom:
-        for cls in custom:
-            st.markdown(f"**Upload images containing: {cls}**")
-            _file_uploader(ds, key_prefix=f"cls_{cls}", label=f"Images with {cls}")
-
-    # --- General uploader (for known classes, or extra images) ---
-    if known:
-        if custom:
-            st.markdown("**Additional images** (for auto-labeling known classes)")
-        else:
-            st.markdown("**Upload training images**")
-        _file_uploader(ds, key_prefix="general", label="Upload images")
+    # --- Single uploader ---
+    _file_uploader(ds, key_prefix="main", label="Upload images")
 
     # --- Image count ---
     images = ds.staged_images()
