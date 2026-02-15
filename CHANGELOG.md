@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file.
 
 
+## [2.0.6] - 2026-02-15
+
+### Bug Fixes
+
+- detect near-zero garbled e2e output in YOLO26 ONNX models ([3e39906](https://github.com/pliablepixels/pyzm/commit/3e39906185c5425c7193cfe6028811aedc307862))
+
+### Documentation
+
+- clarify that CHANGELOG is not to be touched ([f898ffc](https://github.com/pliablepixels/pyzm/commit/f898ffc02db4dd96f2b07a7d2c506c43320d9104))
+- add per-type overrides section and remove stale "legacy" wording ([a72da12](https://github.com/pliablepixels/pyzm/commit/a72da12b1fb3893e8e8ffcbd6dafc0f4229f8215))
+- add --pyzm-debug to EventStartCommand example ([86a8481](https://github.com/pliablepixels/pyzm/commit/86a84819c5df20e05516a37c66bedc35178b28be))
+
+### Features
+
+- per-type config overrides and processor logging ([0a41321](https://github.com/pliablepixels/pyzm/commit/0a4132100ddc5e7787fdd150acf54ca09f518e88))
+
+### Miscellaneous
+
+- bump version to v2.0.6 ([8973b29](https://github.com/pliablepixels/pyzm/commit/8973b294f7595eb53106c33522289181581b1f59))
+- clarified this is a rewrite ([d045258](https://github.com/pliablepixels/pyzm/commit/d045258516e09929641a286f57c5c4dfa8338125))
+
+### Refactoring
+
+- unify logger hierarchy, remove ZMLog and setup_logging ([bb4ca52](https://github.com/pliablepixels/pyzm/commit/bb4ca527b545df04f129e4deb4d59be56de2142a))
+
 ## [2.0.5] - 2026-02-15
 
 ### Bug Fixes
@@ -11,6 +36,7 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
+- update CHANGELOG for v2.0.5 ([677f1a7](https://github.com/pliablepixels/pyzm/commit/677f1a72b908cc90787061d9ad3eb299b0e5a866))
 - update guides for upstream fixes ([1996662](https://github.com/pliablepixels/pyzm/commit/199666217a6366f1bf1a9cf87afe40fe8f77a9a2))
 
 ### Features
