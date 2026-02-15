@@ -191,8 +191,9 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
             if d.is_dir() and (d / "project.json").exists()
         ]
 
-    col_new, col_load = st.columns([3, 1])
-    with col_new:
+    # --- Project name / load existing ---
+    col_name, col_load = st.columns([2, 1])
+    with col_name:
         project_name = st.text_input(
             "Project name",
             value=st.session_state.get("project_name", ""),
@@ -200,18 +201,28 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
         )
     with col_load:
         if existing:
-            st.write("")  # spacing
-            selected = st.selectbox("or load existing", [""] + existing, label_visibility="collapsed")
-            if selected:
-                pdir = project_root / selected
-                ds = YOLODataset.load(pdir)
-                st.session_state["project_name"] = selected
-                st.session_state["project_dir"] = str(pdir)
-                st.session_state["classes"] = ds.classes
-                st.session_state["class_groups"] = ds.class_groups
-                meta = json.loads((pdir / "project.json").read_text())
-                st.session_state["base_model"] = meta.get("base_model", "yolo11s")
-                st.rerun()
+            selected = st.selectbox(
+                "Load existing",
+                ["(new project)"] + existing,
+                key="load_project_select",
+            )
+            # Only load when the user picks a *different* project
+            if selected != "(new project)":
+                target_dir = str(project_root / selected)
+                if st.session_state.get("project_dir") != target_dir:
+                    pdir = project_root / selected
+                    ds = YOLODataset.load(pdir)
+                    meta = json.loads((pdir / "project.json").read_text())
+                    st.session_state["project_name"] = selected
+                    st.session_state["project_dir"] = target_dir
+                    st.session_state["classes"] = ds.classes
+                    st.session_state["class_groups"] = ds.class_groups
+                    st.session_state["class_groups_edit"] = [
+                        {"name": name, "sources": srcs}
+                        for name, srcs in ds.class_groups.items()
+                    ]
+                    st.session_state["base_model"] = meta.get("base_model", "yolo11s")
+                    st.rerun()
 
     # --- Model selection ---
     available = _scan_models(args.base_path)
@@ -219,10 +230,13 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
     model_paths = {m["name"]: m["path"] for m in available}
 
     default_idx = 0
+    saved_model = st.session_state.get("base_model")
     for i, name in enumerate(model_names):
-        if name == "yolo11s":
+        if saved_model and name == saved_model:
             default_idx = i
             break
+        if name == "yolo11s":
+            default_idx = i
 
     base_model = st.selectbox(
         "Base model",
@@ -253,7 +267,6 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
                 for name, srcs in saved.items()
             ]
         else:
-            # Sensible defaults
             st.session_state["class_groups_edit"] = [
                 {"name": "person", "sources": ["person"]},
             ]
@@ -262,13 +275,9 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
 
     # Render each group row
     to_delete = None
-    used_sources: set[str] = set()
-    for g in groups:
-        used_sources.update(g["sources"])
-
     for idx, group in enumerate(groups):
-        col_name, col_sources, col_del = st.columns([2, 5, 1])
-        with col_name:
+        col_name_g, col_sources, col_del = st.columns([3, 8, 1])
+        with col_name_g:
             new_name = st.text_input(
                 "Class name", value=group["name"],
                 key=f"grp_name_{idx}",
@@ -278,8 +287,6 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
             group["name"] = new_name.strip()
         with col_sources:
             if model_classes:
-                # Show model classes available for this group
-                # Include currently assigned + anything not used by other groups
                 other_used = set()
                 for j, g in enumerate(groups):
                     if j != idx:
@@ -304,23 +311,26 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
                 )
                 group["sources"] = [s.strip() for s in src_text.split(",") if s.strip()]
         with col_del:
-            if st.button("X", key=f"grp_del_{idx}"):
+            st.write("")  # align button with inputs
+            if st.button("X", key=f"grp_del_{idx}", use_container_width=True):
                 to_delete = idx
 
     if to_delete is not None:
         groups.pop(to_delete)
         st.rerun()
 
-    if st.button("+ Add class"):
-        groups.append({"name": "", "sources": []})
-        st.rerun()
-
-    # Custom classes (no model source -- purely new)
-    custom_input = st.text_input(
-        "Custom classes with no model equivalent (comma-separated)",
-        value=st.session_state.get("custom_classes_input", ""),
-        placeholder="e.g. package, my_pet",
-    )
+    col_add, col_custom = st.columns([1, 3])
+    with col_add:
+        if st.button("+ Add class"):
+            groups.append({"name": "", "sources": []})
+            st.rerun()
+    with col_custom:
+        custom_input = st.text_input(
+            "Custom classes (no model equivalent)",
+            value=st.session_state.get("custom_classes_input", ""),
+            placeholder="e.g. package, my_pet",
+            label_visibility="collapsed",
+        )
     custom_classes = [c.strip() for c in custom_input.split(",") if c.strip()]
 
     # Build final class list and groups dict
@@ -335,7 +345,7 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
     for c in custom_classes:
         if c not in final_classes:
             final_classes.append(c)
-            class_groups_dict[c] = []  # no source mapping
+            class_groups_dict[c] = []
 
     if final_classes:
         parts = []
