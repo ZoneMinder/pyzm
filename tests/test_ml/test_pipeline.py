@@ -12,6 +12,7 @@ from pyzm.models.config import (
     ModelConfig,
     ModelFramework,
     ModelType,
+    TypeOverrides,
 )
 from pyzm.models.detection import BBox, Detection, DetectionResult
 
@@ -432,3 +433,107 @@ class TestZoneRescaling:
         assert zone_dicts[0]["points"] == [(100, 200), (400, 200)]
         # image_dimensions should reflect no resize
         assert mock_zone_filter.call_args is not None
+
+
+class TestPerTypeConfig:
+    """Tests for per-type config overrides in the pipeline."""
+
+    @patch("pyzm.ml.pipeline._create_backend")
+    @patch("pyzm.ml.pipeline.filter_by_zone")
+    def test_per_type_match_strategy(self, mock_zone_filter, mock_create):
+        """Object type uses MOST, face type uses UNION via type_overrides."""
+        from pyzm.ml.pipeline import ModelPipeline
+
+        mc_obj1 = _make_model_config("obj1", mtype=ModelType.OBJECT)
+        mc_obj2 = _make_model_config("obj2", mtype=ModelType.OBJECT)
+        mc_face1 = _make_model_config("face1", mtype=ModelType.FACE)
+        mc_face2 = _make_model_config("face2", mtype=ModelType.FACE)
+
+        # obj1: 1 detection, obj2: 2 detections → MOST picks obj2
+        backend_obj1 = _make_mock_backend("obj1", [_det("person", model="obj1")])
+        backend_obj2 = _make_mock_backend("obj2", [_det("car", model="obj2"), _det("truck", model="obj2")])
+        # face1: 1 detection, face2: 1 detection → UNION combines both
+        backend_face1 = _make_mock_backend("face1", [_det("Alice", model="face1")])
+        backend_face2 = _make_mock_backend("face2", [_det("Bob", model="face2")])
+
+        mock_create.side_effect = [backend_obj1, backend_obj2, backend_face1, backend_face2]
+        mock_zone_filter.side_effect = lambda dets, zones, shape: (dets, [])
+
+        config = DetectorConfig(
+            models=[mc_obj1, mc_obj2, mc_face1, mc_face2],
+            match_strategy=MatchStrategy.FIRST,  # global default
+            type_overrides={
+                ModelType.OBJECT: TypeOverrides(match_strategy=MatchStrategy.MOST),
+                ModelType.FACE: TypeOverrides(match_strategy=MatchStrategy.UNION),
+            },
+        )
+
+        pipeline = ModelPipeline(config)
+        mock_image = MagicMock()
+        mock_image.shape = (100, 100, 3)
+
+        result = pipeline.run(mock_image)
+        labels = [d.label for d in result.detections]
+
+        # MOST for object: obj2 wins (2 > 1) → car, truck
+        assert "car" in labels
+        assert "truck" in labels
+        assert "person" not in labels
+        # UNION for face: both → Alice, Bob
+        assert "Alice" in labels
+        assert "Bob" in labels
+
+    @patch("pyzm.ml.pipeline._create_backend")
+    @patch("pyzm.ml.pipeline.filter_by_zone")
+    @patch("pyzm.ml.pipeline.load_past_detections")
+    @patch("pyzm.ml.pipeline.save_past_detections")
+    def test_per_type_match_past_detections(
+        self, mock_save, mock_load, mock_zone_filter, mock_create,
+    ):
+        """match_past_detections enabled for object but disabled for face."""
+        from pyzm.ml.pipeline import ModelPipeline
+
+        mc_obj = _make_model_config("yolo", mtype=ModelType.OBJECT)
+        mc_face = _make_model_config("dlib", mtype=ModelType.FACE)
+
+        # Object backend returns "person" at same location as saved
+        backend_obj = _make_mock_backend("yolo", [
+            Detection(label="person", confidence=0.9,
+                      bbox=BBox(x1=10, y1=10, x2=50, y2=50),
+                      model_name="yolo", detection_type="object"),
+        ])
+        # Face backend returns "Alice"
+        backend_face = _make_mock_backend("dlib", [
+            Detection(label="Alice", confidence=0.8,
+                      bbox=BBox(x1=10, y1=10, x2=50, y2=50),
+                      model_name="dlib", detection_type="face"),
+        ])
+
+        mock_create.side_effect = [backend_obj, backend_face]
+        mock_zone_filter.side_effect = lambda dets, zones, shape: (dets, [])
+
+        # Saved past detection: "person" at exact same bbox
+        mock_load.return_value = ([[10, 10, 50, 50]], ["person"])
+
+        config = DetectorConfig(
+            models=[mc_obj, mc_face],
+            match_strategy=MatchStrategy.FIRST,
+            match_past_detections=False,  # global default: off
+            image_path="/tmp",
+            type_overrides={
+                ModelType.OBJECT: TypeOverrides(match_past_detections=True),
+                # face: no override → uses global (False)
+            },
+        )
+
+        pipeline = ModelPipeline(config)
+        mock_image = MagicMock()
+        mock_image.shape = (100, 100, 3)
+
+        result = pipeline.run(mock_image)
+        labels = [d.label for d in result.detections]
+
+        # "person" should be filtered out (object type has past-detection enabled, matches saved)
+        assert "person" not in labels
+        # "Alice" should be kept (face type has past-detection disabled)
+        assert "Alice" in labels

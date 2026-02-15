@@ -431,3 +431,102 @@ class TestFilterPastDetections:
             dets, past_file, "50%", label_area_overrides={"car": "0px"},
         )
         assert len(result) == 1
+
+
+# ===================================================================
+# TestLoadSavePastDetections
+# ===================================================================
+
+class TestLoadSavePastDetections:
+    """Tests for the composable load/save helpers."""
+
+    def test_round_trip(self, tmp_path):
+        from pyzm.ml.filters import load_past_detections, save_past_detections
+
+        past_file = str(tmp_path / "past.pkl")
+        dets = [_det("person", 10, 10, 50, 50), _det("car", 60, 60, 100, 100)]
+        save_past_detections(past_file, dets)
+
+        boxes, labels = load_past_detections(past_file)
+        assert len(boxes) == 2
+        assert boxes[0] == [10, 10, 50, 50]
+        assert boxes[1] == [60, 60, 100, 100]
+        assert labels == ["person", "car"]
+
+    def test_load_missing_file(self, tmp_path):
+        from pyzm.ml.filters import load_past_detections
+
+        boxes, labels = load_past_detections(str(tmp_path / "nonexistent.pkl"))
+        assert boxes == []
+        assert labels == []
+
+    def test_load_empty_file(self, tmp_path):
+        from pyzm.ml.filters import load_past_detections
+
+        past_file = str(tmp_path / "empty.pkl")
+        with open(past_file, "wb"):
+            pass
+        boxes, labels = load_past_detections(past_file)
+        assert boxes == []
+        assert labels == []
+
+    def test_save_empty_detections_is_noop(self, tmp_path):
+        from pyzm.ml.filters import save_past_detections
+
+        past_file = str(tmp_path / "past.pkl")
+        save_past_detections(past_file, [])
+        assert not os.path.exists(past_file)
+
+
+# ===================================================================
+# TestMatchPastDetectionsPure
+# ===================================================================
+
+@pytest.mark.integration
+class TestMatchPastDetectionsPure:
+    """Tests for the pure match_past_detections logic (no I/O)."""
+
+    def test_no_saved_data_returns_all(self):
+        from pyzm.ml.filters import match_past_detections
+
+        dets = [_det("person", 10, 10, 50, 50)]
+        result = match_past_detections(dets, [], [], "5%")
+        assert len(result) == 1
+
+    def test_duplicate_removed(self):
+        from pyzm.ml.filters import match_past_detections
+
+        dets = [_det("person", 10, 10, 50, 50)]
+        result = match_past_detections(
+            dets, [[10, 10, 50, 50]], ["person"], "5%",
+        )
+        assert len(result) == 0
+
+    def test_different_label_kept(self):
+        from pyzm.ml.filters import match_past_detections
+
+        dets = [_det("car", 10, 10, 50, 50)]
+        result = match_past_detections(
+            dets, [[10, 10, 50, 50]], ["person"], "5%",
+        )
+        assert len(result) == 1
+
+    def test_aliases_match_across_labels(self):
+        from pyzm.ml.filters import match_past_detections
+
+        dets = [_det("car", 10, 10, 50, 50)]
+        result = match_past_detections(
+            dets, [[10, 10, 50, 50]], ["bus"], "5%",
+            aliases=[["car", "bus"]],
+        )
+        assert len(result) == 0
+
+    def test_ignore_labels_always_kept(self):
+        from pyzm.ml.filters import match_past_detections
+
+        dets = [_det("dog", 10, 10, 50, 50)]
+        result = match_past_detections(
+            dets, [[10, 10, 50, 50]], ["dog"], "5%",
+            ignore_labels=["dog"],
+        )
+        assert len(result) == 1

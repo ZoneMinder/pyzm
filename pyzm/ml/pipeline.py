@@ -16,7 +16,9 @@ from pyzm.ml.filters import (
     filter_by_pattern,
     filter_by_size,
     filter_by_zone,
-    filter_past_detections,
+    load_past_detections,
+    match_past_detections,
+    save_past_detections,
 )
 from pyzm.models.config import (
     DetectorConfig,
@@ -24,6 +26,7 @@ from pyzm.models.config import (
     ModelConfig,
     ModelFramework,
     ModelType,
+    TypeOverrides,
 )
 from pyzm.models.detection import BBox, Detection, DetectionResult
 
@@ -204,7 +207,7 @@ class ModelPipeline:
                     continue
 
             best_for_type = self._run_model_variants(
-                variants, image, zone_dicts, (h, w),
+                variants, image, zone_dicts, (h, w), mtype,
             )
             all_detections.extend(best_for_type)
 
@@ -217,18 +220,8 @@ class ModelPipeline:
         # Apply zone filtering (returns kept and error_boxes)
         all_detections, all_error_boxes = filter_by_zone(all_detections, zone_dicts, (h, w))
 
-        # Apply past-detection deduplication
-        if self._config.match_past_detections and all_detections:
-            import os
-            past_file = os.path.join(self._config.image_path, "past_detections.pkl")
-            all_detections = filter_past_detections(
-                all_detections,
-                past_file,
-                max_diff_area=self._config.past_det_max_diff_area,
-                label_area_overrides=self._config.past_det_max_diff_area_labels,
-                ignore_labels=self._config.ignore_past_detection_labels,
-                aliases=self._config.aliases,
-            )
+        # Apply past-detection deduplication (per-type with global fallback)
+        all_detections = self._filter_past_per_type(all_detections)
 
         return DetectionResult(
             detections=all_detections,
@@ -242,15 +235,80 @@ class ModelPipeline:
 
     # -- private helpers ------------------------------------------------------
 
+    def _resolve_type_overrides(self, mtype: ModelType) -> TypeOverrides:
+        """Return per-type overrides for *mtype*, falling back to globals."""
+        return self._config.type_overrides.get(mtype, TypeOverrides())
+
+    def _filter_past_per_type(self, all_detections: list[Detection]) -> list[Detection]:
+        """Apply past-detection filtering per model-type with global fallback.
+
+        Loads past data once, groups detections by ``detection_type``, applies
+        per-type config, then saves all surviving + new detections once.
+        """
+        import os
+
+        cfg = self._config
+
+        # Quick check: is past-detection matching enabled for *any* type?
+        any_enabled = cfg.match_past_detections
+        if not any_enabled:
+            for tov in cfg.type_overrides.values():
+                if tov.match_past_detections is True:
+                    any_enabled = True
+                    break
+        if not any_enabled or not all_detections:
+            return all_detections
+
+        past_file = os.path.join(cfg.image_path, "past_detections.pkl")
+        saved_boxes, saved_labels = load_past_detections(past_file)
+
+        # Group detections by detection_type
+        by_type: dict[str, list[Detection]] = defaultdict(list)
+        for det in all_detections:
+            by_type[det.detection_type].append(det)
+
+        kept: list[Detection] = []
+        for dtype, dets in by_type.items():
+            # Resolve ModelType enum (if possible) to look up overrides
+            try:
+                mtype = ModelType(dtype)
+            except ValueError:
+                mtype = None
+
+            tov = self._resolve_type_overrides(mtype) if mtype else TypeOverrides()
+
+            enabled = tov.match_past_detections if tov.match_past_detections is not None else cfg.match_past_detections
+            if not enabled:
+                kept.extend(dets)
+                continue
+
+            max_diff = tov.past_det_max_diff_area if tov.past_det_max_diff_area is not None else cfg.past_det_max_diff_area
+            label_overrides = tov.past_det_max_diff_area_labels or cfg.past_det_max_diff_area_labels
+            ignore = tov.ignore_past_detection_labels if tov.ignore_past_detection_labels is not None else cfg.ignore_past_detection_labels
+            aliases = tov.aliases if tov.aliases is not None else cfg.aliases
+
+            kept.extend(match_past_detections(
+                dets, saved_boxes, saved_labels,
+                max_diff_area=max_diff,
+                label_area_overrides=label_overrides,
+                ignore_labels=ignore,
+                aliases=aliases,
+            ))
+
+        save_past_detections(past_file, all_detections)
+        return kept
+
     def _run_model_variants(
         self,
         variants: list[tuple[ModelConfig, MLBackend]],
         image: "np.ndarray",
         zone_dicts: list[dict],
         image_shape: tuple[int, int],
+        mtype: ModelType | None = None,
     ) -> list[Detection]:
         """Run model variants for a single type using match_strategy."""
-        strategy = self._config.match_strategy
+        tov = self._resolve_type_overrides(mtype) if mtype else TypeOverrides()
+        strategy = tov.match_strategy if tov.match_strategy is not None else self._config.match_strategy
         best: list[Detection] = []
 
         for mc, backend in variants:

@@ -6,10 +6,13 @@ Typos in field names cause immediate validation errors instead of silent failure
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
+
+logger = logging.getLogger("pyzm")
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +148,21 @@ class ModelConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class TypeOverrides(BaseModel):
+    """Per-model-type overrides (e.g. under ``object.general``, ``face.general``)."""
+    match_strategy: MatchStrategy | None = None
+    max_detection_size: str | None = None
+    match_past_detections: bool | None = None
+    past_det_max_diff_area: str | None = None
+    past_det_max_diff_area_labels: dict[str, str] = Field(default_factory=dict)
+    ignore_past_detection_labels: list[str] | None = None
+    aliases: list[list[str]] | None = None
+
+
+# Keys that may appear in section_general but only have global meaning.
+_GLOBAL_ONLY_KEYS = frozenset({"frame_strategy", "image_path"})
+
+
 class DetectorConfig(BaseModel):
     """Top-level configuration for the :class:`pyzm.ml.Detector`."""
     models: list[ModelConfig] = Field(default_factory=list)
@@ -163,6 +181,9 @@ class DetectorConfig(BaseModel):
     aliases: list[list[str]] = Field(default_factory=list)
     image_path: str = "/tmp"
 
+    # Per-type overrides (populated by from_dict when section_general has overridable keys)
+    type_overrides: dict[ModelType, TypeOverrides] = Field(default_factory=dict)
+
     @classmethod
     def from_dict(cls, ml_options: dict[str, Any]) -> "DetectorConfig":
         """Build a DetectorConfig from a nested ``ml_sequence`` dict.
@@ -173,6 +194,8 @@ class DetectorConfig(BaseModel):
         model_sequence = general.get("model_sequence", "object").split(",")
 
         models: list[ModelConfig] = []
+        type_overrides: dict[ModelType, TypeOverrides] = {}
+
         for model_type_str in model_sequence:
             model_type_str = model_type_str.strip()
             try:
@@ -184,8 +207,28 @@ class DetectorConfig(BaseModel):
             section_general = section.get("general", {})
             sequences = section.get("sequence", [])
 
+            # Warn if global-only keys appear in section_general
+            for gk in _GLOBAL_ONLY_KEYS:
+                if gk in section_general:
+                    logger.warning(
+                        "%s.general.%s has no per-type effect; "
+                        "move it to the top-level general section",
+                        model_type_str, gk,
+                    )
+
+            # Build TypeOverrides from section_general (only if overridable keys present)
+            tov = _build_type_overrides(section_general)
+            if tov is not None:
+                type_overrides[mtype] = tov
+
+            # Resolve max_detection_size: section_general → global_general
+            section_max_size = section_general.get("max_detection_size")
+
             for seq_item in sequences:
-                mc = _seq_item_to_model_config(mtype, seq_item, section_general, general)
+                mc = _seq_item_to_model_config(
+                    mtype, seq_item, section_general, general,
+                    section_max_size=section_max_size,
+                )
                 models.append(mc)
 
         strategy = MatchStrategy(general.get("same_model_sequence_strategy", "first"))
@@ -210,7 +253,42 @@ class DetectorConfig(BaseModel):
             ignore_past_detection_labels=general.get("ignore_past_detection_labels", []),
             aliases=general.get("aliases", []),
             image_path=general.get("image_path", "/tmp"),
+            type_overrides=type_overrides,
         )
+
+
+def _build_type_overrides(section_general: dict[str, Any]) -> TypeOverrides | None:
+    """Build a :class:`TypeOverrides` from keys found in *section_general*.
+
+    Returns ``None`` if no overridable keys are present.
+    """
+    kwargs: dict[str, Any] = {}
+
+    if "same_model_sequence_strategy" in section_general:
+        kwargs["match_strategy"] = MatchStrategy(section_general["same_model_sequence_strategy"])
+    if "max_detection_size" in section_general:
+        kwargs["max_detection_size"] = str(section_general["max_detection_size"])
+    if "match_past_detections" in section_general:
+        kwargs["match_past_detections"] = section_general["match_past_detections"] == "yes"
+    if "past_det_max_diff_area" in section_general:
+        kwargs["past_det_max_diff_area"] = str(section_general["past_det_max_diff_area"])
+    if "ignore_past_detection_labels" in section_general:
+        kwargs["ignore_past_detection_labels"] = section_general["ignore_past_detection_labels"]
+    if "aliases" in section_general:
+        kwargs["aliases"] = section_general["aliases"]
+
+    # Per-label past-detection area overrides: car_past_det_max_diff_area, etc.
+    label_overrides: dict[str, str] = {}
+    for k, v in section_general.items():
+        if k.endswith("_past_det_max_diff_area") and k != "past_det_max_diff_area":
+            label = k.removesuffix("_past_det_max_diff_area")
+            label_overrides[label] = str(v)
+    if label_overrides:
+        kwargs["past_det_max_diff_area_labels"] = label_overrides
+
+    if not kwargs:
+        return None
+    return TypeOverrides(**kwargs)
 
 
 def _seq_item_to_model_config(
@@ -218,6 +296,8 @@ def _seq_item_to_model_config(
     seq: dict[str, Any],
     section_general: dict[str, Any],
     global_general: dict[str, Any],
+    *,
+    section_max_size: str | None = None,
 ) -> ModelConfig:
     """Convert one entry in a ``sequence`` list to a :class:`ModelConfig`."""
     prefix_map = {
@@ -234,7 +314,7 @@ def _seq_item_to_model_config(
     try:
         fw = ModelFramework(fw_raw)
     except ValueError:
-        # map legacy name "dlib" -> "face_dlib"
+        # map short name "dlib" -> "face_dlib"
         fw = ModelFramework(f"face_{fw_raw}") if mtype == ModelType.FACE else ModelFramework(fw_raw)
 
     processor_raw = seq.get(f"{prefix}_processor", seq.get("object_processor", "cpu"))
@@ -260,7 +340,7 @@ def _seq_item_to_model_config(
         labels=seq.get(f"{prefix}_labels"),
         min_confidence=float(seq.get(f"{prefix}_min_confidence", seq.get("object_min_confidence", 0.3))),
         pattern=section_general.get("pattern", global_general.get("pattern", ".*")),
-        max_detection_size=str(v) if (v := seq.get("max_detection_size") or seq.get("max_size")) is not None else None,
+        max_detection_size=str(v) if (v := seq.get("max_detection_size") or seq.get("max_size") or section_max_size) is not None else None,
         model_width=int(seq["model_width"]) if "model_width" in seq else None,
         model_height=int(seq["model_height"]) if "model_height" in seq else None,
         known_faces_dir=seq.get("known_images_path"),
@@ -312,7 +392,7 @@ class StreamConfig(BaseModel):
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "StreamConfig":
-        """Build a StreamConfig from a legacy ``stream_sequence`` dict.
+        """Build a StreamConfig from a ``stream_sequence`` dict.
 
         Handles the string-valued conventions of the YAML config:
 

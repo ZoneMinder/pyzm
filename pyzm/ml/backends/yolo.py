@@ -16,8 +16,7 @@ logger = logging.getLogger("pyzm.ml")
 
 
 class YoloBackend(MLBackend):
-    """Wraps the legacy :func:`pyzm.ml.yolo.Yolo` factory in the new backend
-    interface.
+    """Wraps :func:`pyzm.ml.yolo.Yolo` in the v2 backend interface.
 
     The underlying YOLO model (Darknet or ONNX) is chosen automatically based
     on the weights file extension.
@@ -40,23 +39,40 @@ class YoloBackend(MLBackend):
     def load(self) -> None:
         from pyzm.ml.yolo import Yolo  # lazy import
 
-        options = self._config_to_legacy_options()
-        logger.debug("%s: loading YOLO model via legacy factory", self.name)
+        processor = self._config.processor.value
+        options = self._build_options()
+        logger.info(
+            "%s: loading YOLO model (processor=%s, weights=%s)",
+            self.name, processor, self._config.weights,
+        )
         self._model = Yolo(options=options)
-        # Force model load so weights are in memory before first detect()
         self._model.load_model()
+
+        # Detect GPU→CPU fallback: the underlying model may silently switch
+        actual = getattr(self._model, "processor", processor)
+        if actual != processor:
+            logger.warning(
+                "%s: requested processor=%s but fell back to %s",
+                self.name, processor, actual,
+            )
+        else:
+            logger.debug("%s: running on %s", self.name, actual)
 
     def detect(self, image: "np.ndarray") -> list[Detection]:
         if self._model is None:
             self.load()
 
         assert self._model is not None
-        # Legacy detect returns (boxes, labels, confidences, model_names)
-        # boxes: list of [x1, y1, x2, y2]
-        # labels: list of str
-        # confidences: list of float
-        # model_names: list of str (e.g. ["yolo", "yolo", ...])
         boxes, labels, confidences, _model_tags = self._model.detect(image=image)
+
+        # Check for runtime GPU→CPU fallback (e.g. CUDA error during inference)
+        requested = self._config.processor.value
+        actual = getattr(self._model, "processor", requested)
+        if actual != requested:
+            logger.warning(
+                "%s: processor changed during inference: %s -> %s",
+                self.name, requested, actual,
+            )
 
         detections: list[Detection] = []
         for box, label, conf in zip(boxes, labels, confidences):
@@ -79,8 +95,8 @@ class YoloBackend(MLBackend):
 
     # -- internal helpers -----------------------------------------------------
 
-    def _config_to_legacy_options(self) -> dict:
-        """Translate a :class:`ModelConfig` into the old dict-of-strings the
+    def _build_options(self) -> dict:
+        """Translate a :class:`ModelConfig` into the dict-of-strings the
         YOLO code expects."""
         opts: dict = {
             "name": self.name,

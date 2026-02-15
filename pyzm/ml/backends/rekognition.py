@@ -16,7 +16,7 @@ logger = logging.getLogger("pyzm.ml")
 
 
 class RekognitionBackend(MLBackend):
-    """Wraps the legacy :class:`pyzm.ml.aws_rekognition.AwsRekognition` class."""
+    """Wraps :class:`pyzm.ml.aws_rekognition.AwsRekognition` in the v2 backend interface."""
 
     def __init__(self, config: ModelConfig) -> None:
         self._config = config
@@ -35,8 +35,11 @@ class RekognitionBackend(MLBackend):
     def load(self) -> None:
         from pyzm.ml.aws_rekognition import AwsRekognition  # lazy import
 
-        options = self._config_to_legacy_options()
-        logger.debug("%s: initializing AWS Rekognition client", self.name)
+        options = self._build_options()
+        logger.info(
+            "%s: initializing AWS Rekognition client (region=%s)",
+            self.name, self._config.aws_region,
+        )
         self._model = AwsRekognition(options=options)
 
     def detect(self, image: "np.ndarray") -> list[Detection]:
@@ -67,7 +70,7 @@ class RekognitionBackend(MLBackend):
 
     # -- internal helpers -----------------------------------------------------
 
-    def _config_to_legacy_options(self) -> dict:
+    def _build_options(self) -> dict:
         return {
             "name": self.name,
             "object_min_confidence": self._config.min_confidence,

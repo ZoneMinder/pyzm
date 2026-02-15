@@ -16,7 +16,7 @@ logger = logging.getLogger("pyzm.ml")
 
 
 class CoralBackend(MLBackend):
-    """Wraps the legacy :class:`pyzm.ml.coral_edgetpu.Tpu` class."""
+    """Wraps :class:`pyzm.ml.coral_edgetpu.Tpu` in the v2 backend interface."""
 
     def __init__(self, config: ModelConfig) -> None:
         self._config = config
@@ -47,10 +47,14 @@ class CoralBackend(MLBackend):
     def load(self) -> None:
         from pyzm.ml.coral_edgetpu import Tpu  # lazy import
 
-        options = self._config_to_legacy_options()
-        logger.debug("%s: loading Coral EdgeTPU model", self.name)
+        options = self._build_options()
+        logger.info(
+            "%s: loading Coral EdgeTPU model (processor=tpu, weights=%s)",
+            self.name, self._config.weights,
+        )
         self._model = Tpu(options=options)
         self._model.load_model()
+        logger.debug("%s: running on tpu", self.name)
 
     def detect(self, image: "np.ndarray") -> list[Detection]:
         if self._model is None:
@@ -80,15 +84,15 @@ class CoralBackend(MLBackend):
 
     # -- internal helpers -----------------------------------------------------
 
-    def _config_to_legacy_options(self) -> dict:
+    def _build_options(self) -> dict:
         return {
             "name": self.name,
             "object_weights": self._config.weights,
             "object_labels": self._config.labels,
             "object_min_confidence": self._config.min_confidence,
-            # Disable per-frame locking in the legacy Tpu class; the
-            # Detector now holds the lock across the entire multi-frame
-            # session via acquire_lock()/release_lock().
+            # Disable per-frame locking in the Tpu class; the Detector
+            # now holds the lock across the entire multi-frame session
+            # via acquire_lock()/release_lock().
             "disable_locks": "yes" if self._config.disable_locks else "no",
             "auto_lock": False,
             "tpu_max_processes": self._config.max_processes,

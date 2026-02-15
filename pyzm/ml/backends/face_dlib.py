@@ -16,7 +16,7 @@ logger = logging.getLogger("pyzm.ml")
 
 
 class FaceDlibBackend(MLBackend):
-    """Wraps the legacy :class:`pyzm.ml.face.Face` facade (which delegates to
+    """Wraps :class:`pyzm.ml.face.Face` (delegates to
     ``pyzm.ml.face_dlib.FaceDlib`` or ``pyzm.ml.face_tpu.FaceTpu``).
     """
 
@@ -37,17 +37,29 @@ class FaceDlibBackend(MLBackend):
     def load(self) -> None:
         from pyzm.ml.face import Face  # lazy import
 
-        options = self._config_to_legacy_options()
-        logger.debug("%s: loading face recognition model", self.name)
+        processor = self._config.processor.value
+        options = self._build_options()
+        logger.info(
+            "%s: loading face recognition model (processor=%s)",
+            self.name, processor,
+        )
         self._model = Face(options=options)
+
+        # dlib auto-detects CUDA; check what it actually chose
+        actual = getattr(self._model, "processor", processor)
+        if actual != processor:
+            logger.warning(
+                "%s: requested processor=%s but fell back to %s",
+                self.name, processor, actual,
+            )
+        else:
+            logger.debug("%s: running on %s", self.name, actual)
 
     def detect(self, image: "np.ndarray") -> list[Detection]:
         if self._model is None:
             self.load()
 
         assert self._model is not None
-        # Legacy returns (boxes, labels, confidences, model_tags)
-        # boxes are [left, top, right, bottom] (x1, y1, x2, y2)
         boxes, labels, confidences, _model_tags = self._model.detect(image=image)
 
         detections: list[Detection] = []
@@ -65,11 +77,11 @@ class FaceDlibBackend(MLBackend):
 
     # -- internal helpers -----------------------------------------------------
 
-    def _config_to_legacy_options(self) -> dict:
-        """Map :class:`ModelConfig` fields to the dict keys the legacy Face
+    def _build_options(self) -> dict:
+        """Map :class:`ModelConfig` fields to the dict keys the Face
         code expects."""
         fw = self._config.framework.value
-        # Legacy face code looks at 'face_detection_framework' which is
+        # Face code looks at 'face_detection_framework' which is
         # 'dlib' or 'tpu', not the full enum value 'face_dlib'/'face_tpu'.
         detection_fw = fw.replace("face_", "") if fw.startswith("face_") else fw
 

@@ -16,8 +16,8 @@ logger = logging.getLogger("pyzm.ml")
 
 
 class AlprBackend(MLBackend):
-    """Wraps the legacy :class:`pyzm.ml.alpr.Alpr` facade which delegates to
-    PlateRecognizer, OpenALPR cloud, or OpenALPR command-line.
+    """Wraps :class:`pyzm.ml.alpr.Alpr` which delegates to PlateRecognizer,
+    OpenALPR cloud, or OpenALPR command-line.
     """
 
     def __init__(self, config: ModelConfig) -> None:
@@ -38,8 +38,11 @@ class AlprBackend(MLBackend):
     def load(self) -> None:
         from pyzm.ml.alpr import Alpr  # lazy import
 
-        options = self._config_to_legacy_options()
-        logger.debug("%s: initializing ALPR backend (%s)", self.name, self._config.alpr_service)
+        options = self._build_options()
+        logger.info(
+            "%s: initializing ALPR backend (service=%s, processor=%s)",
+            self.name, self._config.alpr_service, self._config.processor.value,
+        )
         self._model = Alpr(options=options)
 
     def detect(self, image: "np.ndarray") -> list[Detection]:
@@ -64,7 +67,7 @@ class AlprBackend(MLBackend):
 
     # -- internal helpers -----------------------------------------------------
 
-    def _config_to_legacy_options(self) -> dict:
+    def _build_options(self) -> dict:
         return {
             "name": self.name,
             "alpr_service": self._config.alpr_service,

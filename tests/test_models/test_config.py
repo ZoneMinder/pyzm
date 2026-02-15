@@ -14,6 +14,7 @@ from pyzm.models.config import (
     ModelType,
     Processor,
     StreamConfig,
+    TypeOverrides,
     ZMClientConfig,
 )
 
@@ -330,6 +331,116 @@ class TestDetectorConfig:
         assert dc.match_past_detections is True
         assert dc.past_det_max_diff_area == "10%"
         assert dc.image_path == "/var/cache/pyzm"
+
+    def test_from_dict_per_type_overrides(self):
+        """Per-type section_general keys populate type_overrides."""
+        ml_options = {
+            "general": {
+                "model_sequence": "object,face",
+                "same_model_sequence_strategy": "first",
+            },
+            "object": {
+                "general": {
+                    "same_model_sequence_strategy": "most",
+                    "match_past_detections": "yes",
+                    "past_det_max_diff_area": "10%",
+                    "car_past_det_max_diff_area": "15%",
+                    "ignore_past_detection_labels": ["dog"],
+                    "aliases": [["car", "bus"]],
+                },
+                "sequence": [{"object_framework": "opencv"}],
+            },
+            "face": {
+                "general": {
+                    "same_model_sequence_strategy": "union",
+                },
+                "sequence": [{"face_detection_framework": "dlib"}],
+            },
+        }
+        dc = DetectorConfig.from_dict(ml_options)
+
+        # Object overrides
+        assert ModelType.OBJECT in dc.type_overrides
+        obj_ov = dc.type_overrides[ModelType.OBJECT]
+        assert obj_ov.match_strategy == MatchStrategy.MOST
+        assert obj_ov.match_past_detections is True
+        assert obj_ov.past_det_max_diff_area == "10%"
+        assert obj_ov.past_det_max_diff_area_labels == {"car": "15%"}
+        assert obj_ov.ignore_past_detection_labels == ["dog"]
+        assert obj_ov.aliases == [["car", "bus"]]
+
+        # Face overrides
+        assert ModelType.FACE in dc.type_overrides
+        face_ov = dc.type_overrides[ModelType.FACE]
+        assert face_ov.match_strategy == MatchStrategy.UNION
+        assert face_ov.match_past_detections is None  # not set
+
+        # Global strategy is still "first"
+        assert dc.match_strategy == MatchStrategy.FIRST
+
+    def test_from_dict_warns_on_frame_strategy_in_section(self, caplog):
+        """frame_strategy in section_general should log a warning."""
+        import logging
+        ml_options = {
+            "general": {"model_sequence": "object"},
+            "object": {
+                "general": {"frame_strategy": "first"},
+                "sequence": [{"object_framework": "opencv"}],
+            },
+        }
+        with caplog.at_level(logging.WARNING, logger="pyzm"):
+            DetectorConfig.from_dict(ml_options)
+        assert any("frame_strategy" in r.message and "no per-type effect" in r.message for r in caplog.records)
+
+    def test_from_dict_warns_on_image_path_in_section(self, caplog):
+        """image_path in section_general should log a warning."""
+        import logging
+        ml_options = {
+            "general": {"model_sequence": "object"},
+            "object": {
+                "general": {"image_path": "/some/path"},
+                "sequence": [{"object_framework": "opencv"}],
+            },
+        }
+        with caplog.at_level(logging.WARNING, logger="pyzm"):
+            DetectorConfig.from_dict(ml_options)
+        assert any("image_path" in r.message and "no per-type effect" in r.message for r in caplog.records)
+
+    def test_from_dict_max_detection_size_cascades(self):
+        """max_detection_size in section_general cascades to ModelConfig."""
+        ml_options = {
+            "general": {"model_sequence": "object"},
+            "object": {
+                "general": {"max_detection_size": "30%"},
+                "sequence": [
+                    {"name": "no-override", "object_framework": "opencv"},
+                    {"name": "has-override", "object_framework": "opencv", "max_detection_size": "10%"},
+                ],
+            },
+        }
+        dc = DetectorConfig.from_dict(ml_options)
+        # First model gets section_general fallback
+        assert dc.models[0].max_detection_size == "30%"
+        # Second model uses its own explicit value
+        assert dc.models[1].max_detection_size == "10%"
+
+    def test_from_dict_no_type_overrides_when_only_pattern(self):
+        """section_general with only non-overridable keys (like pattern) should not
+        create type_overrides."""
+        ml_options = {
+            "general": {"model_sequence": "object"},
+            "object": {
+                "general": {"pattern": "(person|car)"},
+                "sequence": [{"object_framework": "opencv"}],
+            },
+        }
+        dc = DetectorConfig.from_dict(ml_options)
+        assert ModelType.OBJECT not in dc.type_overrides
+
+    def test_type_overrides_default_empty(self):
+        """Default DetectorConfig has empty type_overrides."""
+        dc = DetectorConfig()
+        assert dc.type_overrides == {}
 
 
 # ===================================================================
