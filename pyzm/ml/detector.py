@@ -8,10 +8,10 @@ Usage::
     det = Detector()
 
     # Pick specific models by name (resolved from base_path)
-    det = Detector(models=["yolov4", "yolo26s"])
+    det = Detector(models=["yolo11s", "yolo26s"])
 
     # Custom model directory
-    det = Detector(models=["yolov4"], base_path="/my/models")
+    det = Detector(models=["yolo11s"], base_path="/my/models")
 
     # Detect
     result = det.detect("/path/to/image.jpg")
@@ -150,7 +150,7 @@ def _resolve_model_name(
     2. Any weight file whose stem matches *name* in any subdirectory
     3. Fall back to a bare ModelConfig with just the name and processor
     """
-    # 1. Direct directory match: e.g. "yolov4" -> base_path/yolov4/
+    # 1. Direct directory match: e.g. "yolo11" -> base_path/yolo11/
     candidate_dir = base_path / name
     if candidate_dir.is_dir():
         for f in sorted(candidate_dir.iterdir()):
@@ -186,7 +186,7 @@ class Detector:
         *models* and *base_path*.
     models:
         A convenience shorthand -- a list of model name strings
-        (e.g. ``["yolov4", "yolo26s"]``) or :class:`ModelConfig` objects.
+        (e.g. ``["yolo11s", "yolo26s"]``) or :class:`ModelConfig` objects.
         String names are resolved against *base_path* to find weight,
         config, and label files automatically.
     base_path:

@@ -167,7 +167,7 @@ Test file reference
      - ``/health``, ``/detect``, ``/models`` (eager), ``--models all`` (lazy), gateway image mode, zones via serve, JWT auth flow, gateway with auth
    * - ``test_server_config.py``
      - 3
-     - ``["all"]`` valid, ``["all", "yolov4"]`` raises, normal models valid
+     - ``["all"]`` valid, ``["all", "yolo11s"]`` raises, normal models valid
    * - ``test_filter_combinations.py``
      - 4
      - Pattern + size, zone + pattern, global pattern + zone, past detection + zone

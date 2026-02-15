@@ -88,7 +88,7 @@ Detecting objects in an image
 
    from pyzm import Detector
 
-   detector = Detector(models=["yolov4"])
+   detector = Detector(models=["yolo11s"])
    result = detector.detect("/path/to/image.jpg")
 
    if result.matched:
@@ -133,7 +133,7 @@ Detecting on a ZoneMinder event
 
    zm = ZMClient(url="https://zm.example.com/zm/api",
                   user="admin", password="secret")
-   detector = Detector(models=["yolov4"])
+   detector = Detector(models=["yolo11s"])
 
    zones = zm.monitor_zones(1)
 
@@ -176,8 +176,7 @@ If you have an ``ml_sequence`` dict (from ``objectconfig.yml``):
            "sequence": [
                {
                    "object_framework": "opencv",
-                   "object_weights": "/path/to/yolov4.weights",
-                   "object_config": "/path/to/yolov4.cfg",
+                   "object_weights": "/path/to/yolo11s.onnx",
                    "object_labels": "/path/to/coco.names",
                    "object_min_confidence": 0.5,
                },

@@ -11,7 +11,7 @@ lightweight image uploads.
    Image mode (default)                   GPU box
    +-----------------+     HTTP/JPEG     +------------------+
    | zm_detect.py    | ----------------> | pyzm.serve       |
-   | Detector(       |                   |   YoloV4 (GPU)   |
+   | Detector(       |                   |   YOLO11 (GPU)  |
    |   gateway=...)  | <---------------- |   Coral TPU      |
    +-----------------+  DetectionResult  +------------------+
 
@@ -68,9 +68,8 @@ locally via the ``Detector`` class.
          general:
            pattern: "(person|car)"
          sequence:
-           - name: YOLOv4
-             object_weights: "/var/lib/zmeventnotification/models/yolov4/yolov4.weights"
-             object_config: "/var/lib/zmeventnotification/models/yolov4/yolov4.cfg"
+           - name: YOLO11s
+             object_weights: "/var/lib/zmeventnotification/models/ultralytics/yolo11s.onnx"
              object_labels: "/var/lib/zmeventnotification/models/yolov4/coco.names"
              object_framework: opencv
              object_processor: gpu
@@ -133,7 +132,7 @@ Or with specific models and auth:
 .. code-block:: bash
 
    python -m pyzm.serve \
-       --models yolov4 yolov7 \
+       --models yolo11s yolo26s \
        --processor gpu \
        --port 5000 \
        --auth --auth-user admin --auth-password secret \
@@ -154,8 +153,7 @@ Or with specific models and auth:
            pattern: "(person|car)"
          sequence:
            - object_framework: opencv
-             object_weights: "/var/lib/zmeventnotification/models/yolov4/yolov4.weights"
-             object_config: "/var/lib/zmeventnotification/models/yolov4/yolov4.cfg"
+             object_weights: "/var/lib/zmeventnotification/models/ultralytics/yolo11s.onnx"
              object_labels: "/var/lib/zmeventnotification/models/yolov4/coco.names"
 
 **ZM box objectconfig.yml** (URL mode -- server fetches frames from ZM):
@@ -174,7 +172,7 @@ Or with specific models and auth:
            pattern: "(person|car)"
          sequence:
            - object_framework: opencv
-             object_weights: "/var/lib/zmeventnotification/models/yolov4/yolov4.weights"
+             object_weights: "/var/lib/zmeventnotification/models/ultralytics/yolo11s.onnx"
 
 URL mode is useful when the GPU box has direct network access to ZoneMinder
 (same LAN or VPN). The server fetches frames directly from ZM, avoiding
@@ -238,12 +236,11 @@ Model directory layout
    |   +-- yolov4.weights
    |   +-- yolov4.cfg
    |   +-- coco.names
-   +-- yolov7/
-   |   +-- yolov7.onnx
    +-- ultralytics/
-   |   +-- yolo26n.onnx
+   |   +-- yolo11s.onnx
+   |   +-- yolo11n.onnx
    |   +-- yolo26s.onnx
-   +-- coral/
+   +-- coral_edgetpu/
    |   +-- ssd_mobilenet_v2.tflite
    |   +-- coco_labels.txt
 
@@ -276,7 +273,7 @@ CLI options
      - ``5000``
      - Bind port
    * - ``--models``
-     - ``yolov4``
+     - ``yolo11s``
      - Model names (space-separated). Use ``all`` to auto-discover every
        model in ``--base-path`` (loaded lazily on first request).
    * - ``--base-path``
@@ -318,8 +315,8 @@ Example ``serve.yml``:
    host: "0.0.0.0"
    port: 5000
    models:
-     - yolov4
-     - yolov7
+     - yolo11s
+     - yolo26s
    base_path: "/var/lib/zmeventnotification/models"
    processor: gpu
    auth_enabled: true
@@ -344,7 +341,7 @@ Using the ``Detector`` API:
 
    from pyzm import Detector
 
-   detector = Detector(models=["yolov4"], gateway="http://gpu-box:5000")
+   detector = Detector(models=["yolo11s"], gateway="http://gpu-box:5000")
    result = detector.detect("/path/to/image.jpg")
 
    print(result.summary)
@@ -357,7 +354,7 @@ With authentication:
 .. code-block:: python
 
    detector = Detector(
-       models=["yolov4"],
+       models=["yolo11s"],
        gateway="http://gpu-box:5000",
        gateway_username="admin",
        gateway_password="secret",
@@ -373,7 +370,7 @@ directly from ZoneMinder using the provided auth token:
 .. code-block:: python
 
    detector = Detector(
-       models=["yolov4"],
+       models=["yolo11s"],
        gateway="http://gpu-box:5000",
        gateway_mode="url",
    )
@@ -469,8 +466,8 @@ Returns the list of available models and their load status. Useful with
 
    {
      "models": [
-       {"name": "yolov4", "type": "object", "framework": "opencv", "loaded": true},
-       {"name": "yolov7", "type": "object", "framework": "opencv", "loaded": false}
+       {"name": "yolo11s", "type": "object", "framework": "opencv", "loaded": true},
+       {"name": "yolo26s", "type": "object", "framework": "opencv", "loaded": false}
      ]
    }
 
@@ -545,8 +542,7 @@ in ``objectconfig.yml``:
          pattern: "(person|car)"
        sequence:
          - object_framework: opencv
-           object_weights: /path/to/yolov4.weights
-           object_config: /path/to/yolov4.cfg
+           object_weights: /path/to/yolo11s.onnx
            object_labels: /path/to/coco.names
 
 When ``ml_gateway`` is set, detection requests are sent to the remote

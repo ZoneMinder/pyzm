@@ -83,12 +83,11 @@ if i == 'y':
     i = input ('Try OpenCV tests? [y/N]').lower()
     if i == 'y':
         detector = Detector(models=[ModelConfig(
-            name='YoloV4',
+            name='YOLO11s',
             type=ModelType.OBJECT,
             framework=ModelFramework.OPENCV,
             processor=Processor.CPU,
-            weights='/var/lib/zmeventnotification/models/yolov4/yolov4.weights',
-            config='/var/lib/zmeventnotification/models/yolov4/yolov4.cfg',
+            weights='/var/lib/zmeventnotification/models/ultralytics/yolo11s.onnx',
             labels='/var/lib/zmeventnotification/models/yolov4/coco.names',
             min_confidence=0.3,
         )])

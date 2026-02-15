@@ -14,9 +14,9 @@ def main() -> None:
     ap.add_argument(
         "--models",
         nargs="+",
-        default=["yolov4"],
+        default=["yolo11s"],
         help=(
-            "Model names to load (space-separated, default: yolov4). "
+            "Model names to load (space-separated, default: yolo11s). "
             "Use 'all' to auto-discover every model in --base-path "
             "(loaded lazily on first request)."
         ),

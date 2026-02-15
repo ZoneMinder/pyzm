@@ -3,10 +3,10 @@
 
 Prerequisites:
     Start the server on the GPU box:
-        python -m pyzm.serve --models yolov4 --port 5000
+        python -m pyzm.serve --models yolo11s --port 5000
 
     With authentication:
-        python -m pyzm.serve --models yolov4 --port 5000 \
+        python -m pyzm.serve --models yolo11s --port 5000 \
             --auth --auth-user admin --auth-password secret
 
 Usage:
@@ -33,11 +33,11 @@ if len(sys.argv) >= 3:
 
 # Remote detection -- image is JPEG-encoded and sent to the server.
 # Models are loaded once on the server and persist across requests.
-detector = Detector(models=["yolov4"], gateway=gateway)
+detector = Detector(models=["yolo11s"], gateway=gateway)
 
 # For authenticated servers:
 # detector = Detector(
-#     models=["yolov4"],
+#     models=["yolo11s"],
 #     gateway=gateway,
 #     gateway_username="admin",
 #     gateway_password="secret",

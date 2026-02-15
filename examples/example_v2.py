@@ -51,7 +51,7 @@ if zm.monitors():
 from pyzm import Detector
 
 # Quick start -- model names are resolved against base_path on disk
-detector = Detector(models=["yolov4"])
+detector = Detector(models=["yolo11s"])
 
 # Or with explicit config:
 #
@@ -63,8 +63,7 @@ detector = Detector(models=["yolov4"])
 #         type=ModelType.OBJECT,
 #         framework=ModelFramework.OPENCV,
 #         processor=Processor.GPU,
-#         weights="/path/to/yolov4.weights",
-#         config="/path/to/yolov4.cfg",
+#         weights="/path/to/yolo11s.onnx",
 #         labels="/path/to/coco.names",
 #         min_confidence=0.5,
 #     )],
@@ -96,7 +95,7 @@ from pyzm import ZMClient, Detector, StreamConfig
 from pyzm.models.config import DetectorConfig
 
 zm = ZMClient(url="https://zm.example.com/zm/api", user="admin", password="secret")
-detector = Detector(models=["yolov4"])
+detector = Detector(models=["yolo11s"])
 
 event_id = 12345
 zones = zm.monitor_zones(1)
@@ -139,8 +138,7 @@ ml_sequence = {
             },
             {
                 "object_framework": "opencv",
-                "object_weights": "/path/to/yolov4.weights",
-                "object_config": "/path/to/yolov4.cfg",
+                "object_weights": "/path/to/yolo11s.onnx",
                 "object_labels": "/path/to/coco.names",
                 "object_processor": "gpu",
                 "object_min_confidence": 0.5,

@@ -48,7 +48,7 @@ Quick example
        print(f"{m.name}: {m.function} ({m.width}x{m.height})")
 
    # Detect objects in a local image
-   detector = Detector(models=["yolov4"])
+   detector = Detector(models=["yolo11s"])
    result = detector.detect("/path/to/image.jpg")
 
    if result.matched:

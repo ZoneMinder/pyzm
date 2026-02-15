@@ -50,10 +50,9 @@ ml_options = {
                 "object_framework": "coral_edgetpu",
             },
             {
-                "name": "YoloV4 object detection",
+                "name": "YOLO11s object detection",
                 "enabled": "yes",
-                "object_config": "/var/lib/zmeventnotification/models/yolov4/yolov4.cfg",
-                "object_weights": "/var/lib/zmeventnotification/models/yolov4/yolov4.weights",
+                "object_weights": "/var/lib/zmeventnotification/models/ultralytics/yolo11s.onnx",
                 "object_labels": "/var/lib/zmeventnotification/models/yolov4/coco.names",
                 "object_min_confidence": "0.3",
                 "object_framework": "opencv",

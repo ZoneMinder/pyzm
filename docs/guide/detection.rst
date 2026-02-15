@@ -69,12 +69,11 @@ Per-model settings:
    from pyzm.models.config import ModelConfig, ModelFramework, Processor
 
    model = ModelConfig(
-       name="YoloV4",
+       name="YOLO11s",
        type="object",                    # object | face | alpr
        framework=ModelFramework.OPENCV,  # opencv | coral_edgetpu | face_dlib | ...
        processor=Processor.GPU,          # cpu | gpu | tpu
-       weights="/path/to/yolov4.weights",
-       config="/path/to/yolov4.cfg",
+       weights="/path/to/yolo11s.onnx",
        labels="/path/to/coco.names",
        min_confidence=0.3,
        pattern="(person|car|dog)",
@@ -109,7 +108,7 @@ Controls frame extraction from ZM events:
 Model discovery
 ----------------
 
-When you pass a string model name to ``Detector(models=["yolov4"])``,
+When you pass a string model name to ``Detector(models=["yolo11s"])``,
 pyzm resolves it by scanning ``base_path`` (default:
 ``/var/lib/zmeventnotification/models``):
 
@@ -120,12 +119,20 @@ pyzm resolves it by scanning ``base_path`` (default:
        yolov4.weights
        yolov4.cfg
        coco.names
+     ultralytics/
+       yolo11s.onnx
+       yolo26s.onnx
      coral_edgetpu/
        ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite
        coco_indexed.names
 
-The framework is auto-detected from the file extensions (``.weights`` +
-``.cfg`` = OpenCV YOLO, ``.tflite`` = Coral EdgeTPU).
+pyzm resolves names by **directory match** (``yolov4`` →
+``yolov4/yolov4.weights``) or **file-stem match** (``yolo11s`` →
+``ultralytics/yolo11s.onnx``).
+
+The framework is auto-detected from the file extensions (``.onnx`` =
+OpenCV DNN, ``.weights`` + ``.cfg`` = OpenCV Darknet, ``.tflite`` =
+Coral EdgeTPU).
 
 
 The ``ml_sequence`` dict format
@@ -145,10 +152,9 @@ The ``ml_sequence`` dict format
          pattern: "(person|car|dog)"
          same_model_sequence_strategy: "most"
        sequence:
-         - name: "YoloV4"
+         - name: "YOLO11s"
            object_framework: opencv
-           object_weights: /path/to/yolov4.weights
-           object_config: /path/to/yolov4.cfg
+           object_weights: /path/to/yolo11s.onnx
            object_labels: /path/to/coco.names
            object_min_confidence: 0.3
            object_processor: cpu

@@ -157,7 +157,7 @@ ML detection
 
    from pyzm import Detector
 
-   detector = Detector(models=["yolov4"])
+   detector = Detector(models=["yolo11s"])
    result = detector.detect("/path/to/image.jpg")
    # result is a DetectionResult with typed fields
 
@@ -222,7 +222,7 @@ Configuration
          pattern: "(person|car)"
        sequence:
          - object_framework: opencv
-           object_weights: /path/to/yolov4.weights
+           object_weights: /path/to/yolo11s.onnx
            ...
 
 In Python, use ``Detector.from_dict(ml_options)`` to load the dict
@@ -244,12 +244,12 @@ Remote detection
 .. code-block:: bash
 
    # Start the server
-   python -m pyzm.serve --models yolov4 --port 5000
+   python -m pyzm.serve --models yolo11s --port 5000
 
 .. code-block:: python
 
    # Client code -- identical Detector API
-   detector = Detector(models=["yolov4"], gateway="http://gpu:5000")
+   detector = Detector(models=["yolo11s"], gateway="http://gpu:5000")
    result = detector.detect("/path/to/image.jpg")
 
 See :doc:`/guide/serve` for details.
