@@ -122,13 +122,63 @@ def _load_image_pil(path: Path) -> Image.Image:
 # Canvas helpers
 # ---------------------------------------------------------------------------
 
+# Muted versions of _COLOR_PALETTE for existing/auto annotations on background
+_EXISTING_PALETTE = [
+    "#1E8449", "#6C3483", "#0060BF", "#BF2D55",
+    "#B86825", "#458E24", "#AE3A2E", "#2874A6",
+]
+
+# Bright versions for user-drawn new boxes
+_NEW_BOX_PALETTE = [
+    "#2ECC71", "#BB6BD9", "#3DA5FF", "#FF5A8A",
+    "#FFB347", "#7DDA58", "#FF6B6B", "#5DADE2",
+]
+
+
+def _draw_labels_on_image(
+    pil_img: Image.Image,
+    annotations: list[Annotation],
+    classes: list[str],
+) -> Image.Image:
+    """Draw annotation boxes with class labels directly on the image."""
+    from PIL import ImageDraw, ImageFont
+
+    img = pil_img.copy()
+    draw = ImageDraw.Draw(img)
+    w, h = img.size
+
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+    except (OSError, IOError):
+        font = ImageFont.load_default()
+
+    for ann in annotations:
+        x1 = int((ann.cx - ann.w / 2) * w)
+        y1 = int((ann.cy - ann.h / 2) * h)
+        x2 = int((ann.cx + ann.w / 2) * w)
+        y2 = int((ann.cy + ann.h / 2) * h)
+        cls_name = classes[ann.class_id] if ann.class_id < len(classes) else "?"
+        color = _EXISTING_PALETTE[ann.class_id % len(_EXISTING_PALETTE)]
+
+        draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
+
+        # Label background + text
+        bbox = font.getbbox(cls_name)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        label_y = max(0, y1 - th - 4)
+        draw.rectangle([x1, label_y, x1 + tw + 6, label_y + th + 4], fill=color)
+        draw.text((x1 + 3, label_y + 1), cls_name, fill="#FFFFFF", font=font)
+
+    return img
+
+
 def _annotations_to_canvas_rects(
     annotations: list[Annotation],
     classes: list[str],
     img_w: int,
     img_h: int,
 ) -> list[dict]:
-    """Convert YOLO annotations to fabric.js rect objects."""
+    """Convert YOLO annotations to fabric.js rect objects (existing, muted)."""
     rects = []
     for ann in annotations:
         x = (ann.cx - ann.w / 2) * img_w
@@ -136,13 +186,13 @@ def _annotations_to_canvas_rects(
         w = ann.w * img_w
         h = ann.h * img_h
         cls_name = classes[ann.class_id] if ann.class_id < len(classes) else "?"
-        color = _COLOR_PALETTE[ann.class_id % len(_COLOR_PALETTE)]
+        color = _EXISTING_PALETTE[ann.class_id % len(_EXISTING_PALETTE)]
         rects.append({
             "type": "rect",
             "left": x, "top": y, "width": w, "height": h,
-            "fill": f"{color}33",
-            "stroke": color,
-            "strokeWidth": 2,
+            "fill": f"{color}15",
+            "stroke": f"{color}80",
+            "strokeWidth": 1,
             "label": cls_name,
             "class_id": ann.class_id,
         })
@@ -417,10 +467,12 @@ def _section_upload() -> YOLODataset | None:
         st.rerun()
 
     images = ds.staged_images()
-    if images:
-        st.caption(f"{len(images)} images in project")
+    if not images:
+        st.caption("Upload at least 2 images to get started.")
+    elif len(images) == 1:
+        st.warning("You need at least 2 images (for train/val split). Upload more to continue.")
     else:
-        st.caption("Upload images to get started.")
+        st.caption(f"{len(images)} images in project")
     return ds
 
 
@@ -596,12 +648,12 @@ def _section_label(ds: YOLODataset, args: argparse.Namespace) -> None:
 
     # Class selector for new boxes
     selected_class = st.selectbox(
-        "Class for new boxes",
+        "Draw new boxes as:",
         options=classes,
         key="annotation_class",
     )
     color_idx = class_name_to_id[selected_class]
-    stroke_color = _COLOR_PALETTE[color_idx % len(_COLOR_PALETTE)]
+    stroke_color = _NEW_BOX_PALETTE[color_idx % len(_NEW_BOX_PALETTE)]
 
     # Scale canvas
     scale = min(1.0, 700 / img_w)
@@ -609,14 +661,30 @@ def _section_label(ds: YOLODataset, args: argparse.Namespace) -> None:
     canvas_h = int(img_h * scale)
 
     existing_anns = ds.annotations_for(img_path.name)
+
+    # Draw existing annotations with labels on the background image
+    bg_img = pil_img.resize((canvas_w, canvas_h))
+    if existing_anns:
+        bg_img = _draw_labels_on_image(bg_img, existing_anns, classes)
+
+    # Existing annotations as semi-transparent canvas rects (editable)
     initial_rects = _annotations_to_canvas_rects(existing_anns, classes, canvas_w, canvas_h)
     initial_drawing = {"version": "4.4.0", "objects": initial_rects} if initial_rects else None
 
+    # Legend
+    if existing_anns:
+        legend = " | ".join(
+            f"<span style='color:{_EXISTING_PALETTE[i % len(_EXISTING_PALETTE)]}'>&#9632;</span> {c} (existing)"
+            for i, c in enumerate(classes) if any(a.class_id == i for a in existing_anns)
+        )
+        legend += f" | <span style='color:{stroke_color}'>&#9632;</span> {selected_class} (new)"
+        st.markdown(legend, unsafe_allow_html=True)
+
     canvas_result = st_canvas(
-        fill_color=f"{stroke_color}33",
-        stroke_width=2,
+        fill_color=f"{stroke_color}22",
+        stroke_width=3,
         stroke_color=stroke_color,
-        background_image=pil_img.resize((canvas_w, canvas_h)),
+        background_image=bg_img,
         drawing_mode="rect",
         height=canvas_h,
         width=canvas_w,
@@ -831,11 +899,12 @@ def main() -> None:
     )
 
     # --- Step 2: Upload ---
-    has_images = bool(ds.staged_images())
-    with st.expander("2. Upload Images", expanded=not has_images):
+    staged = ds.staged_images()
+    with st.expander("2. Upload Images", expanded=len(staged) < 2):
         _section_upload()
 
-    if not ds.staged_images():
+    staged = ds.staged_images()
+    if len(staged) < 2:
         return
 
     # --- Step 3: Label (includes optional auto-detect) ---
