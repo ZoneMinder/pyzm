@@ -443,11 +443,35 @@ def _auto_detect_widget(ds: YOLODataset, args: argparse.Namespace) -> None:
     best_pt = Path(pdir) / "runs" / "train" / "weights" / "best.pt" if pdir else None
     has_trained = best_pt is not None and best_pt.exists()
 
-    # Show mapping summary if groups are non-trivial
-    non_trivial = {k: v for k, v in class_groups.items() if v and v != [k]}
-    if non_trivial:
-        mapping_parts = [f"{', '.join(srcs)} -> **{name}**" for name, srcs in non_trivial.items()]
-        st.caption("Class mapping: " + " | ".join(mapping_parts))
+    # Figure out which classes the base model can auto-label vs manual-only
+    known = []  # classes the model can detect (have source mappings)
+    manual = []  # classes that need manual labeling
+    for cls in classes:
+        sources = class_groups.get(cls, [])
+        if sources:
+            known.append(cls)
+        else:
+            manual.append(cls)
+
+    # Explain what auto-detect will do
+    if has_trained:
+        st.caption(
+            "**Auto-label** runs a model on your images to pre-draw boxes. "
+            "You can use your previously trained model (knows all your classes) "
+            f"or the base model (knows: {', '.join(known) if known else 'none of your classes'})."
+        )
+    elif known:
+        auto_summary = ", ".join(f"**{c}**" for c in known)
+        st.caption(
+            f"**Auto-label** can pre-draw boxes for: {auto_summary}. "
+            + (f"You'll need to draw **{', '.join(manual)}** manually." if manual else "")
+        )
+    else:
+        st.caption(
+            "Auto-label won't help here — the base model doesn't know any of "
+            "your classes. Draw all boxes manually below."
+        )
+        return
 
     col_model, col_btn = st.columns([3, 2])
     with col_model:
@@ -462,32 +486,21 @@ def _auto_detect_widget(ds: YOLODataset, args: argparse.Namespace) -> None:
         run_detect = st.button("Auto-label images", use_container_width=True)
 
     if run_detect:
-        # Determine which model to use
         use_trained = has_trained and detect_model.startswith("trained")
+        model_to_run = str(best_pt) if use_trained else base_model
         progress_bar = st.progress(0, text=f"Running on {len(images)} images...")
         try:
             from pyzm.train.auto_label import auto_label, build_class_mapping
 
             class_mapping = build_class_mapping(class_groups) if class_groups else None
-
-            if use_trained:
-                results = auto_label(
-                    image_paths=images,
-                    model_name=str(best_pt),
-                    base_path=args.base_path,
-                    processor=args.processor,
-                    target_classes=classes,
-                    class_mapping=class_mapping,
-                )
-            else:
-                results = auto_label(
-                    image_paths=images,
-                    model_name=base_model,
-                    base_path=args.base_path,
-                    processor=args.processor,
-                    target_classes=classes,
-                    class_mapping=class_mapping,
-                )
+            results = auto_label(
+                image_paths=images,
+                model_name=model_to_run,
+                base_path=args.base_path,
+                processor=args.processor,
+                target_classes=classes,
+                class_mapping=class_mapping,
+            )
             total_anns = 0
             for img_path, anns in results.items():
                 if anns:
