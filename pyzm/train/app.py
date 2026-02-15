@@ -15,9 +15,28 @@ import tempfile
 import threading
 from pathlib import Path
 
+import base64
+from io import BytesIO
+
 import numpy as np
 import streamlit as st
 from PIL import Image
+
+# streamlit-drawable-canvas 0.9.x calls st.elements.image.image_to_url which
+# was removed in Streamlit >=1.39.  Provide a shim so the canvas still works.
+import streamlit.elements.image as _st_image
+if not hasattr(_st_image, "image_to_url"):
+    def _image_to_url(
+        image, width, clamp, channels, output_format, image_id, **_kw
+    ):
+        buf = BytesIO()
+        image.save(buf, format=output_format or "PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        mime = f"image/{(output_format or 'png').lower()}"
+        return f"data:{mime};base64,{b64}"
+
+    _st_image.image_to_url = _image_to_url
+
 from streamlit_drawable_canvas import st_canvas
 
 from pyzm.train.dataset import Annotation, YOLODataset
