@@ -560,30 +560,42 @@ class Detector:
         strategy = self._config.frame_strategy
         all_results: list[DetectionResult] = []
 
-        for frame_id, image in frames:
-            try:
-                result = pipeline.run(image, zones=zones, original_shape=original_shape)
-                result.frame_id = frame_id
-                all_results.append(result)
-            except Exception:
-                logger.exception("Error detecting frame %s", frame_id)
-                continue
+        # Acquire session-level locks for exclusive-hardware backends
+        # so the lock is held across ALL frames, not per-frame.
+        locked_backends = []
+        for _mc, backend in pipeline._backends:
+            if backend.needs_exclusive_lock:
+                backend.acquire_lock()
+                locked_backends.append(backend)
 
-            # Short-circuit for 'first' strategy
-            if strategy == FrameStrategy.FIRST and result.matched:
-                logger.debug("Frame strategy 'first': returning frame %s", frame_id)
-                return result
+        try:
+            for frame_id, image in frames:
+                try:
+                    result = pipeline.run(image, zones=zones, original_shape=original_shape)
+                    result.frame_id = frame_id
+                    all_results.append(result)
+                except Exception:
+                    logger.exception("Error detecting frame %s", frame_id)
+                    continue
 
-        if not all_results:
-            return DetectionResult()
+                # Short-circuit for 'first' / 'first_new' strategies
+                if strategy in (FrameStrategy.FIRST, FrameStrategy.FIRST_NEW) and result.matched:
+                    logger.debug("Frame strategy %r: returning frame %s", strategy.value, frame_id)
+                    return result
 
-        # Pick best according to strategy
-        best = all_results[0]
-        for result in all_results[1:]:
-            if _is_better(result, best, strategy):
-                best = result
+            if not all_results:
+                return DetectionResult()
 
-        return best
+            # Pick best according to strategy
+            best = all_results[0]
+            for result in all_results[1:]:
+                if _is_better(result, best, strategy):
+                    best = result
+
+            return best
+        finally:
+            for backend in locked_backends:
+                backend.release_lock()
 
     def _detect_multi_frame_remote(
         self,
@@ -606,8 +618,8 @@ class Detector:
                 logger.exception("Error in remote detection for frame %s", frame_id)
                 continue
 
-            if strategy == FrameStrategy.FIRST and result.matched:
-                logger.debug("Frame strategy 'first': returning frame %s", frame_id)
+            if strategy in (FrameStrategy.FIRST, FrameStrategy.FIRST_NEW) and result.matched:
+                logger.debug("Frame strategy %r: returning frame %s", strategy.value, frame_id)
                 return result
 
         if not all_results:
@@ -628,22 +640,29 @@ def _is_better(
 ) -> bool:
     """Return True if *candidate* is a better result than *current* under the
     given frame strategy."""
-    if strategy == FrameStrategy.FIRST:
+    if strategy in (FrameStrategy.FIRST, FrameStrategy.FIRST_NEW):
         # Already handled by short-circuit above; fallback to first match
         return candidate.matched and not current.matched
 
     if strategy == FrameStrategy.MOST:
-        return len(candidate.detections) > len(current.detections)
+        if len(candidate.detections) != len(current.detections):
+            return len(candidate.detections) > len(current.detections)
+        return sum(candidate.confidences) > sum(current.confidences)
 
     if strategy == FrameStrategy.MOST_UNIQUE:
-        return len(set(candidate.labels)) > len(set(current.labels))
+        cand_unique = len(set(candidate.labels))
+        curr_unique = len(set(current.labels))
+        if cand_unique != curr_unique:
+            return cand_unique > curr_unique
+        return sum(candidate.confidences) > sum(current.confidences)
 
     if strategy == FrameStrategy.MOST_MODELS:
         candidate_models = {d.model_name for d in candidate.detections}
         current_models = {d.model_name for d in current.detections}
         if len(candidate_models) != len(current_models):
             return len(candidate_models) > len(current_models)
-        # Tie-break: more detections wins
-        return len(candidate.detections) > len(current.detections)
+        if len(candidate.detections) != len(current.detections):
+            return len(candidate.detections) > len(current.detections)
+        return sum(candidate.confidences) > sum(current.confidences)
 
     return False
