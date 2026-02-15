@@ -2,12 +2,14 @@
 
 What
 =====
-Pythonic ZoneMinder wrapper
-- API
-- Event Server
-- Logger
-- Memory
-- Machine Learning Modules
+pyzmv2 is a rewrite of pyzm.
+
+It's a pythonic wrapper that integrates with ZM and also operates as a standalone ML library. Key features:
+- ZM API
+- ZM Event Server
+- ZM Logger
+- ZM Memory
+- Machine Learning Modules (with our without ZM)
 
 Installation
 =============
