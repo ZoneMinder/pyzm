@@ -550,10 +550,21 @@ def _section_data(ds: YOLODataset, args: argparse.Namespace) -> None:
             "and annotate where each object appears."
         )
     else:
-        st.caption(
-            f"The base model already knows all your classes ({', '.join(known)}). "
-            "Upload sample images and auto-label them — no manual annotation needed."
-        )
+        non_trivial = {k: v for k, v in class_groups.items() if v and v != [k]}
+        if non_trivial:
+            merges = ", ".join(f"{'+'.join(v)}→**{k}**" for k, v in non_trivial.items())
+            st.caption(
+                f"Regrouping: {merges}. "
+                "Upload sample images — the base model will auto-detect objects, "
+                "labels get merged, and a new model is trained with your grouped classes. "
+                "No manual annotation needed."
+            )
+        else:
+            st.caption(
+                f"The base model already detects {', '.join(known)}. "
+                "Upload sample images — they'll be auto-labeled and used to "
+                "train a smaller model with only your selected classes."
+            )
 
     # --- Per-custom-class uploaders ---
     if custom:
