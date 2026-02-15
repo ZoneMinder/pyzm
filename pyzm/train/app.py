@@ -52,7 +52,7 @@ def _parse_app_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 def _scan_models(base_path: str) -> list[dict]:
-    """Return list of {name, path} for models found in base_path."""
+    """Return list of {name, path} for each .onnx/.pt file in base_path."""
     bp = Path(base_path)
     if not bp.exists():
         return [{"name": "yolo11s", "path": "yolo11s.pt (auto-download)"}]
@@ -62,11 +62,28 @@ def _scan_models(base_path: str) -> list[dict]:
             continue
         for f in sorted(d.iterdir()):
             if f.is_file() and f.suffix in (".onnx", ".pt"):
-                models.append({"name": d.name, "path": str(f)})
-                break
+                models.append({"name": f.stem, "path": str(f)})
     if not models:
         models.append({"name": "yolo11s", "path": "yolo11s.pt (auto-download)"})
     return models
+
+
+def _read_model_classes(model_path: str) -> list[str]:
+    """Read class names from an ONNX model's metadata, or return empty."""
+    p = Path(model_path)
+    if not p.exists() or p.suffix != ".onnx":
+        return []
+    try:
+        import ast
+        import onnx
+        model = onnx.load(str(p))
+        meta = {prop.key: prop.value for prop in model.metadata_props}
+        if "names" in meta:
+            names_dict = ast.literal_eval(meta["names"])
+            return [names_dict[i] for i in sorted(names_dict)]
+    except Exception:
+        pass
+    return []
 
 
 def _project_dir(project_root: Path, name: str) -> Path:
@@ -169,48 +186,76 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
                 st.session_state["project_dir"] = str(pdir)
                 st.session_state["classes"] = ds.classes
                 st.session_state["classes_input"] = ", ".join(ds.classes)
-                # Read base_model from project.json if available
                 meta = json.loads((pdir / "project.json").read_text())
                 st.session_state["base_model"] = meta.get("base_model", "yolo11s")
                 st.rerun()
 
-    # Model selection -- show path so user knows what they're picking
+    # --- Model selection: list every .onnx/.pt individually ---
     available = _scan_models(args.base_path)
-    model_labels = [f"{m['name']}  ({m['path']})" for m in available]
     model_names = [m["name"] for m in available]
+    model_paths = {m["name"]: m["path"] for m in available}
 
-    # Default to yolo11s if present
+    # Default to yolo11s
     default_idx = 0
     for i, name in enumerate(model_names):
         if name == "yolo11s":
             default_idx = i
             break
 
-    selected_label = st.selectbox(
-        "Base model for detection and fine-tuning",
-        options=model_labels,
+    base_model = st.selectbox(
+        "Base model",
+        options=model_names,
         index=default_idx,
+        format_func=lambda n: f"{n}  ({model_paths[n]})",
     )
-    base_model = model_names[model_labels.index(selected_label)]
 
-    classes_input = st.text_input(
-        "Classes (comma-separated)",
-        value=st.session_state.get("classes_input", ""),
-        placeholder="person, car, package",
-        help="COCO classes to keep + your new custom classes",
+    # --- Classes: auto-read from model, let user pick + add custom ---
+    model_path = model_paths.get(base_model, "")
+    coco_classes = _read_model_classes(model_path)
+
+    if coco_classes:
+        st.caption(
+            f"This model knows {len(coco_classes)} classes. "
+            "The common ones are pre-selected below. "
+            "Add your own custom classes in the text box."
+        )
+        # Pre-select the most useful COCO classes
+        common = {"person", "bicycle", "car", "motorcycle", "bus", "truck",
+                  "cat", "dog", "bird", "horse", "bear"}
+        defaults = [c for c in coco_classes if c in common]
+
+        kept_classes = st.multiselect(
+            "Keep these existing classes",
+            options=coco_classes,
+            default=defaults,
+            key="kept_coco",
+        )
+    else:
+        kept_classes = []
+
+    custom_input = st.text_input(
+        "Add custom classes (comma-separated)",
+        value=st.session_state.get("custom_classes_input", ""),
+        placeholder="e.g. package, my_pet",
+        help="New object types you want to detect that the model doesn't know yet",
     )
+    custom_classes = [c.strip() for c in custom_input.split(",") if c.strip()]
+
+    all_classes = kept_classes + [c for c in custom_classes if c not in kept_classes]
+
+    if all_classes:
+        st.caption(f"Final class list ({len(all_classes)}): {', '.join(all_classes)}")
 
     if st.button("Create / Update Project", type="primary", disabled=not project_name.strip()):
-        classes = [c.strip() for c in classes_input.split(",") if c.strip()]
-        if not classes:
-            st.error("Enter at least one class name.")
+        if not all_classes:
+            st.error("Select at least one existing class or add a custom class.")
             return
 
         pdir = _project_dir(project_root, project_name)
-        ds = YOLODataset(project_dir=pdir, classes=classes)
+        ds = YOLODataset(project_dir=pdir, classes=all_classes)
         ds.init_project()
 
-        # Also save base_model into project.json
+        # Save base_model into project.json
         meta_path = pdir / "project.json"
         meta = json.loads(meta_path.read_text())
         meta["base_model"] = base_model
@@ -218,8 +263,9 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
 
         st.session_state["project_name"] = project_name
         st.session_state["project_dir"] = str(pdir)
-        st.session_state["classes"] = classes
-        st.session_state["classes_input"] = classes_input
+        st.session_state["classes"] = all_classes
+        st.session_state["classes_input"] = ", ".join(all_classes)
+        st.session_state["custom_classes_input"] = custom_input
         st.session_state["base_model"] = base_model
         st.rerun()
 
