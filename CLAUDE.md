@@ -1,4 +1,5 @@
 * `pyzm` is the Python library for ZoneMinder (API, ML pipeline, logging)
+* When you update docs, NEVER touch CHANGELOG. It is auto generated
 * To run tests: `pytest tests/`
 * If you need to access DB, configs etc, access it as `sudo -u www-data`
 * Follow DRY principles for coding
