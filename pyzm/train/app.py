@@ -926,6 +926,76 @@ def _section_export(args: argparse.Namespace) -> None:
 
 
 # ===================================================================
+# Remap-only (no custom classes — no training needed)
+# ===================================================================
+
+def _section_remap_only(args: argparse.Namespace) -> None:
+    """When only regrouping known classes, offer a config-only solution."""
+    classes = st.session_state.get("classes", [])
+    class_groups = st.session_state.get("class_groups", {})
+    base_model = st.session_state.get("base_model", "yolo11s")
+
+    st.markdown("### 2. Use your model")
+    st.caption(
+        "The base model already detects all your classes. "
+        "No training is needed — just add a label mapping to your detection config."
+    )
+
+    # Build the remap config
+    remap_lines = []
+    non_trivial = {k: v for k, v in class_groups.items() if v and v != [k]}
+    if non_trivial:
+        for target, sources in non_trivial.items():
+            for src in sources:
+                remap_lines.append(f"      {src}: {target}")
+
+    # Build the source pattern (all original COCO labels we care about)
+    all_sources = []
+    for cls in classes:
+        sources = class_groups.get(cls, [])
+        if sources:
+            all_sources.extend(sources)
+        else:
+            all_sources.append(cls)
+
+    config_snippet = (
+        f"models:\n"
+        f"  - name: {base_model}\n"
+        f"    type: object\n"
+        f"    framework: opencv\n"
+        f"    pattern: \"({'|'.join(all_sources)})\"\n"
+        f"    min_confidence: 0.3\n"
+    )
+    if remap_lines:
+        config_snippet += (
+            f"    label_map:\n"
+            + "\n".join(remap_lines) + "\n"
+        )
+
+    st.code(config_snippet, language="yaml")
+
+    if non_trivial:
+        st.caption(
+            "Add `label_map` to your model config. When the model detects "
+            + ", ".join(f"*{s}*" for sources in non_trivial.values() for s in sources)
+            + ", the output label will be remapped to "
+            + ", ".join(f"**{t}**" for t in non_trivial)
+            + "."
+        )
+    else:
+        st.caption(
+            "No remapping needed — just use the `pattern` field to "
+            "filter detections to only your selected classes."
+        )
+
+    st.divider()
+    st.caption("Want to fine-tune instead? This can improve accuracy but requires training images.")
+    if st.button("Fine-tune model instead"):
+        st.session_state["_want_finetune"] = True
+        st.rerun()
+
+
+# ===================================================================
 # Main
 # ===================================================================
 
@@ -950,9 +1020,20 @@ def main() -> None:
         classes=st.session_state.get("classes", []),
     )
 
+    known, custom = _classify_classes()
+
+    # --- Remap-only shortcut (no custom classes) ---
+    if not custom and known:
+        _section_remap_only(args)
+        # Optionally continue to fine-tuning
+        if not st.session_state.get("_want_finetune"):
+            return
+        st.divider()
+
     # --- Step 2: Upload & Label ---
+    step = 2
     staged = ds.staged_images()
-    with st.expander("2. Upload & Label", expanded=len(staged) < 2 or True):
+    with st.expander(f"{step}. Upload & Label", expanded=len(staged) < 2):
         _section_data(ds, args)
 
     staged = ds.staged_images()
@@ -960,13 +1041,15 @@ def main() -> None:
         return
 
     # --- Step 3: Train ---
-    with st.expander("3. Train", expanded=bool(st.session_state.get("training_active") or st.session_state.get("train_result"))):
+    step += 1
+    with st.expander(f"{step}. Train", expanded=bool(st.session_state.get("training_active") or st.session_state.get("train_result"))):
         _section_train(ds, args)
 
     # --- Step 4: Export ---
+    step += 1
     best_pt = Path(st.session_state["project_dir"]) / "runs" / "train" / "weights" / "best.pt"
     if best_pt.exists() or st.session_state.get("train_result"):
-        with st.expander("4. Export & Test", expanded=bool(st.session_state.get("train_result"))):
+        with st.expander(f"{step}. Export & Test", expanded=bool(st.session_state.get("train_result"))):
             _section_export(args)
 
 
