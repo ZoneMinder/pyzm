@@ -536,8 +536,8 @@ in ``objectconfig.yml``:
        model_sequence: "object"
        ml_gateway: "http://gpu-box:5000"
        ml_gateway_mode: "url"            # "image" (default) or "url"
-       ml_gateway_username: "admin"
-       ml_gateway_password: "secret"
+       ml_user: "admin"
+       ml_password: "secret"
        ml_fallback_local: yes
 
      object:

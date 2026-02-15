@@ -98,8 +98,8 @@ Controls frame extraction from ZM events:
        max_frames=0,             # 0 = no limit
        start_frame=1,            # first frame index
        frame_skip=1,             # skip every N frames
-       max_attempts=3,           # retries on failure
-       sleep_between_attempts=4, # seconds between retries
+       max_attempts=1,           # retries on failure
+       sleep_between_attempts=3, # seconds between retries
    )
 
 ``frame_set`` values: ``"snapshot"`` (the ZM snapshot image), ``"alarm"``
