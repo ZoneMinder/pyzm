@@ -22,7 +22,7 @@ import os
 from typing import Any
 
 from pyzm.models.config import StreamConfig, ZMClientConfig
-from pyzm.models.zm import Event, Monitor, Zone
+from pyzm.models.zm import Event, Frame, Monitor, Zone
 from pyzm.zm.api import ZMAPI
 from pyzm.zm.media import FrameExtractor
 
@@ -321,6 +321,30 @@ class ZMClient:
         path = os.path.join(storage_path, relative)
         logger.debug("Event %s path (scheme=%s): %s", event_id, scheme, path)
         return path
+
+    def event_frames(self, event_id: int) -> list[Frame]:
+        """Fetch per-frame metadata (Score, Type, Delta) for an event.
+
+        Uses the ZM ``frames/index/EventId:{id}.json`` API endpoint.
+
+        Returns
+        -------
+        list[Frame]
+            One :class:`Frame` per frame in the event, ordered by FrameId.
+        """
+        data = self._api.get(f"frames/index/EventId:{event_id}.json")
+        raw_list = data.get("frames", []) if data else []
+        frames: list[Frame] = []
+        for entry in raw_list:
+            fd = entry.get("Frame", entry)
+            frames.append(Frame(
+                frame_id=int(fd.get("FrameId", 0)),
+                event_id=int(fd.get("EventId", event_id)),
+                type=fd.get("Type", ""),
+                score=int(fd.get("Score", 0)),
+                delta=float(fd.get("Delta", 0)),
+            ))
+        return frames
 
     # ------------------------------------------------------------------
     # Frames

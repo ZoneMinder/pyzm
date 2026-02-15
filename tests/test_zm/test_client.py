@@ -551,3 +551,92 @@ class TestZMClientState:
 
         client.stop()
         mock_api.get.assert_called_with("states/change/stop.json")
+
+
+# ===================================================================
+# TestZMClient - event_frames (Ref: ZoneMinder/pyzm#52)
+# ===================================================================
+
+class TestZMClientEventFrames:
+    """Tests for event_frames() -- per-frame metadata from API."""
+
+    @patch("pyzm.client.ZMAPI")
+    def test_event_frames_returns_frames(self, mock_zmapi_cls):
+        mock_api = _make_mock_api()
+        mock_api.get.return_value = {
+            "frames": [
+                {"Frame": {"FrameId": "1", "EventId": "100", "Type": "Normal", "Score": "0", "Delta": "0.5"}},
+                {"Frame": {"FrameId": "5", "EventId": "100", "Type": "Alarm", "Score": "85", "Delta": "2.1"}},
+                {"Frame": {"FrameId": "10", "EventId": "100", "Type": "Normal", "Score": "0", "Delta": "4.0"}},
+            ]
+        }
+        mock_zmapi_cls.return_value = mock_api
+
+        from pyzm.client import ZMClient
+        client = ZMClient(url="https://zm.example.com/zm/api")
+
+        frames = client.event_frames(100)
+        assert len(frames) == 3
+        assert frames[0].frame_id == 1
+        assert frames[0].type == "Normal"
+        assert frames[0].score == 0
+        assert frames[1].frame_id == 5
+        assert frames[1].type == "Alarm"
+        assert frames[1].score == 85
+        assert frames[1].delta == 2.1
+        assert frames[2].frame_id == 10
+
+    @patch("pyzm.client.ZMAPI")
+    def test_event_frames_calls_correct_endpoint(self, mock_zmapi_cls):
+        mock_api = _make_mock_api()
+        mock_api.get.return_value = {"frames": []}
+        mock_zmapi_cls.return_value = mock_api
+
+        from pyzm.client import ZMClient
+        client = ZMClient(url="https://zm.example.com/zm/api")
+
+        client.event_frames(12345)
+        mock_api.get.assert_called_with("frames/index/EventId:12345.json")
+
+    @patch("pyzm.client.ZMAPI")
+    def test_event_frames_empty_response(self, mock_zmapi_cls):
+        mock_api = _make_mock_api()
+        mock_api.get.return_value = {"frames": []}
+        mock_zmapi_cls.return_value = mock_api
+
+        from pyzm.client import ZMClient
+        client = ZMClient(url="https://zm.example.com/zm/api")
+
+        frames = client.event_frames(999)
+        assert frames == []
+
+    @patch("pyzm.client.ZMAPI")
+    def test_event_frames_none_response(self, mock_zmapi_cls):
+        mock_api = _make_mock_api()
+        mock_api.get.return_value = None
+        mock_zmapi_cls.return_value = mock_api
+
+        from pyzm.client import ZMClient
+        client = ZMClient(url="https://zm.example.com/zm/api")
+
+        frames = client.event_frames(999)
+        assert frames == []
+
+    @patch("pyzm.client.ZMAPI")
+    def test_event_frames_flat_dict(self, mock_zmapi_cls):
+        """Frame data without wrapping 'Frame' key."""
+        mock_api = _make_mock_api()
+        mock_api.get.return_value = {
+            "frames": [
+                {"FrameId": "42", "EventId": "200", "Type": "Alarm", "Score": "95", "Delta": "1.5"},
+            ]
+        }
+        mock_zmapi_cls.return_value = mock_api
+
+        from pyzm.client import ZMClient
+        client = ZMClient(url="https://zm.example.com/zm/api")
+
+        frames = client.event_frames(200)
+        assert len(frames) == 1
+        assert frames[0].frame_id == 42
+        assert frames[0].score == 95
