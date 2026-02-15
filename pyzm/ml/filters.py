@@ -66,11 +66,13 @@ def filter_by_zone(
     for det in detections:
         bbox_poly = Polygon(det.bbox.as_polygon_coords())
         matched = False
+        ignored = False
 
         for zone in zones:
             # Normalise: accept Zone objects or dicts with 'value'/'points' key
             zone_points = zone.get("points") or zone.get("value", [])
             zone_pattern = zone.get("pattern")
+            zone_ignore = zone.get("ignore_pattern")
             zone_name = zone.get("name", "unnamed")
 
             zone_poly = Polygon(zone_points)
@@ -80,6 +82,15 @@ def filter_by_zone(
                     det.label, zone_name,
                 )
                 continue
+
+            # Check ignore_pattern first -- suppress matching labels in this zone
+            if zone_ignore and re.match(zone_ignore, det.label):
+                logger.debug(
+                    "filter_by_zone: %s intersects zone %s and matches ignore_pattern %s, suppressing",
+                    det.label, zone_name, zone_ignore,
+                )
+                ignored = True
+                break
 
             # Zone intersects -- now check the pattern
             pattern = zone_pattern or ".*"
@@ -97,7 +108,7 @@ def filter_by_zone(
                     det.label, zone_name, pattern,
                 )
 
-        if not matched:
+        if ignored or not matched:
             error_boxes.append(det.bbox)
 
     return kept, error_boxes
