@@ -269,6 +269,12 @@ What's new in v2
 
 - ``ZMClient.tag_event(event_id, labels)`` -- tag events with detected objects (ZM >= 1.37.44)
 - ``ZMClient.event_path(event_id)`` -- get filesystem path for an event
+- ``ZMClient.event_frames(event_id)`` -- fetch per-frame metadata (Score, Type, Delta)
+- ``MonitorStatus.analysis_fps`` and ``.bandwidth`` fields
+- ``Zone.ignore_pattern`` -- suppress specific labels in a zone (e.g. parked cars)
+- ``FrameStrategy.FIRST_NEW`` -- like ``FIRST`` but only counts new detections (not past matches)
+- Confidence-sum tiebreaker when frame strategies produce equal detection counts
+- Session-level hardware locking for EdgeTPU (lock held across all frames, not per-frame)
 - ``DetectionResult.annotate()`` -- draw bounding boxes on the detection image
 - ``DetectionResult.summary`` -- human-readable one-liner (``"person:97% car:85%"``)
 - ``pyzm.serve`` -- built-in remote ML detection server

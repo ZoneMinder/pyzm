@@ -162,7 +162,10 @@ class ModelPipeline:
                     xfactor = w / orig_w
                     yfactor = h / orig_h
                     points = [(int(x * xfactor), int(y * yfactor)) for x, y in points]
-                zone_dicts.append({"name": z.name, "points": points, "pattern": z.pattern})
+                zone_dicts.append({
+                    "name": z.name, "points": points,
+                    "pattern": z.pattern, "ignore_pattern": z.ignore_pattern,
+                })
 
         # Group backends by model type, preserving order
         type_groups: dict[ModelType, list[tuple[ModelConfig, MLBackend]]] = defaultdict(list)

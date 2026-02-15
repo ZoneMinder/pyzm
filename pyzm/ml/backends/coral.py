@@ -32,6 +32,18 @@ class CoralBackend(MLBackend):
     def is_loaded(self) -> bool:
         return self._model is not None
 
+    @property
+    def needs_exclusive_lock(self) -> bool:
+        return not self._config.disable_locks
+
+    def acquire_lock(self) -> None:
+        if self._model is not None:
+            self._model.acquire_lock()
+
+    def release_lock(self) -> None:
+        if self._model is not None:
+            self._model.release_lock()
+
     def load(self) -> None:
         from pyzm.ml.coral_edgetpu import Tpu  # lazy import
 
@@ -74,8 +86,11 @@ class CoralBackend(MLBackend):
             "object_weights": self._config.weights,
             "object_labels": self._config.labels,
             "object_min_confidence": self._config.min_confidence,
+            # Disable per-frame locking in the legacy Tpu class; the
+            # Detector now holds the lock across the entire multi-frame
+            # session via acquire_lock()/release_lock().
             "disable_locks": "yes" if self._config.disable_locks else "no",
-            "auto_lock": not self._config.disable_locks,
+            "auto_lock": False,
             "tpu_max_processes": self._config.max_processes,
             "tpu_max_lock_wait": self._config.max_lock_wait,
         }

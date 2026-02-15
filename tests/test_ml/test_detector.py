@@ -549,6 +549,59 @@ class TestIsBetter:
         assert _is_better(r1, r2, FrameStrategy.FIRST) is True
         assert _is_better(r2, r1, FrameStrategy.FIRST) is False
 
+    # -- Confidence tiebreak tests (Ref: ZoneMinder/pyzm#36) --
+
+    def test_most_strategy_confidence_tiebreak(self):
+        """When detection counts are equal, higher total confidence wins."""
+        from pyzm.ml.detector import _is_better
+
+        r_high = DetectionResult(detections=[_det("person", 0.95), _det("car", 0.90)])
+        r_low = DetectionResult(detections=[_det("person", 0.60), _det("car", 0.50)])
+        assert _is_better(r_high, r_low, FrameStrategy.MOST) is True
+        assert _is_better(r_low, r_high, FrameStrategy.MOST) is False
+
+    def test_most_unique_confidence_tiebreak(self):
+        """When unique label counts are equal, higher total confidence wins."""
+        from pyzm.ml.detector import _is_better
+
+        r_high = DetectionResult(detections=[_det("person", 0.95), _det("car", 0.90)])
+        r_low = DetectionResult(detections=[_det("person", 0.60), _det("car", 0.50)])
+        assert _is_better(r_high, r_low, FrameStrategy.MOST_UNIQUE) is True
+        assert _is_better(r_low, r_high, FrameStrategy.MOST_UNIQUE) is False
+
+    def test_most_models_confidence_tiebreak(self):
+        """When model count and detection count are equal, confidence breaks tie."""
+        from pyzm.ml.detector import _is_better
+
+        d1a = Detection(label="person", confidence=0.95, bbox=BBox(0, 0, 10, 10), model_name="m1")
+        d1b = Detection(label="car", confidence=0.90, bbox=BBox(0, 0, 10, 10), model_name="m2")
+        d2a = Detection(label="person", confidence=0.50, bbox=BBox(0, 0, 10, 10), model_name="m1")
+        d2b = Detection(label="car", confidence=0.40, bbox=BBox(0, 0, 10, 10), model_name="m2")
+
+        r_high = DetectionResult(detections=[d1a, d1b])
+        r_low = DetectionResult(detections=[d2a, d2b])
+        assert _is_better(r_high, r_low, FrameStrategy.MOST_MODELS) is True
+        assert _is_better(r_low, r_high, FrameStrategy.MOST_MODELS) is False
+
+    def test_most_strategy_equal_confidence_no_change(self):
+        """When everything is equal, candidate does not beat current."""
+        from pyzm.ml.detector import _is_better
+
+        r1 = DetectionResult(detections=[_det("person", 0.90)])
+        r2 = DetectionResult(detections=[_det("person", 0.90)])
+        assert _is_better(r1, r2, FrameStrategy.MOST) is False
+
+    # -- FIRST_NEW strategy tests (Ref: ZoneMinder/pyzm#35) --
+
+    def test_first_new_strategy(self):
+        """FIRST_NEW behaves like FIRST in _is_better (pipeline handles past-detection)."""
+        from pyzm.ml.detector import _is_better
+
+        r1 = DetectionResult(detections=[_det("person")])
+        r2 = DetectionResult(detections=[])
+        assert _is_better(r1, r2, FrameStrategy.FIRST_NEW) is True
+        assert _is_better(r2, r1, FrameStrategy.FIRST_NEW) is False
+
 
 # ===================================================================
 # TestDetectorRemoteMode
@@ -812,3 +865,152 @@ class TestDetectorRemoteMode:
         # Second call is detect_urls
         detect_call = mock_post.call_args_list[1]
         assert detect_call[1]["headers"]["Authorization"] == "Bearer jwt123"
+
+
+# ===================================================================
+# TestSessionLocking (Ref: ZoneMinder/pyzm#43)
+# ===================================================================
+
+class TestSessionLocking:
+    """Tests for session-level locking in _detect_multi_frame."""
+
+    @patch("pyzm.ml.detector.ModelPipeline")
+    def test_session_lock_acquired_and_released(self, mock_pipeline_cls):
+        """Exclusive backends get locked before frames and released after."""
+        from pyzm.ml.detector import Detector
+
+        # Create mock backend that needs exclusive lock
+        mock_backend = MagicMock()
+        mock_backend.needs_exclusive_lock = True
+
+        # Setup pipeline with the locked backend
+        pipeline = MagicMock()
+        pipeline._backends = [(MagicMock(), mock_backend)]
+        result = DetectionResult(detections=[_det("person")])
+        pipeline.run.return_value = result
+        mock_pipeline_cls.return_value = pipeline
+
+        config = DetectorConfig(
+            models=[ModelConfig(name="coral_model")],
+            frame_strategy=FrameStrategy.MOST,
+        )
+        det = Detector(config=config)
+
+        frames = [(1, MagicMock()), (2, MagicMock())]
+        det.detect(frames)
+
+        mock_backend.acquire_lock.assert_called_once()
+        mock_backend.release_lock.assert_called_once()
+
+    @patch("pyzm.ml.detector.ModelPipeline")
+    def test_session_lock_released_on_exception(self, mock_pipeline_cls):
+        """Lock is released even if detection raises an exception."""
+        from pyzm.ml.detector import Detector
+
+        mock_backend = MagicMock()
+        mock_backend.needs_exclusive_lock = True
+
+        pipeline = MagicMock()
+        pipeline._backends = [(MagicMock(), mock_backend)]
+        pipeline.run.side_effect = RuntimeError("GPU error")
+        mock_pipeline_cls.return_value = pipeline
+
+        config = DetectorConfig(
+            models=[ModelConfig(name="coral_model")],
+            frame_strategy=FrameStrategy.MOST,
+        )
+        det = Detector(config=config)
+
+        frames = [(1, MagicMock())]
+        # Should not raise — error is caught per-frame
+        det.detect(frames)
+
+        mock_backend.acquire_lock.assert_called_once()
+        mock_backend.release_lock.assert_called_once()
+
+    @patch("pyzm.ml.detector.ModelPipeline")
+    def test_non_exclusive_backend_not_locked(self, mock_pipeline_cls):
+        """Backends without needs_exclusive_lock are not locked."""
+        from pyzm.ml.detector import Detector
+
+        mock_backend = MagicMock()
+        mock_backend.needs_exclusive_lock = False
+
+        pipeline = MagicMock()
+        pipeline._backends = [(MagicMock(), mock_backend)]
+        result = DetectionResult(detections=[_det("person")])
+        pipeline.run.return_value = result
+        mock_pipeline_cls.return_value = pipeline
+
+        config = DetectorConfig(
+            models=[ModelConfig(name="yolo")],
+            frame_strategy=FrameStrategy.MOST,
+        )
+        det = Detector(config=config)
+
+        frames = [(1, MagicMock())]
+        det.detect(frames)
+
+        mock_backend.acquire_lock.assert_not_called()
+        mock_backend.release_lock.assert_not_called()
+
+
+# ===================================================================
+# TestFirstNewMultiFrame (Ref: ZoneMinder/pyzm#35)
+# ===================================================================
+
+class TestFirstNewMultiFrame:
+    """Tests for FIRST_NEW frame strategy in multi-frame detection."""
+
+    @patch("pyzm.ml.detector.ModelPipeline")
+    def test_first_new_short_circuits_on_match(self, mock_pipeline_cls):
+        """FIRST_NEW returns as soon as a frame has detections."""
+        from pyzm.ml.detector import Detector
+
+        result1 = DetectionResult(detections=[_det("person")])
+        result2 = DetectionResult(detections=[_det("person"), _det("car")])
+
+        pipeline = MagicMock()
+        pipeline._backends = []
+        pipeline.run.side_effect = [result1, result2]
+        mock_pipeline_cls.return_value = pipeline
+
+        config = DetectorConfig(
+            models=[ModelConfig(name="test")],
+            frame_strategy=FrameStrategy.FIRST_NEW,
+        )
+        det = Detector(config=config)
+
+        frames = [(1, MagicMock()), (2, MagicMock())]
+        result = det.detect(frames)
+
+        # Should short-circuit on frame 1
+        assert result.frame_id == 1
+        assert len(result.detections) == 1
+        # Pipeline.run should only be called once (short-circuit)
+        assert pipeline.run.call_count == 1
+
+    @patch("pyzm.ml.detector.ModelPipeline")
+    def test_first_new_skips_empty_frames(self, mock_pipeline_cls):
+        """FIRST_NEW skips frames with no detections."""
+        from pyzm.ml.detector import Detector
+
+        result1 = DetectionResult(detections=[])
+        result2 = DetectionResult(detections=[_det("dog")])
+
+        pipeline = MagicMock()
+        pipeline._backends = []
+        pipeline.run.side_effect = [result1, result2]
+        mock_pipeline_cls.return_value = pipeline
+
+        config = DetectorConfig(
+            models=[ModelConfig(name="test")],
+            frame_strategy=FrameStrategy.FIRST_NEW,
+        )
+        det = Detector(config=config)
+
+        frames = [(1, MagicMock()), (2, MagicMock())]
+        result = det.detect(frames)
+
+        assert result.frame_id == 2
+        assert result.detections[0].label == "dog"

@@ -110,6 +110,71 @@ class TestFilterByZone:
         kept, error_boxes = filter_by_zone(dets, zones, (100, 100))
         assert len(kept) == 1
 
+    # -- ignore_pattern tests (Ref: ZoneMinder/pyzm#37) --
+
+    def test_ignore_pattern_suppresses_matching_label(self):
+        """Detection matching ignore_pattern in an intersecting zone is suppressed."""
+        from pyzm.ml.filters import filter_by_zone
+
+        dets = [_det("car", 10, 10, 40, 40)]
+        zones = [{
+            "name": "driveway",
+            "points": [(0, 0), (100, 0), (100, 100), (0, 100)],
+            "ignore_pattern": "(car|truck)",
+        }]
+
+        kept, error_boxes = filter_by_zone(dets, zones, (100, 100))
+        assert len(kept) == 0
+        assert len(error_boxes) == 1
+
+    def test_ignore_pattern_does_not_suppress_non_matching(self):
+        """Detection NOT matching ignore_pattern passes through normally."""
+        from pyzm.ml.filters import filter_by_zone
+
+        dets = [_det("person", 10, 10, 40, 40)]
+        zones = [{
+            "name": "driveway",
+            "points": [(0, 0), (100, 0), (100, 100), (0, 100)],
+            "ignore_pattern": "(car|truck)",
+        }]
+
+        kept, error_boxes = filter_by_zone(dets, zones, (100, 100))
+        assert len(kept) == 1
+        assert kept[0].label == "person"
+
+    def test_ignore_pattern_with_positive_pattern(self):
+        """ignore_pattern takes precedence over positive pattern for matching labels."""
+        from pyzm.ml.filters import filter_by_zone
+
+        dets = [
+            _det("car", 10, 10, 40, 40),
+            _det("person", 10, 10, 40, 40),
+        ]
+        zones = [{
+            "name": "driveway",
+            "points": [(0, 0), (100, 0), (100, 100), (0, 100)],
+            "pattern": "(person|car)",
+            "ignore_pattern": "car",
+        }]
+
+        kept, error_boxes = filter_by_zone(dets, zones, (100, 100))
+        assert len(kept) == 1
+        assert kept[0].label == "person"
+
+    def test_ignore_pattern_none_does_not_suppress(self):
+        """When ignore_pattern is None, no suppression occurs."""
+        from pyzm.ml.filters import filter_by_zone
+
+        dets = [_det("car", 10, 10, 40, 40)]
+        zones = [{
+            "name": "zone1",
+            "points": [(0, 0), (100, 0), (100, 100), (0, 100)],
+            "ignore_pattern": None,
+        }]
+
+        kept, error_boxes = filter_by_zone(dets, zones, (100, 100))
+        assert len(kept) == 1
+
 
 # ===================================================================
 # TestFilterBySize

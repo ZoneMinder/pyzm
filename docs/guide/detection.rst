@@ -221,10 +221,17 @@ When multiple frames are extracted from an event, the ``frame_strategy``
 determines which frame's detections to return:
 
 - **first** -- return the first frame that has any detections
+- **first_new** -- like ``first``, but only counts detections that pass
+  past-detection filtering (i.e. genuinely new objects, not parked cars
+  that were already detected in a prior run)
 - **most** -- return the frame with the most total detections
 - **most_unique** -- return the frame with the most unique labels
 - **most_models** -- return the frame where the most models contributed
   detections (default)
+
+When two frames tie on the primary metric (same number of detections,
+same number of unique labels, or same number of contributing models),
+the frame with the higher total confidence sum wins.
 
 Match strategies
 ~~~~~~~~~~~~~~~~~
@@ -259,6 +266,21 @@ Only detections whose bounding box intersects a zone are kept.
 
 Each zone can have its own ``pattern`` regex. A detection must match the
 zone's pattern *and* physically intersect the polygon to be kept.
+
+Zones also support an ``ignore_pattern`` to suppress specific labels.
+When a detection matches a zone's ``ignore_pattern``, it is filtered out
+even if it would otherwise match the zone's positive ``pattern``. This is
+useful for excluding parked cars or other stationary objects from
+specific zones:
+
+.. code-block:: python
+
+   zones = [
+       Zone(name="driveway",
+            points=[(0,300), (600,300), (600,480), (0,480)],
+            pattern="(person|car)",
+            ignore_pattern="(car|truck)"),  # suppress parked vehicles
+   ]
 
 When using ZoneMinder events, use ``zm.monitor_zones(monitor_id)`` to
 fetch zones configured in the ZM web UI.

@@ -54,6 +54,7 @@ class MatchStrategy(str, Enum):
 class FrameStrategy(str, Enum):
     """How to pick the *best* frame across all analysed frames."""
     FIRST = "first"
+    FIRST_NEW = "first_new"
     MOST = "most"
     MOST_UNIQUE = "most_unique"
     MOST_MODELS = "most_models"

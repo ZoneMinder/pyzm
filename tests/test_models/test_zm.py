@@ -303,6 +303,8 @@ class TestMonitorStatus:
         ms = MonitorStatus()
         assert ms.state == ""
         assert ms.fps == 0.0
+        assert ms.analysis_fps == 0.0
+        assert ms.bandwidth == 0
         assert ms.capturing == "None"
 
     def test_custom_values(self):
@@ -310,3 +312,62 @@ class TestMonitorStatus:
         assert ms.state == "Alarm"
         assert ms.fps == 25.0
         assert ms.capturing == "Capturing"
+
+    def test_analysis_fps_and_bandwidth(self):
+        """Ref: ZoneMinder/pyzm#53"""
+        ms = MonitorStatus(
+            state="Connected", fps=15.0,
+            analysis_fps=14.5, bandwidth=52095,
+            capturing="Capturing",
+        )
+        assert ms.analysis_fps == 14.5
+        assert ms.bandwidth == 52095
+
+    def test_from_api_dict_with_status_fields(self):
+        """Ref: ZoneMinder/pyzm#53 -- Monitor_Status API fields."""
+        api_data = {
+            "Monitor": {"Id": "1", "Name": "Test"},
+            "Monitor_Status": {
+                "Status": "Connected",
+                "CaptureFPS": "15.23",
+                "AnalysisFPS": "14.80",
+                "CaptureBandwidth": "52095",
+                "Capturing": "Capturing",
+            },
+        }
+        m = Monitor.from_api_dict(api_data)
+        assert m.status.fps == pytest.approx(15.23)
+        assert m.status.analysis_fps == pytest.approx(14.80)
+        assert m.status.bandwidth == 52095
+
+    def test_from_api_dict_null_analysis_fps(self):
+        """Null AnalysisFPS defaults to 0."""
+        api_data = {
+            "Monitor": {"Id": "1"},
+            "Monitor_Status": {"AnalysisFPS": None, "CaptureBandwidth": None},
+        }
+        m = Monitor.from_api_dict(api_data)
+        assert m.status.analysis_fps == 0.0
+        assert m.status.bandwidth == 0
+
+
+# ===================================================================
+# TestZoneIgnorePattern
+# ===================================================================
+
+class TestZoneIgnorePattern:
+    """Tests for Zone.ignore_pattern field. Ref: ZoneMinder/pyzm#37"""
+
+    def test_default_none(self):
+        z = Zone(name="test", points=[(0, 0), (10, 10)])
+        assert z.ignore_pattern is None
+
+    def test_as_dict_includes_ignore_pattern(self):
+        z = Zone(name="driveway", points=[(0, 0)], ignore_pattern="(car|truck)")
+        d = z.as_dict()
+        assert d["ignore_pattern"] == "(car|truck)"
+
+    def test_as_dict_ignore_pattern_none(self):
+        z = Zone(name="test", points=[(0, 0)])
+        d = z.as_dict()
+        assert d["ignore_pattern"] is None

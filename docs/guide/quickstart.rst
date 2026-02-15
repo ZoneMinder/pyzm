@@ -53,6 +53,22 @@ Querying events
 Filters: ``event_id``, ``monitor_id``, ``since``, ``until``,
 ``min_alarm_frames``, ``object_only``, ``limit``.
 
+Per-frame metadata
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   frames = zm.event_frames(event_id=12345)
+   for f in frames:
+       print(f"Frame {f.frame_id}: type={f.type} score={f.score} delta={f.delta:.2f}s")
+
+   # Find the highest-scoring frame
+   best = max(frames, key=lambda f: f.score)
+   print(f"Best frame: {best.frame_id} (score={best.score})")
+
+``event_frames()`` returns ``list[Frame]`` with per-frame ``Score``,
+``Type`` (Normal/Alarm/Bulk), and ``Delta`` (seconds since event start).
+
 Getting zones
 ~~~~~~~~~~~~~~
 
