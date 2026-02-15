@@ -74,6 +74,11 @@ setup(name = NAME,
               'python-multipart>=0.0.5',
               'PyJWT>=2.0',
           ],
+          'train': [
+              'ultralytics>=8.3',
+              'streamlit>=1.38',
+              'streamlit-drawable-canvas>=0.9',
+          ],
       },
       py_modules = [
                     'pyzm.api',
@@ -116,6 +121,13 @@ setup(name = NAME,
                     'pyzm.serve',
                     'pyzm.serve.app',
                     'pyzm.serve.auth',
+
+                    # Train (YOLO fine-tuning UI)
+                    'pyzm.train',
+                    'pyzm.train.app',
+                    'pyzm.train.trainer',
+                    'pyzm.train.dataset',
+                    'pyzm.train.auto_label',
 
                     # Low-level ML implementations (wrapped by v2 backends)
                     'pyzm.ml.alpr',
