@@ -35,3 +35,14 @@ class MLBackend(ABC):
     @property
     def is_loaded(self) -> bool:
         return False
+
+    @property
+    def needs_exclusive_lock(self) -> bool:
+        """True if this backend requires exclusive hardware (e.g. EdgeTPU)."""
+        return False
+
+    def acquire_lock(self) -> None:
+        """Acquire the hardware lock. No-op by default."""
+
+    def release_lock(self) -> None:
+        """Release the hardware lock. No-op by default."""
