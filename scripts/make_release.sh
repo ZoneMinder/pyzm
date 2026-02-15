@@ -52,17 +52,36 @@ export GITHUB_TOKEN=$(gh auth token)
 
 # --- Step 1: Check if tag already exists ---
 if git rev-parse "v${VER}" &>/dev/null; then
+    # Compute bumped patch version
+    IFS='.' read -r V_MAJOR V_MINOR V_PATCH <<< "$VER"
+    BUMPED_PATCH=$((V_PATCH + 1))
+    BUMPED_VER="${V_MAJOR}.${V_MINOR}.${BUMPED_PATCH}"
+
     echo "Tag v${VER} already exists."
-    read -p "Overwrite existing release? [y/N] " confirm
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        echo "  Deleting old release and tag v${VER} ..."
-        gh release delete "v${VER}" --repo "$GH_REPO" --yes 2>/dev/null || true
-        git tag -d "v${VER}"
-        git push origin --delete "v${VER}" 2>/dev/null || true
-    else
-        echo "Aborted."
-        exit 0
-    fi
+    echo "  1) Overwrite existing release v${VER}"
+    echo "  2) Bump version: v${VER} -> v${BUMPED_VER}"
+    read -p "Choose [1/2] (or anything else to abort): " choice
+    case "$choice" in
+        1)
+            echo "  Deleting old release and tag v${VER} ..."
+            gh release delete "v${VER}" --repo "$GH_REPO" --yes 2>/dev/null || true
+            git tag -d "v${VER}"
+            git push origin --delete "v${VER}" 2>/dev/null || true
+            ;;
+        2)
+            echo "  Bumping version: v${VER} -> v${BUMPED_VER} ..."
+            sed -i "s/^__version__ = [\"']${VER}[\"']/__version__ = \"${BUMPED_VER}\"/" "$INIT_FILE"
+            git add "$INIT_FILE"
+            git commit -m "chore: bump version to v${BUMPED_VER}"
+            git push origin "$(git rev-parse --abbrev-ref HEAD)"
+            VER="$BUMPED_VER"
+            echo "  Done. Continuing with v${VER}."
+            ;;
+        *)
+            echo "Aborted."
+            exit 0
+            ;;
+    esac
     echo
 fi
 
