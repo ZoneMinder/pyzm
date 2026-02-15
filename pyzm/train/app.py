@@ -432,28 +432,32 @@ def _section_config(args: argparse.Namespace, project_root: Path) -> None:
 
 
 # ===================================================================
-# STEP 2: Upload images
+# STEP 2: Upload & Label (adaptive flow)
 # ===================================================================
 
-def _section_upload() -> YOLODataset | None:
-    """Upload images and return the dataset, or None if no project."""
-    pdir = st.session_state.get("project_dir")
-    classes = st.session_state.get("classes")
-    if not pdir or not classes:
-        st.info("Create or load a project above first.")
-        return None
+def _classify_classes() -> tuple[list[str], list[str]]:
+    """Split classes into known (auto-labelable) and custom (manual)."""
+    classes = st.session_state.get("classes", [])
+    class_groups = st.session_state.get("class_groups", {})
+    known, custom = [], []
+    for cls in classes:
+        if class_groups.get(cls):
+            known.append(cls)
+        else:
+            custom.append(cls)
+    return known, custom
 
-    ds = YOLODataset(project_dir=Path(pdir), classes=classes)
 
-    # Rotate uploader key after each batch so the widget resets and
-    # doesn't re-trigger on the next rerun.
-    upload_key = st.session_state.get("_upload_key", 0)
+def _file_uploader(ds: YOLODataset, key_prefix: str, label: str) -> int:
+    """Reusable file uploader that adds images to the dataset.
+    Returns the number of images added in this interaction."""
+    upload_key = st.session_state.get(f"_upload_key_{key_prefix}", 0)
     uploaded = st.file_uploader(
-        "Drag and drop images",
+        label,
         type=["jpg", "jpeg", "png", "bmp", "webp"],
         accept_multiple_files=True,
         label_visibility="collapsed",
-        key=f"uploader_{upload_key}",
+        key=f"uploader_{key_prefix}_{upload_key}",
     )
     if uploaded:
         added = 0
@@ -462,26 +466,14 @@ def _section_upload() -> YOLODataset | None:
             tmp.write_bytes(f.read())
             ds.add_image(tmp, [])
             added += 1
-        st.session_state["_upload_key"] = upload_key + 1
+        st.session_state[f"_upload_key_{key_prefix}"] = upload_key + 1
         st.toast(f"Added {added} images")
         st.rerun()
-
-    images = ds.staged_images()
-    if not images:
-        st.caption("Upload at least 2 images to get started.")
-    elif len(images) == 1:
-        st.warning("You need at least 2 images (for train/val split). Upload more to continue.")
-    else:
-        st.caption(f"{len(images)} images in project")
-    return ds
+    return 0
 
 
-# ===================================================================
-# STEP 3: Label / review annotations (+ optional auto-detect)
-# ===================================================================
-
-def _auto_detect_widget(ds: YOLODataset, args: argparse.Namespace) -> None:
-    """Optional: run a model on all images to pre-label known classes."""
+def _run_auto_detect(ds: YOLODataset, args: argparse.Namespace) -> None:
+    """Run auto-detection on all images."""
     images = ds.staged_images()
     if not images:
         return
@@ -491,39 +483,8 @@ def _auto_detect_widget(ds: YOLODataset, args: argparse.Namespace) -> None:
     classes = st.session_state.get("classes", [])
     pdir = st.session_state.get("project_dir")
 
-    # Check if a previously trained model exists (for retraining)
     best_pt = Path(pdir) / "runs" / "train" / "weights" / "best.pt" if pdir else None
     has_trained = best_pt is not None and best_pt.exists()
-
-    # Figure out which classes the base model can auto-label vs manual-only
-    known = []  # classes the model can detect (have source mappings)
-    manual = []  # classes that need manual labeling
-    for cls in classes:
-        sources = class_groups.get(cls, [])
-        if sources:
-            known.append(cls)
-        else:
-            manual.append(cls)
-
-    # Explain what auto-detect will do
-    if has_trained:
-        st.caption(
-            "**Auto-label** runs a model on your images to pre-draw boxes. "
-            "You can use your previously trained model (knows all your classes) "
-            f"or the base model (knows: {', '.join(known) if known else 'none of your classes'})."
-        )
-    elif known:
-        auto_summary = ", ".join(f"**{c}**" for c in known)
-        st.caption(
-            f"**Auto-label** can pre-draw boxes for: {auto_summary}. "
-            + (f"You'll need to draw **{', '.join(manual)}** manually." if manual else "")
-        )
-    else:
-        st.caption(
-            "Auto-label won't help here — the base model doesn't know any of "
-            "your classes. Draw all boxes manually below."
-        )
-        return
 
     col_model, col_btn = st.columns([3, 2])
     with col_model:
@@ -535,7 +496,7 @@ def _auto_detect_widget(ds: YOLODataset, args: argparse.Namespace) -> None:
             label_visibility="collapsed",
         )
     with col_btn:
-        run_detect = st.button("Auto-label images", use_container_width=True)
+        run_detect = st.button("Auto-label all images", use_container_width=True)
 
     if run_detect:
         use_trained = has_trained and detect_model.startswith("trained")
@@ -565,14 +526,88 @@ def _auto_detect_widget(ds: YOLODataset, args: argparse.Namespace) -> None:
             st.error(f"Auto-detection failed: {exc}")
 
 
-def _section_label(ds: YOLODataset, args: argparse.Namespace) -> None:
-    """Image gallery + annotation canvas with optional auto-detect."""
+def _section_data(ds: YOLODataset, args: argparse.Namespace) -> None:
+    """Adaptive upload + label flow based on class types."""
+    classes = st.session_state.get("classes", [])
+    class_groups = st.session_state.get("class_groups", {})
+    known, custom = _classify_classes()
+
+    pdir = st.session_state.get("project_dir")
+    best_pt = Path(pdir) / "runs" / "train" / "weights" / "best.pt" if pdir else None
+    has_trained = best_pt is not None and best_pt.exists()
+
+    # --- Explain the workflow ---
+    if custom and known:
+        st.caption(
+            f"**Known classes** ({', '.join(known)}): the base model already detects these — "
+            "they'll be auto-labeled. "
+            f"**Custom classes** ({', '.join(custom)}): upload images containing these objects "
+            "and annotate them below."
+        )
+    elif custom:
+        st.caption(
+            f"Upload images containing your custom objects ({', '.join(custom)}) "
+            "and annotate where each object appears."
+        )
+    else:
+        st.caption(
+            f"The base model already knows all your classes ({', '.join(known)}). "
+            "Upload sample images and auto-label them — no manual annotation needed."
+        )
+
+    # --- Per-custom-class uploaders ---
+    if custom:
+        for cls in custom:
+            st.markdown(f"**Upload images containing: {cls}**")
+            _file_uploader(ds, key_prefix=f"cls_{cls}", label=f"Images with {cls}")
+
+    # --- General uploader (for known classes, or extra images) ---
+    if known:
+        if custom:
+            st.markdown("**Additional images** (for auto-labeling known classes)")
+        else:
+            st.markdown("**Upload training images**")
+        _file_uploader(ds, key_prefix="general", label="Upload images")
+
+    # --- Image count ---
     images = ds.staged_images()
     if not images:
+        st.caption("Upload at least 2 images to continue.")
+        return
+    elif len(images) == 1:
+        st.warning("You need at least 2 images (for train/val split). Upload more.")
         return
 
-    classes = st.session_state.get("classes", [])
-    class_name_to_id = {c: i for i, c in enumerate(classes)}
+    st.caption(f"{len(images)} images in project")
+    st.divider()
+
+    # --- Auto-label for known classes ---
+    if known or has_trained:
+        annotated = sum(1 for img in images if ds.annotations_for(img.name))
+        unannotated = len(images) - annotated
+        if unannotated and not custom:
+            # Only known classes — auto-detect is the primary action
+            st.markdown("**Auto-label your images**")
+            if has_trained:
+                st.caption(
+                    "Run your previously trained model or the base model "
+                    "to label all images automatically."
+                )
+            else:
+                st.caption(
+                    f"The base model will detect {', '.join(known)} in your images. "
+                    "No manual annotation needed."
+                )
+            _run_auto_detect(ds, args)
+        elif unannotated and custom:
+            # Mixed — auto-detect is a helpful first step
+            st.markdown("**Step 1: Auto-label known classes**")
+            st.caption(
+                f"Run auto-detection first to label {', '.join(known)}, "
+                f"then annotate {', '.join(custom)} manually below."
+            )
+            _run_auto_detect(ds, args)
+        st.divider()
 
     # --- Quality summary in sidebar ---
     with st.sidebar:
@@ -585,16 +620,26 @@ def _section_label(ds: YOLODataset, args: argparse.Namespace) -> None:
         for w in report.warnings:
             st.warning(w.message)
 
-    # --- Optional auto-detect ---
-    annotated = sum(1 for img in images if ds.annotations_for(img.name))
-    unannotated = len(images) - annotated
-    if unannotated:
+    # --- Annotation canvas (for custom classes, or reviewing auto-labels) ---
+    if custom:
+        st.markdown(f"**{'Step 2: ' if known else ''}Annotate custom objects**")
         st.caption(
-            f"{unannotated} of {len(images)} images unlabeled. "
-            "You can auto-label them with a model, or draw boxes manually below."
+            f"Select each image and draw boxes around: {', '.join(custom)}. "
+            "Use the class selector to choose which object you're annotating."
         )
-        _auto_detect_widget(ds, args)
-        st.divider()
+    else:
+        st.markdown("**Review annotations**")
+        st.caption("Check that auto-detected labels look correct. Edit if needed.")
+
+    _annotation_canvas(ds, classes, images)
+
+
+def _annotation_canvas(
+    ds: YOLODataset, classes: list[str], images: list[Path],
+) -> None:
+    """Thumbnail gallery + annotation canvas."""
+    class_name_to_id = {c: i for i, c in enumerate(classes)}
+    _, custom = _classify_classes()
 
     # --- Thumbnail gallery ---
     selected_idx = st.session_state.get("selected_image_idx", 0)
@@ -646,10 +691,17 @@ def _section_label(ds: YOLODataset, args: argparse.Namespace) -> None:
             st.session_state["selected_image_idx"] = selected_idx + 1
             st.rerun()
 
-    # Class selector for new boxes
+    # Class selector — default to first custom class if any
+    default_class_idx = 0
+    if custom:
+        for i, c in enumerate(classes):
+            if c in custom:
+                default_class_idx = i
+                break
     selected_class = st.selectbox(
         "Draw new boxes as:",
         options=classes,
+        index=default_class_idx,
         key="annotation_class",
     )
     color_idx = class_name_to_id[selected_class]
@@ -709,7 +761,7 @@ def _section_label(ds: YOLODataset, args: argparse.Namespace) -> None:
 
 
 # ===================================================================
-# STEP 4: Train
+# STEP 3: Train
 # ===================================================================
 
 def _section_train(ds: YOLODataset, args: argparse.Namespace) -> None:
@@ -807,7 +859,7 @@ def _section_train(ds: YOLODataset, args: argparse.Namespace) -> None:
 
 
 # ===================================================================
-# STEP 5: Export
+# STEP 4: Export
 # ===================================================================
 
 def _section_export(args: argparse.Namespace) -> None:
@@ -898,27 +950,23 @@ def main() -> None:
         classes=st.session_state.get("classes", []),
     )
 
-    # --- Step 2: Upload ---
+    # --- Step 2: Upload & Label ---
     staged = ds.staged_images()
-    with st.expander("2. Upload Images", expanded=len(staged) < 2):
-        _section_upload()
+    with st.expander("2. Upload & Label", expanded=len(staged) < 2 or True):
+        _section_data(ds, args)
 
     staged = ds.staged_images()
     if len(staged) < 2:
         return
 
-    # --- Step 3: Label (includes optional auto-detect) ---
-    with st.expander("3. Label", expanded=True):
-        _section_label(ds, args)
-
-    # --- Step 4: Train ---
-    with st.expander("4. Train", expanded=bool(st.session_state.get("training_active") or st.session_state.get("train_result"))):
+    # --- Step 3: Train ---
+    with st.expander("3. Train", expanded=bool(st.session_state.get("training_active") or st.session_state.get("train_result"))):
         _section_train(ds, args)
 
-    # --- Step 5: Export ---
+    # --- Step 4: Export ---
     best_pt = Path(st.session_state["project_dir"]) / "runs" / "train" / "weights" / "best.pt"
     if best_pt.exists() or st.session_state.get("train_result"):
-        with st.expander("5. Export & Test", expanded=bool(st.session_state.get("train_result"))):
+        with st.expander("4. Export & Test", expanded=bool(st.session_state.get("train_result"))):
             _section_export(args)
 
 
