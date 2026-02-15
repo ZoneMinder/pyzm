@@ -188,7 +188,7 @@ If you have an ``ml_sequence`` dict (from ``objectconfig.yml``):
    detector = Detector.from_dict(ml_options)
    result = detector.detect("/path/to/image.jpg")
 
-``from_dict()`` parses the legacy dict format used by ``objectconfig.yml``
+``from_dict()`` parses the nested dict format used by ``objectconfig.yml``
 and builds a fully typed ``DetectorConfig`` internally.
 
 

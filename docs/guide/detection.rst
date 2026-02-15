@@ -56,6 +56,7 @@ Top-level detection settings:
        max_detection_size="50%",         # max bbox size (% of image or "Npx")
        match_past_detections=False,      # compare with previous run
        past_det_max_diff_area="5%",      # area tolerance for past matching
+       type_overrides={...},             # per-type overrides (see below)
    )
 
 ModelConfig
@@ -245,6 +246,9 @@ are combined:
 - **most_unique** -- use the model with the most unique labels
 - **union** -- merge all detections from all models
 
+``match_strategy`` can be overridden per model type via
+``type_overrides`` (see :ref:`per-type-overrides` below).
+
 
 Zone-based filtering
 ---------------------
@@ -286,6 +290,79 @@ When using ZoneMinder events, use ``zm.monitor_zones(monitor_id)`` to
 fetch zones configured in the ZM web UI.
 
 
+.. _per-type-overrides:
+
+Per-type config overrides
+--------------------------
+
+Several settings can be overridden per model type (``object``, ``face``,
+``alpr``) via ``type_overrides``.  When a key is set in the per-type
+override it takes precedence; otherwise the global value is used.
+
+**Overridable keys:**
+
+- ``match_strategy`` (``same_model_sequence_strategy``)
+- ``max_detection_size``
+- ``match_past_detections``
+- ``past_det_max_diff_area`` (and per-label ``<label>_past_det_max_diff_area``)
+- ``ignore_past_detection_labels``
+- ``aliases``
+
+**Global only** (a warning is logged if found in a per-type section):
+
+- ``frame_strategy`` — operates above model types (picks best frame
+  across all types)
+- ``image_path`` — just a directory path, no per-type meaning
+
+In Python:
+
+.. code-block:: python
+
+   from pyzm.models.config import DetectorConfig, TypeOverrides, MatchStrategy, ModelType
+
+   config = DetectorConfig(
+       models=[...],
+       match_strategy=MatchStrategy.FIRST,        # global default
+       match_past_detections=False,                # global default
+       type_overrides={
+           ModelType.OBJECT: TypeOverrides(
+               match_strategy=MatchStrategy.MOST,  # object uses MOST
+               match_past_detections=True,          # enabled for object
+               past_det_max_diff_area="10%",
+           ),
+           ModelType.FACE: TypeOverrides(
+               match_strategy=MatchStrategy.UNION,  # face uses UNION
+           ),
+       },
+   )
+
+In YAML (``objectconfig.yml``), these keys go in the per-type
+``general`` section and ``from_dict()`` populates ``type_overrides``
+automatically:
+
+.. code-block:: yaml
+
+   ml_sequence:
+     general:
+       model_sequence: "object,face"
+       same_model_sequence_strategy: "first"      # global default
+
+     object:
+       general:
+         same_model_sequence_strategy: "most"      # override for object
+         match_past_detections: "yes"
+         past_det_max_diff_area: "10%"
+         car_past_det_max_diff_area: "15%"
+       sequence:
+         - ...
+
+     face:
+       general:
+         same_model_sequence_strategy: "union"     # override for face
+       sequence:
+         - ...
+
+
 Past-detection filtering
 -------------------------
 
@@ -310,6 +387,12 @@ stationary objects, etc.
 - ``past_det_max_diff_area_labels`` -- per-label overrides
 - ``ignore_past_detection_labels`` -- labels to always keep (never filter)
 - ``aliases`` -- treat these labels as equivalent when matching
+
+All of these can be overridden per model type using ``type_overrides``
+(see :ref:`per-type-overrides`).  Past-detection filtering is applied
+per-type: detections are grouped by their ``detection_type`` and each
+group uses its own resolved config.  Past data is loaded once, and all
+detections are saved once after filtering.
 
 
 Result objects
