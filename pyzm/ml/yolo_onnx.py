@@ -225,9 +225,20 @@ class YoloOnnx(YoloBase):
 
         g.logger.Debug(2, '{}: Native e2e output shape={}'.format(self.name, output.shape))
 
-        # Validate: garbled OpenCV output has many detections with identical
-        # confidence (e.g. all 0.1274).  Real output has diverse values.
+        # Validate: garbled OpenCV output from broken NMS operators.
         confs = output[:, 4]
+
+        # Garbled case 1: all confidences near-zero (OpenCV can't run NMS ops correctly)
+        if confs.max() < 0.01:
+            g.logger.Debug(1, '{}: Native e2e confidences near-zero (max={:.6f}), '
+                           'falling back to pre-NMS layer'.format(self.name, confs.max()))
+            if self.pre_nms_layer:
+                self.is_native_e2e = False
+                return self._forward_and_parse(blob, 0, 0, conf_threshold)
+            g.logger.Error('{}: No pre-NMS fallback available'.format(self.name))
+            return [], [], []
+
+        # Garbled case 2: many detections with identical confidence (e.g. all 0.1274).
         nonzero = confs[confs > 0.001]
         if len(nonzero) > 10:
             unique_count = len(np.unique(np.round(nonzero, 4)))
