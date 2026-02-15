@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 
+## [2.0.7] - 2026-02-15
+
+### Documentation
+
+- update YOLO model references to match actual disk layout ([599097f](https://github.com/pliablepixels/pyzm/commit/599097fe5cd05e295cf9910efc1e11a66355aa8d))
+- fix incorrect defaults and YAML keys in detection/serve guides ([57710ce](https://github.com/pliablepixels/pyzm/commit/57710cefe29c78ec6ad4da82bd7ed0dae6cff6d9))
+
+### Miscellaneous
+
+- bump version to v2.0.7 ([a7bf0f3](https://github.com/pliablepixels/pyzm/commit/a7bf0f3a45f8524458fd5d7f665f4dce2f0154be))
+
 ## [2.0.6] - 2026-02-15
 
 ### Bug Fixes
@@ -11,6 +22,7 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
+- update CHANGELOG for v2.0.6 ([8d7ffa8](https://github.com/pliablepixels/pyzm/commit/8d7ffa8490ab481eb39786b743e240c83693d4f3))
 - clarify that CHANGELOG is not to be touched ([f898ffc](https://github.com/pliablepixels/pyzm/commit/f898ffc02db4dd96f2b07a7d2c506c43320d9104))
 - add per-type overrides section and remove stale "legacy" wording ([a72da12](https://github.com/pliablepixels/pyzm/commit/a72da12b1fb3893e8e8ffcbd6dafc0f4229f8215))
 - add --pyzm-debug to EventStartCommand example ([86a8481](https://github.com/pliablepixels/pyzm/commit/86a84819c5df20e05516a37c66bedc35178b28be))
