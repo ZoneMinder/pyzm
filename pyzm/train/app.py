@@ -415,24 +415,23 @@ def _section_upload() -> YOLODataset | None:
 
 
 # ===================================================================
-# STEP 3: Auto-detect
+# STEP 3: Label / review annotations (+ optional auto-detect)
 # ===================================================================
 
-def _section_auto_detect(ds: YOLODataset, args: argparse.Namespace) -> None:
-    """Run the selected model on all images to pre-label."""
+def _auto_detect_widget(ds: YOLODataset, args: argparse.Namespace) -> None:
+    """Optional: run a model on all images to pre-label known classes."""
     images = ds.staged_images()
     if not images:
         return
 
     base_model = st.session_state.get("base_model", "yolo11s")
-    classes = st.session_state.get("classes", [])
     class_groups = st.session_state.get("class_groups", {})
+    classes = st.session_state.get("classes", [])
+    pdir = st.session_state.get("project_dir")
 
-    # Count how many are already annotated
-    annotated = sum(1 for img in images if ds.annotations_for(img.name))
-    unannotated = len(images) - annotated
-    if annotated:
-        st.caption(f"{annotated} labeled, {unannotated} unlabeled")
+    # Check if a previously trained model exists (for retraining)
+    best_pt = Path(pdir) / "runs" / "train" / "weights" / "best.pt" if pdir else None
+    has_trained = best_pt is not None and best_pt.exists()
 
     # Show mapping summary if groups are non-trivial
     non_trivial = {k: v for k, v in class_groups.items() if v and v != [k]}
@@ -440,21 +439,45 @@ def _section_auto_detect(ds: YOLODataset, args: argparse.Namespace) -> None:
         mapping_parts = [f"{', '.join(srcs)} -> **{name}**" for name, srcs in non_trivial.items()]
         st.caption("Class mapping: " + " | ".join(mapping_parts))
 
-    if st.button(f"Auto-detect using {base_model}"):
-        progress_bar = st.progress(0, text=f"Running {base_model} on {len(images)} images...")
+    col_model, col_btn = st.columns([3, 2])
+    with col_model:
+        model_options = [base_model]
+        if has_trained:
+            model_options.insert(0, f"trained ({best_pt.parent.parent.name})")
+        detect_model = st.selectbox(
+            "Model", options=model_options, key="autodetect_model",
+            label_visibility="collapsed",
+        )
+    with col_btn:
+        run_detect = st.button("Auto-label images", use_container_width=True)
+
+    if run_detect:
+        # Determine which model to use
+        use_trained = has_trained and detect_model.startswith("trained")
+        progress_bar = st.progress(0, text=f"Running on {len(images)} images...")
         try:
             from pyzm.train.auto_label import auto_label, build_class_mapping
 
             class_mapping = build_class_mapping(class_groups) if class_groups else None
 
-            results = auto_label(
-                image_paths=images,
-                model_name=base_model,
-                base_path=args.base_path,
-                processor=args.processor,
-                target_classes=classes,
-                class_mapping=class_mapping,
-            )
+            if use_trained:
+                results = auto_label(
+                    image_paths=images,
+                    model_name=str(best_pt),
+                    base_path=args.base_path,
+                    processor=args.processor,
+                    target_classes=classes,
+                    class_mapping=class_mapping,
+                )
+            else:
+                results = auto_label(
+                    image_paths=images,
+                    model_name=base_model,
+                    base_path=args.base_path,
+                    processor=args.processor,
+                    target_classes=classes,
+                    class_mapping=class_mapping,
+                )
             total_anns = 0
             for img_path, anns in results.items():
                 if anns:
@@ -467,12 +490,8 @@ def _section_auto_detect(ds: YOLODataset, args: argparse.Namespace) -> None:
             st.error(f"Auto-detection failed: {exc}")
 
 
-# ===================================================================
-# STEP 4: Label / review annotations
-# ===================================================================
-
-def _section_label(ds: YOLODataset) -> None:
-    """Image gallery + annotation canvas."""
+def _section_label(ds: YOLODataset, args: argparse.Namespace) -> None:
+    """Image gallery + annotation canvas with optional auto-detect."""
     images = ds.staged_images()
     if not images:
         return
@@ -490,6 +509,17 @@ def _section_label(ds: YOLODataset) -> None:
             st.write(f"<span style='color:{color}'>&#9632;</span> {cls}: **{count}**", unsafe_allow_html=True)
         for w in report.warnings:
             st.warning(w.message)
+
+    # --- Optional auto-detect ---
+    annotated = sum(1 for img in images if ds.annotations_for(img.name))
+    unannotated = len(images) - annotated
+    if unannotated:
+        st.caption(
+            f"{unannotated} of {len(images)} images unlabeled. "
+            "You can auto-label them with a model, or draw boxes manually below."
+        )
+        _auto_detect_widget(ds, args)
+        st.divider()
 
     # --- Thumbnail gallery ---
     selected_idx = st.session_state.get("selected_image_idx", 0)
@@ -588,7 +618,7 @@ def _section_label(ds: YOLODataset) -> None:
 
 
 # ===================================================================
-# STEP 5: Train
+# STEP 4: Train
 # ===================================================================
 
 def _section_train(ds: YOLODataset, args: argparse.Namespace) -> None:
@@ -686,7 +716,7 @@ def _section_train(ds: YOLODataset, args: argparse.Namespace) -> None:
 
 
 # ===================================================================
-# STEP 6: Export
+# STEP 5: Export
 # ===================================================================
 
 def _section_export(args: argparse.Namespace) -> None:
@@ -785,23 +815,19 @@ def main() -> None:
     if not ds.staged_images():
         return
 
-    # --- Step 3: Auto-detect ---
-    with st.expander("3. Auto-Detect", expanded=True):
-        _section_auto_detect(ds, args)
+    # --- Step 3: Label (includes optional auto-detect) ---
+    with st.expander("3. Label", expanded=True):
+        _section_label(ds, args)
 
-    # --- Step 4: Label ---
-    with st.expander("4. Review & Label", expanded=True):
-        _section_label(ds)
-
-    # --- Step 5: Train ---
-    with st.expander("5. Train", expanded=bool(st.session_state.get("training_active") or st.session_state.get("train_result"))):
+    # --- Step 4: Train ---
+    with st.expander("4. Train", expanded=bool(st.session_state.get("training_active") or st.session_state.get("train_result"))):
         _section_train(ds, args)
 
-        # --- Step 6: Export ---
-        best_pt = Path(st.session_state["project_dir"]) / "runs" / "train" / "weights" / "best.pt"
-        if best_pt.exists() or st.session_state.get("train_result"):
-            with st.expander("6. Export & Test", expanded=bool(st.session_state.get("train_result"))):
-                _section_export(args)
+    # --- Step 5: Export ---
+    best_pt = Path(st.session_state["project_dir"]) / "runs" / "train" / "weights" / "best.pt"
+    if best_pt.exists() or st.session_state.get("train_result"):
+        with st.expander("5. Export & Test", expanded=bool(st.session_state.get("train_result"))):
+            _section_export(args)
 
 
 if __name__ == "__main__":
