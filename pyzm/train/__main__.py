@@ -17,7 +17,7 @@ def main() -> None:
         help="Model base path for auto-labeling (default: /var/lib/zmeventnotification/models)",
     )
     ap.add_argument(
-        "--project-dir",
+        "--workspace-dir",
         default=None,
         help="Training workspace (default: ~/.pyzm/training)",
     )
@@ -60,8 +60,8 @@ def main() -> None:
         "--base-path", args.base_path,
         "--processor", args.processor,
     ]
-    if args.project_dir:
-        cmd.extend(["--project-dir", args.project_dir])
+    if args.workspace_dir:
+        cmd.extend(["--workspace-dir", args.workspace_dir])
 
     sys.exit(subprocess.call(cmd))
 

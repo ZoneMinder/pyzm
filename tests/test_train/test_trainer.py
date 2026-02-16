@@ -82,7 +82,7 @@ class TestYOLOTrainer:
         mock_torch.cuda.is_available.return_value = True
         mock_props = MagicMock()
         mock_props.name = "NVIDIA Test GPU"
-        mock_props.total_mem = 8 * (1024 ** 3)  # 8 GB
+        mock_props.total_memory = 8 * (1024 ** 3)  # 8 GB
         mock_torch.cuda.get_device_properties.return_value = mock_props
 
         with patch.dict("sys.modules", {"torch": mock_torch}):
@@ -127,7 +127,7 @@ class TestYOLOTrainer:
         (weights_dir / "best.pt").write_bytes(b"fake model data")
 
         trainer = YOLOTrainer("yolo11s", proj)
-        output_dir = tmp_path / "deploy"
+        dest_path = tmp_path / "deploy" / "my_model.onnx"
 
         mock_model = MagicMock()
         onnx_out = weights_dir / "best.onnx"
@@ -136,9 +136,9 @@ class TestYOLOTrainer:
 
         mock_yolo = MagicMock(return_value=mock_model)
         with patch.dict("sys.modules", {"ultralytics": MagicMock(YOLO=mock_yolo)}):
-            result = trainer.export_onnx(output_dir=output_dir)
+            result = trainer.export_onnx(output_path=dest_path)
 
-        assert result == output_dir / "best.onnx"
+        assert result == dest_path
         assert result.exists()
 
     def test_evaluate_with_trained_model(self, tmp_path: Path):

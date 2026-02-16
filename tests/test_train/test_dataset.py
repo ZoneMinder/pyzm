@@ -194,6 +194,37 @@ class TestYOLODataset:
 # QualityReport
 # ---------------------------------------------------------------------------
 
+class TestSetClasses:
+    def test_set_classes_updates_and_persists(self, dataset: YOLODataset):
+        dataset.set_classes(["cat", "dog"])
+        assert dataset.classes == ["cat", "dog"]
+        loaded = YOLODataset.load(dataset.project_dir)
+        assert loaded.classes == ["cat", "dog"]
+
+    def test_set_classes_with_groups(self, dataset: YOLODataset):
+        groups = {"animal": ["cat", "dog"]}
+        dataset.set_classes(["animal"], class_groups=groups)
+        assert dataset.class_groups == groups
+        loaded = YOLODataset.load(dataset.project_dir)
+        assert loaded.class_groups == groups
+
+    def test_set_classes_preserves_groups_when_none(self, tmp_path: Path):
+        ds = YOLODataset(
+            project_dir=tmp_path / "proj",
+            classes=["a", "b"],
+            class_groups={"a": ["x"], "b": ["y"]},
+        )
+        ds.init_project()
+        ds.set_classes(["c", "d"])
+        assert ds.class_groups == {"a": ["x"], "b": ["y"]}
+
+    def test_set_classes_empty(self, dataset: YOLODataset):
+        dataset.set_classes([])
+        assert dataset.classes == []
+        loaded = YOLODataset.load(dataset.project_dir)
+        assert loaded.classes == []
+
+
 class TestQualityReport:
     def test_small_dataset_warning(self, dataset: YOLODataset, sample_images: list[Path]):
         for img in sample_images[:5]:

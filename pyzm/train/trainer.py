@@ -100,7 +100,7 @@ class YOLOTrainer:
 
             if torch.cuda.is_available():
                 props = torch.cuda.get_device_properties(0)
-                vram_gb = props.total_mem / (1024 ** 3)
+                vram_gb = props.total_memory / (1024 ** 3)
                 # Rough heuristic: 2GB per batch of 8 at 640px
                 suggested = max(4, min(32, int(vram_gb / 2) * 8))
                 return HardwareInfo(
@@ -209,7 +209,7 @@ class YOLOTrainer:
                 project=str(runs_dir),
                 name="train",
                 exist_ok=True,
-                verbose=False,
+                verbose=True,
             )
         except KeyboardInterrupt:
             logger.info("Training stopped by user")
@@ -301,14 +301,14 @@ class YOLOTrainer:
     # ONNX export
     # ------------------------------------------------------------------
 
-    def export_onnx(self, output_dir: Path | None = None) -> Path:
+    def export_onnx(self, output_path: Path | None = None) -> Path:
         """Export the best trained model to ONNX format.
 
         Parameters
         ----------
-        output_dir:
-            Where to copy the exported ONNX file.  Defaults to the
-            project's ``runs/train/weights/`` directory.
+        output_path:
+            Full destination file path (e.g. ``/path/to/model.onnx``).
+            Defaults to ``runs/train/weights/best.onnx`` in the project dir.
 
         Returns
         -------
@@ -324,10 +324,9 @@ class YOLOTrainer:
         onnx_path = model.export(format="onnx")
         onnx_path = Path(onnx_path)
 
-        if output_dir and output_dir != onnx_path.parent:
-            output_dir = Path(output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
-            dest = output_dir / onnx_path.name
+        if output_path and Path(output_path) != onnx_path:
+            dest = Path(output_path)
+            dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(onnx_path, dest)
             return dest
 

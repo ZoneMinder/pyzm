@@ -124,6 +124,17 @@ class YOLODataset:
             json.dumps(meta, indent=2)
         )
 
+    def set_classes(
+        self,
+        classes: list[str],
+        class_groups: dict[str, list[str]] | None = None,
+    ) -> None:
+        """Replace the class list (and optionally class groups) and persist."""
+        self.classes = list(classes)
+        if class_groups is not None:
+            self.class_groups = class_groups
+        self._save_project_json()
+
     @classmethod
     def load(cls, project_dir: Path) -> YOLODataset:
         """Load an existing project from its ``project.json``."""
