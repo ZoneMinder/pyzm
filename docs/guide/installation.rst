@@ -104,12 +104,21 @@ Optional dependencies
 Some ML backends have additional requirements that are **not** installed
 automatically:
 
-- **Coral EdgeTPU** -- ``pycoral`` and the Edge TPU runtime
+- (DEPRECATED) **Coral EdgeTPU** -- ``pycoral`` and the Edge TPU runtime
 - **Face recognition (dlib)** -- ``dlib``, ``face_recognition``
 - **ALPR** -- a running OpenALPR or Plate Recognizer service
 - **AWS Rekognition** -- ``boto3`` with configured AWS credentials
 
 Install these manually as needed for your detection pipeline.
+
+.. note::
+
+   Google has discontinued the Coral EdgeTPU product line and the
+   ``pycoral`` library is no longer maintained. Installing it on modern
+   Python (3.10+) and recent Linux distributions requires manual
+   workarounds. See `pycoral#149
+   <https://github.com/google-coral/pycoral/issues/149>`_ for
+   community discussion and installation tips.
 
 Verifying the installation
 --------------------------
