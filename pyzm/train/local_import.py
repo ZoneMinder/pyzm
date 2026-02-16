@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import streamlit as st
@@ -189,12 +190,13 @@ def _infer_split(img_path: Path, images_dir: Path) -> str | None:
     return None
 
 
-def _import_local_dataset(
+def import_local_dataset(
     ds: YOLODataset,
     store: VerificationStore,
     splits: list[tuple[Path, Path]],
     names_map: dict[int, str],
     max_images: int = 0,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> tuple[int, int]:
     """Import images and labels from one or more (images_dir, labels_dir) pairs.
 
@@ -206,6 +208,8 @@ def _import_local_dataset(
     ----------
     max_images:
         If > 0, import at most this many images (randomly sampled).
+    progress_callback:
+        Optional ``(current, total)`` callback invoked after each image.
 
     Returns (image_count, detection_count).
     """
@@ -222,10 +226,10 @@ def _import_local_dataset(
         import random
         all_files = random.sample(all_files, max_images)
 
-    progress = st.progress(0, text="Importing local dataset...")
     img_count = 0
     det_count = 0
     split_map: dict[str, str] = {}
+    total = len(all_files)
 
     for i, (img_path, images_dir, labels_dir) in enumerate(all_files):
         # Parse annotations BEFORE add_image so labels are populated on import
@@ -267,10 +271,8 @@ def _import_local_dataset(
             fully_reviewed=True,
         )
         store.set(iv)
-        progress.progress(
-            (i + 1) / len(all_files),
-            text=f"Importing... {i + 1}/{len(all_files)}",
-        )
+        if progress_callback:
+            progress_callback(i + 1, total)
 
     # Persist split map and import classes
     if split_map:
@@ -278,6 +280,25 @@ def _import_local_dataset(
     ds.set_setting("import_classes", sorted(names_map.values()))
 
     store.save()
+    return img_count, det_count
+
+
+def _import_local_dataset(
+    ds: YOLODataset,
+    store: VerificationStore,
+    splits: list[tuple[Path, Path]],
+    names_map: dict[int, str],
+    max_images: int = 0,
+) -> tuple[int, int]:
+    """Streamlit wrapper around :func:`import_local_dataset`."""
+    progress = st.progress(0, text="Importing local dataset...")
+
+    def _cb(current: int, total: int) -> None:
+        progress.progress(current / total, text=f"Importing... {current}/{total}")
+
+    img_count, det_count = import_local_dataset(
+        ds, store, splits, names_map, max_images=max_images, progress_callback=_cb,
+    )
     progress.progress(1.0, text=f"Imported {img_count} images, {det_count} annotations")
     return img_count, det_count
 
@@ -361,15 +382,22 @@ def local_dataset_panel(
 # Raw (unannotated) image import
 # ===================================================================
 
-def _import_raw_images(
+def import_raw_images(
     ds: YOLODataset,
     store: VerificationStore,
     folder: Path,
     max_images: int = 0,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> int:
     """Import unannotated images from *folder*.
 
     Detection is deferred to the review phase.
+
+    Parameters
+    ----------
+    progress_callback:
+        Optional ``(current, total)`` callback invoked after each image.
+
     Returns the number of imported images.
     """
     all_images = _find_images(folder)
@@ -380,8 +408,8 @@ def _import_raw_images(
         import random
         all_images = random.sample(all_images, max_images)
 
-    progress = st.progress(0, text="Importing raw images...")
     img_count = 0
+    total = len(all_images)
 
     for i, img_path in enumerate(all_images):
         dest = ds.add_image(img_path, [])
@@ -392,12 +420,28 @@ def _import_raw_images(
             detections=[],
             fully_reviewed=False,
         ))
-        progress.progress(
-            (i + 1) / len(all_images),
-            text=f"Importing... {i + 1}/{len(all_images)}",
-        )
+        if progress_callback:
+            progress_callback(i + 1, total)
 
     store.save()
+    return img_count
+
+
+def _import_raw_images(
+    ds: YOLODataset,
+    store: VerificationStore,
+    folder: Path,
+    max_images: int = 0,
+) -> int:
+    """Streamlit wrapper around :func:`import_raw_images`."""
+    progress = st.progress(0, text="Importing raw images...")
+
+    def _cb(current: int, total: int) -> None:
+        progress.progress(current / total, text=f"Importing... {current}/{total}")
+
+    img_count = import_raw_images(
+        ds, store, folder, max_images=max_images, progress_callback=_cb,
+    )
     progress.progress(1.0, text=f"Imported {img_count} images")
     return img_count
 

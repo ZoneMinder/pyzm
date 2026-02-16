@@ -1,20 +1,32 @@
 """pyzm.train -- YOLO fine-tuning training module.
 
-Provides a guided Streamlit web UI for fine-tuning YOLO models on custom
-images so ZoneMinder users can detect custom objects alongside COCO classes.
+Provides a guided Streamlit web UI **or** headless CLI for fine-tuning YOLO
+models on custom images so ZoneMinder users can detect custom objects
+alongside COCO classes.
 
 Install::
 
     pip install pyzm[train]
 
-Run::
+Run (UI)::
 
     python -m pyzm.train
+
+Run (headless)::
+
+    python -m pyzm.train /path/to/yolo-dataset
+
+Programmatic::
+
+    from pyzm.train import run_pipeline
+    result = run_pipeline(Path("/path/to/yolo-dataset"), epochs=50)
 """
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from pyzm.train.pipeline import run_pipeline
+
+__all__: list[str] = ["run_pipeline"]
 
 
 def check_dependencies() -> None:

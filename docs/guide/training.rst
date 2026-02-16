@@ -1,15 +1,18 @@
 Model Fine-Tuning
 =================
 
-pyzm includes a web-based UI for fine-tuning YOLO object detection models on
-your own data. This lets ZoneMinder users teach the model to recognize custom
-objects (e.g. specific vehicles, pets, packages) or improve detection accuracy
-for objects the base model struggles with.
+pyzm includes tools for fine-tuning YOLO object detection models on your own
+data. This lets ZoneMinder users teach the model to recognize custom objects
+(e.g. specific vehicles, pets, packages) or improve detection accuracy for
+objects the base model struggles with.
 
-The UI is built on Streamlit and runs as a local web app. It guides you
-through the full workflow: importing images, reviewing/correcting detections,
-and training a fine-tuned model that can be exported as ONNX for use with
-ZoneMinder's event notification system.
+Two modes are available:
+
+- **Web UI** -- a guided Streamlit app for importing images, reviewing/correcting
+  detections, and training. Best for interactive workflows.
+- **Headless CLI** -- a single command that runs the full pipeline
+  (validate → import → split → train → export) without a browser. Best for
+  scripting, CI/CD, or SSH sessions.
 
 Installation
 ------------
@@ -64,6 +67,84 @@ Options:
 
 ``--port``
    Port. Default: ``8501``
+
+Headless / CLI Training
+-----------------------
+
+For automated or server-side workflows, you can run the full training pipeline
+from the command line without launching the Streamlit UI. This is useful for
+scripting, CI/CD, or SSH sessions.
+
+Basic usage:
+
+.. code-block:: bash
+
+   python -m pyzm.train /path/to/yolo-dataset
+
+The dataset folder must be in standard YOLO format (``data.yaml`` + ``images/``
++ ``labels/``). The pipeline validates, imports, splits, trains, and exports
+an ONNX model automatically.
+
+Full flags:
+
+.. code-block:: bash
+
+   python -m pyzm.train /path/to/yolo-dataset \
+       --model yolo11s \
+       --epochs 100 \
+       --batch 8 \
+       --imgsz 640 \
+       --val-ratio 0.2 \
+       --device cuda:0 \
+       --project-name my_project \
+       --output /tmp/model.onnx
+
+CLI options (headless mode):
+
+``dataset`` (positional)
+   Path to YOLO dataset folder.
+
+``--model``
+   Base YOLO model. Default: ``yolo11s``
+
+``--epochs``
+   Training epochs. Default: ``50``
+
+``--batch``
+   Batch size. Default: auto-detect from GPU.
+
+``--imgsz``
+   Image size. Default: ``640``
+
+``--val-ratio``
+   Train/val split ratio. Default: ``0.2``
+
+``--output``
+   ONNX export path. Default: auto in project dir.
+
+``--project-name``
+   Project name. Default: derived from dataset folder name.
+
+``--device``
+   ``auto``, ``cpu``, ``cuda:0``, etc. Default: ``auto``
+
+``--workspace-dir``
+   Override the project storage directory.
+   Default: ``~/.pyzm/training``
+
+Programmatic usage:
+
+.. code-block:: python
+
+   from pathlib import Path
+   from pyzm.train import run_pipeline
+
+   result = run_pipeline(
+       Path("/path/to/yolo-dataset"),
+       epochs=50,
+       model="yolo11s",
+   )
+   print(f"mAP50: {result.final_mAP50:.4f}")
 
 Workflow
 --------
