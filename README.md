@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/ZoneMinder/pyzm/master/images/pyzm.png" width="200"/>
+<img src="logo/pyzm.png" width="200"/>
 
 What
 =====
