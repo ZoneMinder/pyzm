@@ -6,10 +6,9 @@ Launch with::
     streamlit run pyzm/train/app.py -- --base-path /path/to/models
 
 Phases (sidebar-driven):
-    1. Browse Events -- import frames from ZM events where detection failed
+    1. Select Images -- import frames from ZM events, YOLO datasets, or raw images
     2. Review Detections -- approve/edit/delete auto-detected objects
-    3. Upload Training Data -- targeted uploads for classes the model struggles with
-    4. Train & Export -- fine-tune and export ONNX
+    3. Train & Export -- fine-tune and export ONNX
 """
 
 from __future__ import annotations
@@ -46,7 +45,7 @@ if not hasattr(_st_image, "image_to_url"):
 from streamlit_drawable_canvas import st_canvas
 
 from pyzm.train.dataset import Annotation, YOLODataset
-from pyzm.train.trainer import HardwareInfo, TrainProgress, TrainResult, YOLOTrainer
+from pyzm.train.trainer import ClassMetrics, HardwareInfo, TrainProgress, TrainResult, YOLOTrainer
 from pyzm.train.verification import (
     DetectionStatus,
     ImageVerification,
@@ -57,7 +56,7 @@ from pyzm.train.verification import (
 logger = logging.getLogger("pyzm.train")
 
 DEFAULT_BASE_PATH = "/var/lib/zmeventnotification/models"
-DEFAULT_WORKSPACE = Path.home() / ".pyzm" / "training"
+PROJECTS_ROOT = Path.home() / ".pyzm" / "training"
 MIN_IMAGES_PER_CLASS = 10
 
 _COLOR_PALETTE = [
@@ -99,47 +98,11 @@ def _inject_css() -> None:
     header[data-testid="stHeader"] > * { pointer-events: auto; }
     [data-testid="stDecoration"] { display: none; }
     [data-testid="stStatusWidget"] { display: none; }
-    /* Hide image toolbar icons (download, expand, etc.) — they render black on dark bg */
-    [data-testid="StyledFullScreenButton"],
-    [data-testid="StyledImageDownloadButton"],
-    button[title="View fullscreen"],
-    button[title="Download"] {
+    /* Hide image/element toolbar (download, fullscreen, share, etc.) */
+    [data-testid="stElementToolbar"] {
         display: none !important;
     }
     </style>""", unsafe_allow_html=True)
-
-
-# ===================================================================
-# Debug log capture
-# ===================================================================
-
-_log_buffer: list[str] = []
-
-
-class _UILogHandler(logging.Handler):
-    def emit(self, record: logging.LogRecord) -> None:
-        _log_buffer.append(self.format(record))
-        if len(_log_buffer) > 500:
-            del _log_buffer[:-500]
-
-
-_ui_log_handler: _UILogHandler | None = None
-
-
-def _setup_log_capture() -> None:
-    global _ui_log_handler
-    if _ui_log_handler is not None:
-        return
-    _ui_log_handler = _UILogHandler()
-    _ui_log_handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S",
-    ))
-    # Attach to the root pyzm logger so all child loggers are captured.
-    pyzm_logger = logging.getLogger("pyzm")
-    pyzm_logger.addHandler(_ui_log_handler)
-    pyzm_logger.setLevel(logging.DEBUG)
-    # Ensure propagation is on (so pyzm.train, pyzm.zm, etc. bubble up).
-    pyzm_logger.propagate = True
 
 
 # ===================================================================
@@ -329,12 +292,13 @@ def _upload_panel(
     args: argparse.Namespace,
     *,
     target_classes: list[str] | None = None,
+    label: str = "Upload images where detection failed or needs improvement",
 ) -> None:
     if target_classes:
         st.caption(f"Upload images containing: **{', '.join(target_classes)}**")
     upload_key = st.session_state.get("_upload_key", 0)
     uploaded = st.file_uploader(
-        "Upload images where detection failed or needs improvement",
+        label,
         type=["jpg", "jpeg", "png", "bmp", "webp"],
         accept_multiple_files=True,
         key=f"uploader_{upload_key}",
@@ -342,31 +306,33 @@ def _upload_panel(
     if not uploaded:
         return
 
-    progress_bar = st.progress(0, text="Processing uploads...")
-    added_count = 0
-    total_dets = 0
-
+    # Phase 1: save all images to disk
+    import_bar = st.progress(0, text="Importing images...")
+    destinations: list[Path] = []
     for i, f in enumerate(uploaded):
         tmp = Path(tempfile.mkdtemp()) / f.name
         tmp.write_bytes(f.read())
-        dest = ds.add_image(tmp, [])
-        added_count += 1
+        destinations.append(ds.add_image(tmp, []))
+        import_bar.progress((i + 1) / len(uploaded), text=f"Importing {i + 1}/{len(uploaded)}")
+    import_bar.empty()
 
+    # Phase 2: run auto-detection on each saved image
+    detect_bar = st.progress(0, text="Running detection...")
+    total_dets = 0
+    for i, dest in enumerate(destinations):
         detections = _auto_detect_image(dest, args)
         total_dets += len(detections)
-
-        iv = ImageVerification(
+        store.set(ImageVerification(
             image_name=dest.name,
             detections=detections,
             fully_reviewed=False,
-        )
-        store.set(iv)
-        progress_bar.progress((i + 1) / len(uploaded), text=f"Processed {i + 1}/{len(uploaded)}")
+        ))
+        detect_bar.progress((i + 1) / len(destinations), text=f"Detecting {i + 1}/{len(destinations)}")
 
     store.save()
     st.session_state["_upload_key"] = upload_key + 1
-    progress_bar.progress(1.0, text=f"Added {added_count} images, {total_dets} detections")
-    st.toast(f"Added {added_count} images with {total_dets} auto-detections")
+    detect_bar.progress(1.0, text=f"Added {len(destinations)} images, {total_dets} detections")
+    st.toast(f"Added {len(destinations)} images with {total_dets} auto-detections")
     st.rerun()
 
 
@@ -374,7 +340,7 @@ def _upload_panel(
 # SIDEBAR
 # ===================================================================
 
-def _sidebar(args: argparse.Namespace, ds: YOLODataset | None, store: VerificationStore | None) -> str:
+def _sidebar(ds: YOLODataset | None, store: VerificationStore | None) -> str:
     """Render sidebar. Returns the active phase key."""
     with st.sidebar:
         st.markdown(
@@ -391,30 +357,18 @@ def _sidebar(args: argparse.Namespace, ds: YOLODataset | None, store: Verificati
             and store.pending_count() == 0
             and store.reviewed_images_count() >= len(images)
         )
-        # Upload is complete when no corrections exist or all corrected
-        # classes have enough images.
-        if store is not None:
-            _needs = store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS)
-            upload_complete = all_reviewed and (
-                not _needs
-                or all(e["current_images"] >= e["target_images"] for e in _needs)
-            )
-        else:
-            upload_complete = False
         train_done = st.session_state.get("_train_shared", {}).get("result") is not None
 
         current = st.session_state.get("active_phase", "select")
 
         phases = [
-            ("select",  "1. Browse Events",         has_images),
+            ("select",  "1. Select Images",          has_images),
             ("review",  "2. Review Detections",      all_reviewed),
-            ("upload",  "3. Upload Training Data",   upload_complete),
-            ("train",   "4. Train & Export",         train_done),
+            ("train",   "3. Train & Export",         train_done),
         ]
         for key, label, done in phases:
-            icon = "  " if not done else "  "
             prefix = "-> " if key == current else "   "
-            check = " [done]" if done else ""
+            check = " \u2713" if done else ""
             btn_label = f"{prefix}{label}{check}"
             if st.button(btn_label, key=f"phase_{key}", width="stretch"):
                 st.session_state["active_phase"] = key
@@ -443,9 +397,17 @@ def _sidebar(args: argparse.Namespace, ds: YOLODataset | None, store: Verificati
                     st.caption(f"{cls}: {count}/{MIN_IMAGES_PER_CLASS}{ready}")
                     st.progress(pct)
 
-        # --- Reset ---
+        # --- Project actions ---
         st.divider()
-        if st.button("Reset", key="reset_workspace"):
+        project_name = st.session_state.get("project_name", "")
+        if project_name:
+            st.caption(f"Project: **{project_name}**")
+            st.caption(f"`{PROJECTS_ROOT / project_name}`")
+        if st.button("Switch Project", key="switch_project"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+        if st.button("Reset Project", key="reset_workspace"):
             st.session_state["_confirm_reset"] = True
             st.rerun()
         if st.session_state.get("_confirm_reset"):
@@ -453,19 +415,11 @@ def _sidebar(args: argparse.Namespace, ds: YOLODataset | None, store: Verificati
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("Yes, reset", type="primary", key="reset_confirm"):
-                    _reset_workspace(args)
+                    _reset_project()
             with c2:
                 if st.button("Cancel", key="reset_cancel"):
                     st.session_state.pop("_confirm_reset", None)
                     st.rerun()
-
-        # --- Debug logs ---
-        st.divider()
-        with st.expander("Debug Logs", expanded=False):
-            if _log_buffer:
-                st.code("\n".join(_log_buffer[-100:]), language=None)
-            else:
-                st.caption("No logs yet.")
 
     return current
 
@@ -487,7 +441,7 @@ def _sidebar_image_list(store: VerificationStore, images: list[Path]) -> None:
         for i, img in enumerate(images):
             iv = store.get(img.name)
             if iv and iv.fully_reviewed:
-                icon = "[done]"
+                icon = "\u2713"
             elif iv and iv.pending_count > 0:
                 icon = f"[{iv.pending_count}]"
             else:
@@ -510,16 +464,47 @@ def _sidebar_image_list(store: VerificationStore, images: list[Path]) -> None:
 # ===================================================================
 
 def _phase_select(ds: YOLODataset, store: VerificationStore, args: argparse.Namespace) -> None:
-    st.markdown("### Browse ZM Events")
-    st.caption("Select events where detection was wrong or missing.")
+    st.markdown("### Select Images")
 
-    from pyzm.train.zm_browser import zm_event_browser_panel
-    zm_event_browser_panel(ds, store, args)
+    # Show banner when classes need more training images
+    needs = store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS)
+    if needs:
+        summary = ", ".join(
+            f"**{e['class_name']}** ({e['current_images']}/{e['target_images']})"
+            for e in needs
+        )
+        st.info(f"Classes needing more images: {summary}")
+
+    source = st.radio(
+        "Data source",
+        ["Pre-Annotated YOLO Dataset", "Raw Images", "ZoneMinder Events"],
+        horizontal=True,
+        key="data_source",
+    )
+
+    if source == "Pre-Annotated YOLO Dataset":
+        st.caption("Import a pre-annotated dataset in YOLO format.")
+        from pyzm.train.local_import import local_dataset_panel
+        local_dataset_panel(ds, store, args)
+    elif source == "Raw Images":
+        st.caption("Import unannotated images for manual annotation.")
+        from pyzm.train.local_import import raw_images_panel
+        raw_images_panel(ds, store, args, auto_detect_fn=_auto_detect_image)
+    else:
+        st.caption("Select events where detection was wrong or missing.")
+        from pyzm.train.zm_browser import zm_event_browser_panel
+        zm_event_browser_panel(ds, store, args)
 
     images = ds.staged_images()
     if images:
         st.divider()
         st.success(f"{len(images)} image{'s' if len(images) != 1 else ''} imported. Ready for review.")
+        with st.expander(f"Imported images ({len(images)})", expanded=False):
+            for img in images:
+                iv = store.get(img.name)
+                status = "\u2713" if iv and iv.fully_reviewed else "\u23f3"
+                det_count = len(iv.detections) if iv else 0
+                st.caption(f"{status} {img.name} ({det_count} annotations)")
         if st.button("Go to Review", type="primary"):
             st.session_state["active_phase"] = "review"
             st.session_state.pop("_auto_label", None)
@@ -575,7 +560,9 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
 
     # --- Compute canvas dimensions ---
     img_w, img_h = pil_img.size
-    scale = min(1.0, 700 / img_w)
+    expanded = st.session_state.get("_canvas_expanded", False)
+    max_w = 1200 if expanded else 700
+    scale = min(1.0, max_w / img_w)
     canvas_w = int(img_w * scale)
     canvas_h = int(img_h * scale)
 
@@ -598,6 +585,27 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
         )
     else:
         # ---- NORMAL MODE: interactive canvas ----
+        # Toolbar above canvas
+        tb1, tb2 = st.columns(2)
+        with tb1:
+            expand_label = "Shrink canvas" if expanded else "Expand canvas"
+            if st.button(expand_label, key="toggle_canvas_expand"):
+                st.session_state["_canvas_expanded"] = not expanded
+                st.session_state[f"_canvas_counter_{image_name}"] = canvas_counter + 1
+                st.rerun()
+        with tb2:
+            if st.button("Clear drawn box", key="undo_canvas_draw"):
+                st.session_state[f"_canvas_counter_{image_name}"] = canvas_counter + 1
+                st.rerun()
+
+        auto_label = st.session_state.get("_auto_label")
+        if auto_label:
+            st.info(f"Draw a rectangle to add **{auto_label}**.")
+        elif not iv.detections:
+            st.info("Draw boxes on the image to mark objects.")
+        else:
+            st.caption("Draw a rectangle to add another detection.")
+
         bg_img = pil_img.resize((canvas_w, canvas_h))
         bg_img = _draw_verified_image(bg_img, iv.detections)
 
@@ -611,12 +619,6 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
             width=canvas_w,
             key=f"canvas_{image_name}_{canvas_counter}",
         )
-
-        auto_label = st.session_state.get("_auto_label")
-        if auto_label:
-            st.info(f"Draw a rectangle to add **{auto_label}**.")
-        else:
-            st.info("Draw a rectangle on the image to add a new detection.")
 
         # Detect newly drawn rectangles
         if canvas_result and canvas_result.json_data:
@@ -638,9 +640,7 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
 
     # --- Detection list (always visible unless reshaping) ---
     if not reshape_det_id:
-        if not iv.detections and not pending_rects:
-            st.info("No detections. Draw boxes on the image above to mark objects.")
-        elif iv.detections:
+        if iv.detections and not pending_rects:
             changed |= _detection_list(iv, store, image_name)
 
     # --- Primary action button ---
@@ -655,15 +655,20 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
         )
         is_last = unreviewed_remaining <= 1  # current image is the last (or only)
 
+        # If classes need more images, loop back to select; otherwise go to train
+        needs_more = bool(store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS))
+        next_phase = "select" if needs_more else "train"
+        next_phase_label = "import more images" if needs_more else "train"
+
         if pending:
             if is_last:
                 btn_label = f"Approve all ({len(pending)}) & continue"
             else:
                 btn_label = f"Approve all ({len(pending)}) & next"
         elif iv.fully_reviewed:
-            btn_label = "Next image" if not is_last else "Continue to upload"
+            btn_label = "Next image" if not is_last else f"Continue to {next_phase_label}"
         else:
-            btn_label = "Done, next image" if not is_last else "Done, continue to upload"
+            btn_label = "Next image" if not is_last else f"Continue to {next_phase_label}"
 
         if st.button(btn_label, type="primary", width="stretch"):
             for d in iv.detections:
@@ -673,7 +678,7 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
             store.set(iv)
             store.save()
             if is_last:
-                st.session_state["active_phase"] = "upload"
+                st.session_state["active_phase"] = next_phase
             else:
                 _advance_to_next_unreviewed(store, images, selected_idx)
             st.rerun()
@@ -689,46 +694,17 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
         and store.reviewed_images_count() >= len(images)
     )
     if all_reviewed and not reshape_det_id and not pending_rects:
-        st.divider()
-        corrections = store.corrected_classes()
-        # Filter out old wrong labels (only renamed_from / deleted)
-        _NEGATIVE_ONLY = {"renamed_from", "deleted"}
-        corrections = {
-            cls: reasons for cls, reasons in corrections.items()
-            if not set(reasons.keys()) <= _NEGATIVE_ONLY
-        }
-        if corrections:
-            new_classes = []
-            improved_classes = []
-            for cls, reasons in sorted(corrections.items()):
-                if set(reasons.keys()) == {"added"}:
-                    new_classes.append(cls)
-                else:
-                    improved_classes.append(cls)
-
-            parts = []
-            if new_classes:
-                parts.append(
-                    f"New classes you defined: **{', '.join(new_classes)}**."
-                )
-            if improved_classes:
-                parts.append(
-                    f"The model needs improvement on: "
-                    f"**{', '.join(improved_classes)}**."
-                )
-            parts.append(
-                f"Next: upload at least **{MIN_IMAGES_PER_CLASS}** training "
-                f"images for each class so the model can learn."
+        needs = store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS)
+        if needs:
+            st.divider()
+            names = ", ".join(f"**{e['class_name']}**" for e in needs)
+            st.info(
+                f"Classes needing more training images: {names}. "
+                f"Upload at least **{MIN_IMAGES_PER_CLASS}** images for each."
             )
-            st.info(" ".join(parts))
-            if st.button("Go to Upload Training Data", type="primary",
-                         key="review_go_upload"):
-                st.session_state["active_phase"] = "upload"
-                st.rerun()
-        else:
-            st.success("All detections look correct! Proceed to training.")
-            if st.button("Go to Train", type="primary", key="review_go_train"):
-                st.session_state["active_phase"] = "train"
+            if st.button("Import More Images", type="primary",
+                         key="review_go_select"):
+                st.session_state["active_phase"] = "select"
                 st.rerun()
 
 
@@ -845,54 +821,41 @@ def _canvas_label_pending(
         x2 = x1 + int(rect["width"] * rect.get("scaleX", 1))
         y2 = y1 + int(rect["height"] * rect.get("scaleY", 1))
         drw.rectangle([x1, y1, x2, y2], outline="#9B59B6", width=3)
-    st.image(preview, width="stretch")
+    st.image(preview, width=canvas_w)
 
-    # Label dialog
-    st.markdown(
-        "<div style='border:1px solid #9B59B6; border-radius:6px; "
-        "padding:8px 12px; margin:-4px 0 8px;'>"
-        "<span style='font-size:0.85em; font-weight:bold;'>"
-        "Label this object:</span></div>",
-        unsafe_allow_html=True,
-    )
-
+    # Label dialog — text input + selectbox side by side; text input wins
     changed = False
 
-    # Merge model classes + any user-defined labels into one list
     model_classes = st.session_state.get("model_class_names", [])
     user_labels = store.build_class_list()
     all_labels = sorted(set(model_classes) | set(user_labels))
 
-    # Selectbox — applies immediately on selection (no form)
-    if all_labels:
-        pick = st.selectbox(
-            "Choose existing label",
-            options=[""] + all_labels,
-            format_func=lambda x: "Select a label..." if x == "" else x,
-            key=f"lbl_pick_{image_name}_{canvas_counter}",
-        )
-        if pick:
-            _save_pending_rects(iv, pending_rects, pick,
-                               canvas_w, canvas_h, image_name, canvas_counter)
-            changed = True
-
-    # Custom label — separate form so typing works reliably
-    if not changed:
-        with st.form(key=f"lbl_custom_form_{image_name}_{canvas_counter}"):
-            custom_label = st.text_input(
-                "Or type a new label", placeholder="Type new label name...",
-            )
+    with st.form(key=f"lbl_form_{image_name}_{canvas_counter}"):
+        c_new, c_existing = st.columns(2)
+        with c_new:
+            typed_label = st.text_input("Type a label name", placeholder="e.g. dog, car...")
+        with c_existing:
+            picked_label = st.selectbox(
+                "Select existing label",
+                options=[""] + all_labels,
+                format_func=lambda x: x or "—",
+            ) if all_labels else ""
+        c1, c2 = st.columns(2)
+        with c1:
             submitted = st.form_submit_button("Apply", type="primary", width="stretch")
-        if submitted and custom_label and custom_label.strip():
-            _save_pending_rects(iv, pending_rects, custom_label.strip(),
+        with c2:
+            cancelled = st.form_submit_button("Cancel", width="stretch")
+
+    if submitted:
+        final = typed_label.strip() if typed_label and typed_label.strip() else (picked_label or "")
+        if final:
+            _save_pending_rects(iv, pending_rects, final,
                                canvas_w, canvas_h, image_name, canvas_counter)
             changed = True
-
-    if not changed:
-        if st.button("Cancel", key=f"cancel_draw_{image_name}_{canvas_counter}"):
-            st.session_state[f"_pending_rects_{image_name}"] = []
-            st.session_state[f"_canvas_counter_{image_name}"] = canvas_counter + 1
-            st.rerun()
+    elif cancelled:
+        st.session_state[f"_pending_rects_{image_name}"] = []
+        st.session_state[f"_canvas_counter_{image_name}"] = canvas_counter + 1
+        st.rerun()
 
     return changed
 
@@ -1008,31 +971,33 @@ def _detection_list(
         # Rename input row (shown only when Rename is clicked)
         if st.session_state.get(f"_renaming_{image_name}_{det.detection_id}"):
             other_labels = sorted(set(known_labels) - {det.effective_label})
-            if other_labels:
-                rcols = st.columns(min(len(other_labels), 4))
-                for j, lbl in enumerate(other_labels):
-                    with rcols[j % len(rcols)]:
-                        if st.button(lbl, key=f"ren_pick_{image_name}_{det.detection_id}_{j}",
-                                     width="stretch"):
-                            det.new_label = lbl
-                            det.status = DetectionStatus.RENAMED
-                            st.session_state.pop(f"_renaming_{image_name}_{det.detection_id}", None)
-                            changed = True
+
             with st.form(key=f"rename_form_{image_name}_{det.detection_id}"):
-                rc1, rc2 = st.columns([3, 1])
+                c_new, c_existing = st.columns(2)
+                with c_new:
+                    ren_typed = st.text_input("Type a label name", placeholder="e.g. dog, car...")
+                with c_existing:
+                    ren_picked = st.selectbox(
+                        "Select existing label",
+                        options=[""] + other_labels,
+                        format_func=lambda x: x or "—",
+                    ) if other_labels else ""
+                rc1, rc2 = st.columns(2)
                 with rc1:
-                    custom_label = st.text_input(
-                        "New label",
-                        label_visibility="collapsed",
-                        placeholder="Type new label...",
-                    )
+                    submitted = st.form_submit_button("Save", type="primary", width="stretch")
                 with rc2:
-                    submitted = st.form_submit_button("Save", width="stretch")
-                if submitted and custom_label and custom_label.strip():
-                    det.new_label = custom_label.strip()
+                    cancel_rename = st.form_submit_button("Cancel", width="stretch")
+
+            if submitted:
+                final = ren_typed.strip() if ren_typed and ren_typed.strip() else (ren_picked or "")
+                if final:
+                    det.new_label = final
                     det.status = DetectionStatus.RENAMED
                     st.session_state.pop(f"_renaming_{image_name}_{det.detection_id}", None)
                     changed = True
+            elif cancel_rename:
+                st.session_state.pop(f"_renaming_{image_name}_{det.detection_id}", None)
+                st.rerun()
 
     return changed
 
@@ -1053,125 +1018,7 @@ def _advance_to_next_unreviewed(
 
 
 # ===================================================================
-# PHASE 3: Upload Training Data
-# ===================================================================
-
-def _format_correction_reasons(corrections: dict[str, int]) -> str:
-    """Human-readable summary of why a class needs more training data."""
-    parts = []
-    if "renamed_to" in corrections:
-        parts.append(f"renamed to this in {corrections['renamed_to']}")
-    if "renamed_from" in corrections:
-        parts.append(f"renamed from this in {corrections['renamed_from']}")
-    if "reshaped" in corrections:
-        parts.append(f"reshaped in {corrections['reshaped']}")
-    if "deleted" in corrections:
-        parts.append(f"deleted in {corrections['deleted']}")
-    if "added" in corrections:
-        parts.append(f"manually added in {corrections['added']}")
-    return ", ".join(parts)
-
-
-def _phase_upload(ds: YOLODataset, store: VerificationStore, args: argparse.Namespace) -> None:
-    st.markdown("### Upload Training Data")
-
-    needs = store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS)
-
-    if not needs:
-        st.success("All classes have enough training data. Ready to train!")
-        if st.button("Go to Train", type="primary", key="upload_go_train_done"):
-            st.session_state["active_phase"] = "train"
-            st.rerun()
-        return
-
-    # --- Per-class wizard ---
-    wizard_idx = st.session_state.get("_upload_wizard_idx", 0)
-    if wizard_idx >= len(needs):
-        wizard_idx = len(needs) - 1
-        st.session_state["_upload_wizard_idx"] = wizard_idx
-
-    entry = needs[wizard_idx]
-    cls = entry["class_name"]
-    current = entry["current_images"]
-    target = entry["target_images"]
-    ready = current >= target
-    corrections = entry["corrections"]
-
-    # Step header
-    st.markdown(f"**Class {wizard_idx + 1} of {len(needs)}: `{cls}`**")
-
-    # Explanation based on correction type
-    if "added" in corrections and len(corrections) == 1:
-        st.info(
-            f"You added **{cls}** as a new object class. "
-            f"Upload at least **{target}** images that clearly show "
-            f"**{cls}** objects.\n\n"
-            f"After uploading, go to **Review** to draw bounding boxes "
-            f"on each image."
-        )
-    else:
-        reason_text = _format_correction_reasons(corrections)
-        st.info(
-            f"You corrected **{cls}** detections ({reason_text}). "
-            f"Upload at least **{target}** images containing **{cls}** "
-            f"objects.\n\n"
-            f"The model will auto-detect on uploaded images — verify in "
-            f"**Review**."
-        )
-
-    # Progress bar
-    col_bar, col_count = st.columns([4, 1])
-    with col_bar:
-        pct = min(1.0, current / target) if target > 0 else 0.0
-        st.progress(pct)
-    with col_count:
-        st.caption(f"{current}/{target}" + (" ok" if ready else ""))
-
-    # Upload widget (targeted at this class)
-    _upload_panel(ds, store, args, target_classes=[cls])
-
-    # Guide to Review if uploaded images need annotation
-    images = ds.staged_images()
-    unreviewed = len(images) - store.reviewed_images_count()
-    if unreviewed > 0 and current < target:
-        st.warning(
-            f"**{unreviewed}** uploaded image{'s' if unreviewed != 1 else ''} "
-            f"need review. Go to **Review** to draw bounding boxes for "
-            f"**{cls}**."
-        )
-        if st.button("Go to Review", key=f"upload_review_{wizard_idx}"):
-            st.session_state["active_phase"] = "review"
-            st.session_state["_auto_label"] = cls
-            st.rerun()
-
-    # --- Navigation between classes ---
-    st.divider()
-    nav1, nav2, nav3 = st.columns(3)
-    with nav1:
-        if wizard_idx > 0:
-            prev_cls = needs[wizard_idx - 1]["class_name"]
-            if st.button(f"< {prev_cls}", key="upload_prev", width="stretch"):
-                st.session_state["_upload_wizard_idx"] = wizard_idx - 1
-                st.rerun()
-    with nav3:
-        if wizard_idx < len(needs) - 1:
-            next_cls = needs[wizard_idx + 1]["class_name"]
-            if st.button(f"{next_cls} >", key="upload_next", width="stretch"):
-                st.session_state["_upload_wizard_idx"] = wizard_idx + 1
-                st.rerun()
-
-    # --- Overall status ---
-    remaining = [e for e in needs if e["current_images"] < e["target_images"]]
-    if remaining:
-        names = ", ".join(
-            f"**{e['class_name']}** ({e['current_images']}/{e['target_images']})"
-            for e in remaining
-        )
-        st.caption(f"Still need: {names}")
-
-
-# ===================================================================
-# PHASE 4: Train & Export
+# PHASE 3: Train & Export
 # ===================================================================
 
 def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Namespace) -> None:
@@ -1194,8 +1041,8 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
             for e in needs
         )
         st.warning(f"Need more images for: {names}")
-        if st.button("Go to Upload Training Data", key="train_go_upload"):
-            st.session_state["active_phase"] = "upload"
+        if st.button("Import More Images", key="train_go_select"):
+            st.session_state["active_phase"] = "select"
             st.rerun()
 
     images = ds.staged_images()
@@ -1315,10 +1162,142 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
         r2.metric("mAP50-95", f"{result.final_mAP50_95:.3f}")
         r3.metric("Size", f"{result.model_size_mb:.1f} MB")
         r4.metric("Time", f"{result.elapsed_seconds / 60:.1f} min")
+
+        best_ep_label = (
+            f"Epoch {result.best_epoch}/{result.total_epochs}"
+            if result.best_epoch > 0
+            else f"{result.total_epochs} epochs"
+        )
+        st.caption(f"Best model from: **{best_ep_label}**")
+
+        if result.per_class:
+            import pandas as pd
+
+            rows = []
+            for cls_name, cm in sorted(result.per_class.items()):
+                rows.append({
+                    "Class": cls_name,
+                    "Precision": f"{cm.precision:.3f}",
+                    "Recall": f"{cm.recall:.3f}",
+                    "AP@50": f"{cm.ap50:.3f}",
+                    "AP@50-95": f"{cm.ap50_95:.3f}",
+                })
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+
         if result.best_model:
             st.code(str(result.best_model), language=None)
 
+        pdir = st.session_state.get("workspace_dir")
+        if pdir:
+            st.caption(f"Dataset: `{pdir}`")
+            _training_analysis(result, Path(pdir) / "runs" / "train")
+
         _phase_export(args)
+
+
+def _training_analysis(result: TrainResult, train_dir: Path) -> None:
+    """Show interpretive guidance and diagnostic images after training."""
+    st.markdown("#### Training Analysis")
+
+    # -- (a) Interpretive guidance --
+    mAP = result.final_mAP50
+    if mAP >= 0.8:
+        st.success(f"**Excellent** — mAP50 {mAP:.2f} indicates strong detection quality.")
+    elif mAP >= 0.6:
+        st.info(f"**Good** — mAP50 {mAP:.2f}. Model performs well; more data may push it higher.")
+    elif mAP >= 0.3:
+        st.warning(f"**Moderate** — mAP50 {mAP:.2f}. Consider adding more diverse training images.")
+    else:
+        st.warning(f"**Poor** — mAP50 {mAP:.2f}. The model needs significantly more training data.")
+
+    # Per-class weak spots
+    weak = [name for name, cm in result.per_class.items() if cm.ap50 < 0.5]
+    if weak:
+        st.info(
+            f"**Weak classes** (AP50 < 0.5): {', '.join(sorted(weak))}. "
+            "Consider adding more training images for these."
+        )
+
+    # Overfitting hint
+    if (
+        result.best_epoch > 0
+        and result.total_epochs > 0
+        and result.best_epoch < result.total_epochs * 0.5
+    ):
+        st.info(
+            f"Best model was at epoch {result.best_epoch}/{result.total_epochs} "
+            "(early in training). The model may have overfit — "
+            "try fewer epochs or more training data."
+        )
+
+    # -- (b) Training curves --
+    results_png = train_dir / "results.png"
+    if results_png.exists():
+        st.markdown("##### Training Curves")
+        with st.expander("How to read these curves"):
+            st.markdown(
+                "**Loss curves** (box_loss, cls_loss, dfl_loss): should decrease "
+                "and flatten. If training loss keeps dropping but validation loss "
+                "rises, the model is overfitting — stop earlier or add more data.\n\n"
+                "**Precision & Recall**: both should rise and stabilize near 1.0. "
+                "Low precision = too many false detections; low recall = missing "
+                "real objects.\n\n"
+                "**mAP50 / mAP50-95**: the main quality scores — higher is better. "
+                "A plateau means more epochs won't help; more diverse data will."
+            )
+        st.image(str(results_png), width="stretch")
+
+    # -- (c) Confusion matrix --
+    cm_norm = train_dir / "confusion_matrix_normalized.png"
+    cm_plain = train_dir / "confusion_matrix.png"
+    cm_path = cm_norm if cm_norm.exists() else cm_plain if cm_plain.exists() else None
+    if cm_path:
+        st.markdown("##### Confusion Matrix")
+        with st.expander("How to read the confusion matrix"):
+            st.markdown(
+                "Each row is a **true** class, each column is a **predicted** class. "
+                "Bright diagonal = correct predictions. Off-diagonal cells show "
+                "which classes get confused with each other.\n\n"
+                "A **background** row/column means missed detections (false negatives) "
+                "or phantom detections (false positives). If a class has a high "
+                "background score, the model needs more examples of that class."
+            )
+        st.image(str(cm_path), width="stretch")
+
+    # -- (d) Evaluation curves --
+    f1_path = train_dir / "F1_curve.png"
+    pr_path = train_dir / "PR_curve.png"
+    if f1_path.exists() or pr_path.exists():
+        with st.expander("Evaluation Curves"):
+            st.markdown(
+                "**F1 Curve**: shows the balance between precision and recall at "
+                "each confidence threshold. The peak is the optimal threshold — "
+                "a sharp, high peak (close to 1.0) is ideal.\n\n"
+                "**PR Curve**: precision vs. recall trade-off. A curve that hugs "
+                "the top-right corner is a strong model. Area under the curve "
+                "(AUC) equals AP — higher is better."
+            )
+            c1, c2 = st.columns(2)
+            if f1_path.exists():
+                c1.image(str(f1_path), caption="F1 Curve", width="stretch")
+            if pr_path.exists():
+                c2.image(str(pr_path), caption="PR Curve", width="stretch")
+
+    # -- (e) Validation samples --
+    val_labels = train_dir / "val_batch0_labels.jpg"
+    val_preds = train_dir / "val_batch0_pred.jpg"
+    if val_labels.exists() or val_preds.exists():
+        with st.expander("Validation Samples"):
+            st.markdown(
+                "**Ground Truth** shows the actual labels. **Predictions** shows "
+                "what the model detected. Compare them — missed objects or wrong "
+                "labels indicate classes that need more training data."
+            )
+            c1, c2 = st.columns(2)
+            if val_labels.exists():
+                c1.image(str(val_labels), caption="Ground Truth", width="stretch")
+            if val_preds.exists():
+                c2.image(str(val_preds), caption="Predictions", width="stretch")
 
 
 def _phase_export(args: argparse.Namespace) -> None:
@@ -1423,22 +1402,146 @@ def _seed_from_legacy_labels(ds: YOLODataset, store: VerificationStore) -> None:
 # Main
 # ===================================================================
 
-def _reset_workspace(args: argparse.Namespace) -> None:
-    """Wipe workspace and clear all session state."""
+def _reset_project() -> None:
+    """Wipe current project and return to project selector."""
     import shutil
 
-    pdir = Path(args.workspace_dir) if args.workspace_dir else DEFAULT_WORKSPACE
-    if pdir.exists():
+    pdir = st.session_state.get("workspace_dir")
+    if pdir and Path(pdir).exists():
         shutil.rmtree(pdir)
-    # Clear all session state
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.rerun()
 
 
-def _ensure_workspace(args: argparse.Namespace) -> Path:
-    """Auto-create and return the single training workspace directory."""
-    pdir = Path(args.workspace_dir) if args.workspace_dir else DEFAULT_WORKSPACE
+def _list_projects() -> list[dict]:
+    """Return metadata for each project under PROJECTS_ROOT."""
+    if not PROJECTS_ROOT.is_dir():
+        return []
+
+    projects = []
+    for d in sorted(PROJECTS_ROOT.iterdir()):
+        meta_path = d / "project.json"
+        if d.is_dir() and meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text())
+            except Exception:
+                meta = {}
+            # Count images
+            images_all = d / "images" / "all"
+            image_count = (
+                sum(1 for p in images_all.iterdir()
+                    if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp", ".webp"})
+                if images_all.is_dir() else 0
+            )
+            projects.append({
+                "name": d.name,
+                "path": d,
+                "base_model": meta.get("base_model", ""),
+                "classes": meta.get("classes", []),
+                "image_count": image_count,
+            })
+    return projects
+
+
+def _delete_all_projects() -> None:
+    """Remove all projects under PROJECTS_ROOT."""
+    import shutil
+    if PROJECTS_ROOT.is_dir():
+        shutil.rmtree(PROJECTS_ROOT)
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.rerun()
+
+
+def _project_selector() -> Path | None:
+    """Show project selection screen. Returns project dir or None."""
+    st.markdown("### Projects")
+
+    projects = _list_projects()
+
+    if projects:
+        st.markdown("**Resume an existing project:**")
+        for proj in projects:
+            col_name, col_info, col_btn = st.columns([3, 3, 1])
+            with col_name:
+                st.markdown(f"**{proj['name']}**")
+            with col_info:
+                parts = []
+                if proj["image_count"]:
+                    parts.append(f"{proj['image_count']} images")
+                if proj["base_model"]:
+                    parts.append(f"model: {proj['base_model']}")
+                if proj["classes"]:
+                    parts.append(f"{len(proj['classes'])} classes")
+                st.caption(", ".join(parts) if parts else "empty")
+            with col_btn:
+                if st.button("Open", key=f"open_{proj['name']}", width="stretch"):
+                    st.session_state["project_name"] = proj["name"]
+                    st.rerun()
+
+        st.divider()
+
+    st.markdown("**Create a new project:**")
+    col_input, col_create = st.columns([3, 1])
+    with col_input:
+        new_name = st.text_input(
+            "Project name",
+            placeholder="e.g. license_plates",
+            label_visibility="collapsed",
+        )
+    with col_create:
+        create_clicked = st.button("Create", type="primary", width="stretch")
+
+    if create_clicked:
+        name = (new_name or "").strip()
+        if not name:
+            st.error("Enter a project name.")
+            return None
+        # Sanitise: allow alphanumeric, dashes, underscores
+        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
+        pdir = PROJECTS_ROOT / safe_name
+        if pdir.exists():
+            st.error(f"Project '{safe_name}' already exists.")
+            return None
+        ds = YOLODataset(project_dir=pdir, classes=[])
+        ds.init_project()
+        st.session_state["project_name"] = safe_name
+        st.rerun()
+
+    # Delete all projects
+    if projects:
+        st.divider()
+        # Inject red styling for the next button
+        st.markdown(
+            "<style>#delete-all-section button { "
+            "background-color: #E74C3C !important; "
+            "border-color: #C0392B !important; color: white !important; }"
+            "</style>"
+            "<div id='delete-all-section'>",
+            unsafe_allow_html=True,
+        )
+        if st.button("Delete All Projects", key="delete_all_projects"):
+            st.session_state["_confirm_delete_all"] = True
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        if st.session_state.get("_confirm_delete_all"):
+            st.error("This will permanently delete **all** projects and their data.")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("Yes, delete all", type="primary", key="confirm_delete_all"):
+                    _delete_all_projects()
+            with c2:
+                if st.button("Cancel", key="cancel_delete_all"):
+                    st.session_state.pop("_confirm_delete_all", None)
+                    st.rerun()
+
+    return None
+
+
+def _ensure_project(project_name: str) -> Path:
+    """Ensure the project directory exists and return its path."""
+    pdir = PROJECTS_ROOT / project_name
     if not (pdir / "project.json").exists():
         ds = YOLODataset(project_dir=pdir, classes=[])
         ds.init_project()
@@ -1492,10 +1595,23 @@ def _model_picker(args: argparse.Namespace, pdir: Path) -> None:
 def main() -> None:
     st.set_page_config(page_title="pyZM: Customize your own ML model", layout="wide")
     _inject_css()
-    _setup_log_capture()
 
     args = _parse_app_args()
-    pdir = _ensure_workspace(args)
+
+    # --- Project selection ---
+    # If --workspace-dir is passed, skip project selector (backward compat)
+    if args.workspace_dir:
+        pdir = Path(args.workspace_dir)
+        if not (pdir / "project.json").exists():
+            ds = YOLODataset(project_dir=pdir, classes=[])
+            ds.init_project()
+        st.session_state["project_name"] = pdir.name
+    elif not st.session_state.get("project_name"):
+        _project_selector()
+        return
+    else:
+        pdir = _ensure_project(st.session_state["project_name"])
+
     st.session_state["workspace_dir"] = str(pdir)
     ds = YOLODataset.load(pdir)
     store = VerificationStore(pdir)
@@ -1509,7 +1625,7 @@ def main() -> None:
             if meta.get("base_model"):
                 st.session_state["base_model"] = meta["base_model"]
         if not st.session_state.get("base_model"):
-            _sidebar(args, None, None)
+            _sidebar(None, None)
             _model_picker(args, pdir)
             return
 
@@ -1524,15 +1640,18 @@ def main() -> None:
     _seed_from_legacy_labels(ds, store)
 
     # Sidebar controls everything
-    phase = _sidebar(args, ds, store)
+    phase = _sidebar(ds, store)
+
+    # Map stale "upload" phase to "select" (phase was removed)
+    if phase == "upload":
+        phase = "select"
+        st.session_state["active_phase"] = "select"
 
     # Render active phase
     if phase == "select":
         _phase_select(ds, store, args)
     elif phase == "review":
         _phase_review(ds, store)
-    elif phase == "upload":
-        _phase_upload(ds, store, args)
     elif phase == "train":
         _phase_train(ds, store, args)
 

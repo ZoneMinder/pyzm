@@ -28,14 +28,6 @@ from pyzm.train.verification import (
 
 logger = logging.getLogger("pyzm.train")
 
-_TIME_PRESETS = {
-    "Last hour": timedelta(hours=1),
-    "Last 6 hours": timedelta(hours=6),
-    "Last 24 hours": timedelta(hours=24),
-    "Last 3 days": timedelta(days=3),
-    "Last 7 days": timedelta(days=7),
-}
-
 _EVENT_THUMB_WIDTH = 640
 _FRAME_THUMB_WIDTH = 640
 
@@ -374,15 +366,15 @@ def _zm_monitor_picker(monitors) -> int | None:
 # ------------------------------------------------------------------
 
 def _zm_event_grid(zm, monitor_id: int) -> None:
-    """Time filter + fetch + thumbnail grid of events."""
-    col_time, col_alarm, col_fetch = st.columns([2, 1, 1])
-    with col_time:
-        time_preset = st.selectbox(
-            "Time range",
-            options=list(_TIME_PRESETS.keys()),
-            index=2,
-            key="zm_time_preset",
-        )
+    """Date filter + fetch + thumbnail grid of events."""
+    today = datetime.now().date()
+    default_from = today - timedelta(days=7)
+
+    col_from, col_to, col_alarm, col_fetch = st.columns([2, 2, 1, 1])
+    with col_from:
+        date_from = st.date_input("From", value=default_from, key="zm_date_from")
+    with col_to:
+        date_to = st.date_input("To", value=today, key="zm_date_to")
     with col_alarm:
         min_alarm = st.number_input(
             "Min alarm frames", min_value=0, value=1, step=1, key="zm_min_alarm",
@@ -392,13 +384,13 @@ def _zm_event_grid(zm, monitor_id: int) -> None:
         fetch_clicked = st.button("Fetch Events", type="primary")
 
     if fetch_clicked:
-        delta = _TIME_PRESETS[time_preset]
-        since_dt = datetime.now() - delta
-        since_str = since_dt.strftime("%Y-%m-%d %H:%M:%S")
+        since_str = datetime.combine(date_from, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+        until_str = datetime.combine(date_to, datetime.max.time()).strftime("%Y-%m-%d %H:%M:%S")
         try:
             events = zm.events(
                 monitor_id=monitor_id,
                 since=since_str,
+                until=until_str,
                 min_alarm_frames=min_alarm if min_alarm > 0 else None,
                 limit=50,
             )
