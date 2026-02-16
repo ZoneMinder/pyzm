@@ -99,6 +99,7 @@ html_theme_options = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+html_logo = '_static/pyzm.png'
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -171,7 +172,16 @@ texinfo_documents = [
 
 
 autodoc_mock_imports = [
-    'cv2', 'sklearn', 'face_recognition', 'pycoral', 'dlib', 'scikit_learn',
+    # ML / vision
+    'cv2', 'numpy', 'PIL', 'onnx', 'sklearn', 'scikit_learn',
+    'face_recognition', 'pycoral', 'dlib', 'imutils',
+    # Serve
     'fastapi', 'uvicorn', 'jwt', 'starlette',
+    # Train UI
+    'ultralytics', 'streamlit', 'streamlit_drawable_canvas', 'st_clickable_images',
+    # Core runtime
+    'requests', 'dateparser', 'websocket', 'progressbar',
+    'portalocker', 'psutil', 'yaml', 'pydantic', 'dotenv',
+    'mysql', 'shapely',
 ]
 
