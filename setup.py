@@ -28,7 +28,8 @@ INSTALL_REQUIRES=[
     'psutil >=5.7.3',
     'python-dotenv',
     'onnx>=1.12.0',
-    'pydantic>=2.0.0'
+    'pydantic>=2.0.0',
+    'PyYAML>=5.0',
     ]
 
 
@@ -78,6 +79,7 @@ setup(name = NAME,
               'ultralytics>=8.3',
               'streamlit>=1.38',
               'streamlit-drawable-canvas>=0.9',
+              'st-clickable-images>=0.0.3',
           ],
       },
       py_modules = [
@@ -124,10 +126,14 @@ setup(name = NAME,
 
                     # Train (YOLO fine-tuning UI)
                     'pyzm.train',
+                    'pyzm.train.__main__',
                     'pyzm.train.app',
                     'pyzm.train.trainer',
                     'pyzm.train.dataset',
                     'pyzm.train.auto_label',
+                    'pyzm.train.verification',
+                    'pyzm.train.zm_browser',
+                    'pyzm.train.local_import',
 
                     # Low-level ML implementations (wrapped by v2 backends)
                     'pyzm.ml.alpr',

@@ -173,5 +173,6 @@ texinfo_documents = [
 autodoc_mock_imports = [
     'cv2', 'sklearn', 'face_recognition', 'pycoral', 'dlib', 'scikit_learn',
     'fastapi', 'uvicorn', 'jwt', 'starlette',
+    'ultralytics', 'streamlit', 'streamlit_drawable_canvas', 'st_clickable_images',
 ]
 

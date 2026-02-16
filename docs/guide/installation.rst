@@ -20,15 +20,45 @@ Requirements
 Installing from PyPI
 --------------------
 
+**Core library** (API client, ML detection, logging):
+
 .. code-block:: bash
 
    pip install --break-system-packages pyzm
 
-To include the remote ML detection server (FastAPI-based):
+**With the remote ML detection server** (adds FastAPI, Uvicorn):
 
 .. code-block:: bash
 
-   pip install --break-system-packages pyzm[serve]
+   pip install --break-system-packages "pyzm[serve]"
+
+**With the model fine-tuning UI** (adds Ultralytics, Streamlit):
+
+.. code-block:: bash
+
+   pip install --break-system-packages "pyzm[train]"
+
+**Everything** (core + serve + train):
+
+.. code-block:: bash
+
+   pip install --break-system-packages "pyzm[serve,train]"
+
+What each extra installs
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 85
+
+   * - Extra
+     - Additional packages
+   * - *(core)*
+     - requests, pydantic, numpy, Pillow, PyYAML, onnx, and others
+   * - ``[serve]``
+     - fastapi, uvicorn, python-multipart, PyJWT
+   * - ``[train]``
+     - ultralytics, streamlit, streamlit-drawable-canvas, st-clickable-images
 
 Installing from GitHub
 -----------------------
@@ -37,7 +67,13 @@ To install the latest development version directly from GitHub:
 
 .. code-block:: bash
 
-   pip install --break-system-packages git+https://github.com/pliablepixels/pyzm.git
+   pip install --break-system-packages "git+https://github.com/pliablepixels/pyzm.git"
+
+With extras:
+
+.. code-block:: bash
+
+   pip install --break-system-packages "pyzm[train] @ git+https://github.com/pliablepixels/pyzm.git"
 
 Optional dependencies
 ---------------------
@@ -58,3 +94,9 @@ Verifying the installation
 .. code-block:: bash
 
    python -c "import pyzm; print(pyzm.__version__)"
+
+To verify the training UI is available:
+
+.. code-block:: bash
+
+   python -c "from pyzm.train import check_dependencies; check_dependencies(); print('OK')"

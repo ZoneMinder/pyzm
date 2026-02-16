@@ -36,6 +36,11 @@ def check_dependencies() -> None:
     except ImportError:
         missing.append("streamlit-drawable-canvas>=0.9")
 
+    try:
+        import st_clickable_images  # noqa: F401
+    except ImportError:
+        missing.append("st-clickable-images>=0.0.3")
+
     if missing:
         raise ImportError(
             "pyzm.train requires extra dependencies. Install with:\n\n"

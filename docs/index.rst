@@ -8,6 +8,7 @@ It provides:
 - A typed client for the ZoneMinder REST API (monitors, events, states)
 - An ML detection pipeline supporting YOLO, Coral EdgeTPU, face recognition, and ALPR
 - A remote ML detection server (``pyzm.serve``) for offloading GPU work
+- A web UI for fine-tuning YOLO models on your own data (``pyzm.train``)
 - Pydantic v2 configuration models and typed detection results
 
 `Source on GitHub <https://github.com/pliablepixels/pyzm>`__
@@ -64,6 +65,7 @@ Quick example
    guide/migration
    guide/detection
    guide/serve
+   guide/training
    guide/testing
 
 .. toctree::
