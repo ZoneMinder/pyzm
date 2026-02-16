@@ -60,6 +60,29 @@ What each extra installs
    * - ``[train]``
      - ultralytics, streamlit, streamlit-drawable-canvas, st-clickable-images
 
+.. note::
+
+   The ``[train]`` extra pulls in ``ultralytics``, which installs its own
+   ``opencv-python`` from PyPI. If you need GPU-accelerated or Apple Silicon
+   OpenCV (e.g. built from source with CUDA or Metal support), install the
+   training extras first, then remove the pip OpenCV and install your custom
+   build:
+
+   .. code-block:: bash
+
+      pip install --break-system-packages "pyzm[train]"
+      pip uninstall opencv-python opencv-python-headless
+      # Now build/install OpenCV from source — see below
+
+Building OpenCV from source
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The pip ``opencv-python`` package is CPU-only. For GPU-accelerated inference
+you need to build OpenCV from source:
+
+- `Apple Silicon (macOS) <https://gist.github.com/pliablepixels/d0605aab085592e1d3b6bb9033bdc835>`_
+- `Ubuntu 24.04 with CUDA <https://gist.github.com/pliablepixels/73d61e28060c8d418f9fcfb1e912e425>`_
+
 Installing from GitHub
 -----------------------
 

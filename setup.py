@@ -77,7 +77,7 @@ setup(name = NAME,
           ],
           'train': [
               'ultralytics>=8.3',
-              'streamlit>=1.38',
+              'streamlit>=1.41',
               'streamlit-drawable-canvas>=0.9',
               'st-clickable-images>=0.0.3',
           ],

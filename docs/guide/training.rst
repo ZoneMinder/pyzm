@@ -21,6 +21,18 @@ Installation
 This installs Ultralytics (YOLO), Streamlit, and the canvas/image components
 used by the UI.
 
+.. note::
+
+   Ultralytics pulls in ``opencv-python`` from PyPI, which will shadow any
+   custom OpenCV build (e.g. from source with CUDA or Apple Silicon support).
+   If you need a custom OpenCV, install the training extras first, then
+   replace the pip version:
+
+   .. code-block:: bash
+
+      pip uninstall opencv-python opencv-python-headless
+      # Then build/install OpenCV from source
+
 Launching the UI
 ----------------
 

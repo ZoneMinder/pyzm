@@ -30,6 +30,63 @@ logger = logging.getLogger("pyzm.train")
 _IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
+def _folder_picker(session_key: str, label: str = "Browse") -> None:
+    """Inline folder navigator with cascading selectboxes."""
+    nav_key = f"_nav_{session_key}"
+
+    # Sync: if the user typed a valid directory in the text input, start there
+    typed = st.session_state.get(session_key, "").strip()
+    if typed and Path(typed).is_dir():
+        st.session_state[nav_key] = typed
+    elif nav_key not in st.session_state:
+        st.session_state[nav_key] = str(Path.home())
+
+    def _list_dirs(path: Path) -> list[str]:
+        try:
+            return sorted(
+                p.name for p in path.iterdir()
+                if p.is_dir() and not p.name.startswith(".")
+            )
+        except PermissionError:
+            return []
+
+    current = Path(st.session_state[nav_key])
+
+    with st.expander(label, expanded=False):
+        st.caption(f"`{current}`")
+
+        col_sel, col_ok = st.columns([4, 1])
+
+        # Go up
+        with col_ok:
+            can_go_up = current != current.parent
+            if st.button(":material/drive_folder_upload:", key=f"{nav_key}_up", disabled=not can_go_up):
+                st.session_state[nav_key] = str(current.parent)
+                st.rerun()
+
+        # Subfolder dropdown
+        subdirs = _list_dirs(current)
+        if subdirs:
+            with col_sel:
+                picked = st.selectbox(
+                    "Enter subfolder",
+                    options=[""] + subdirs,
+                    format_func=lambda x: x or "-- select subfolder --",
+                    label_visibility="collapsed",
+                    key=f"{nav_key}_sub",
+                )
+                if picked:
+                    st.session_state[nav_key] = str(current / picked)
+                    st.session_state.pop(f"{nav_key}_sub", None)
+                    st.rerun()
+
+        def _select():
+            st.session_state[session_key] = st.session_state[nav_key]
+
+        st.button("Select", type="primary", key=f"{nav_key}_confirm",
+                  on_click=_select)
+
+
 def validate_yolo_folder(folder: Path) -> dict | str:
     """Validate a local YOLO dataset folder.
 
@@ -137,12 +194,18 @@ def _import_local_dataset(
     store: VerificationStore,
     splits: list[tuple[Path, Path]],
     names_map: dict[int, str],
+    max_images: int = 0,
 ) -> tuple[int, int]:
     """Import images and labels from one or more (images_dir, labels_dir) pairs.
 
     Annotations are written into the dataset at import time (no empty
     label files).  The original train/val split is preserved in
     ``split_map`` so that :meth:`YOLODataset.split` can honor it.
+
+    Parameters
+    ----------
+    max_images:
+        If > 0, import at most this many images (randomly sampled).
 
     Returns (image_count, detection_count).
     """
@@ -154,6 +217,10 @@ def _import_local_dataset(
 
     if not all_files:
         return 0, 0
+
+    if max_images > 0 and len(all_files) > max_images:
+        import random
+        all_files = random.sample(all_files, max_images)
 
     progress = st.progress(0, text="Importing local dataset...")
     img_count = 0
@@ -229,7 +296,9 @@ def local_dataset_panel(
             "Standard (images/ + labels/) and Roboflow-style split "
             "(train/images/ + train/labels/, etc.) layouts are supported."
         ),
+        key="_yolo_folder_path",
     )
+    _folder_picker("_yolo_folder_path", label="Browse for folder")
 
     if not folder_path or not folder_path.strip():
         st.info(
@@ -245,62 +314,45 @@ def local_dataset_panel(
 
     folder = Path(folder_path.strip())
 
-    col_validate, col_import = st.columns(2)
-    with col_validate:
-        validate_clicked = st.button("Validate", key="local_validate")
-
-    # Use session state to persist validation results across reruns
-    if validate_clicked:
-        result = validate_yolo_folder(folder)
-        if isinstance(result, str):
-            st.session_state["_local_validation"] = {"error": result}
-        else:
-            names_map = result["names"]
-            splits = result["_splits"]
-            image_count = 0
-            label_count = 0
-            for images_dir, labels_dir in splits:
-                imgs = _find_images(images_dir)
-                image_count += len(imgs)
-                label_count += sum(
-                    1 for img in imgs
-                    if _find_matching_label(img, images_dir, labels_dir) is not None
-                )
-            # Serialise splits as list of string pairs for session state
-            st.session_state["_local_validation"] = {
-                "folder": str(folder),
-                "names_map": names_map,
-                "splits": [(str(i), str(l)) for i, l in splits],
-                "image_count": image_count,
-                "label_count": label_count,
-            }
-
-    validation = st.session_state.get("_local_validation")
-    if not validation:
+    # Auto-validate as soon as a folder path is entered
+    result = validate_yolo_folder(folder)
+    if isinstance(result, str):
+        st.error(result)
         return
 
-    if "error" in validation:
-        st.error(validation["error"])
-        return
+    names_map = result["names"]
+    splits = result["_splits"]
+    image_count = 0
+    label_count = 0
+    for images_dir, labels_dir in splits:
+        imgs = _find_images(images_dir)
+        image_count += len(imgs)
+        label_count += sum(
+            1 for img in imgs
+            if _find_matching_label(img, images_dir, labels_dir) is not None
+        )
 
-    names_map = validation["names_map"]
     class_names = [names_map[k] for k in sorted(names_map)]
     st.success(
-        f"Valid YOLO dataset: **{validation['image_count']}** images, "
-        f"**{validation['label_count']}** label files, "
+        f"Valid YOLO dataset: **{image_count}** images, "
+        f"**{label_count}** label files, "
         f"**{len(class_names)}** classes"
     )
     st.caption(f"Classes: {', '.join(class_names)}")
 
-    with col_import:
-        import_clicked = st.button("Import", type="primary", key="local_import")
-
-    if import_clicked:
-        splits = [(Path(i), Path(l)) for i, l in validation["splits"]]
-        img_count, det_count = _import_local_dataset(
-            ds, store, splits, names_map,
+    limit_all = st.checkbox("Import all images", value=True, key="_local_import_all")
+    max_images = 0
+    if not limit_all:
+        max_images = st.number_input(
+            "Max images to import",
+            min_value=1, max_value=image_count, value=min(100, image_count), step=10,
+            key="_local_max_images",
         )
-        st.session_state.pop("_local_validation", None)
+
+    if st.button("Import", type="primary", key="local_import"):
+        img_count, det_count = _import_local_dataset(
+            ds, store, splits, names_map, max_images=max_images,
+        )
         st.toast(f"Imported {img_count} images with {det_count} annotations")
         st.rerun()
 
@@ -313,6 +365,7 @@ def _import_raw_images(
     ds: YOLODataset,
     store: VerificationStore,
     folder: Path,
+    max_images: int = 0,
 ) -> int:
     """Import unannotated images from *folder*.
 
@@ -322,6 +375,10 @@ def _import_raw_images(
     all_images = _find_images(folder)
     if not all_images:
         return 0
+
+    if max_images > 0 and len(all_images) > max_images:
+        import random
+        all_images = random.sample(all_images, max_images)
 
     progress = st.progress(0, text="Importing raw images...")
     img_count = 0
@@ -369,8 +426,9 @@ def raw_images_panel(
             "Path to image folder",
             placeholder="/path/to/my_images",
             help="Folder containing image files (.jpg, .jpeg, .png, .bmp, .webp).",
-            key="raw_folder_path",
+            key="_raw_folder_path",
         )
+        _folder_picker("_raw_folder_path", label="Browse for folder")
 
         if not folder_path or not folder_path.strip():
             st.info(
@@ -401,11 +459,21 @@ def raw_images_panel(
                 elif scan["count"] == 0:
                     st.warning(f"No image files found in `{scan['folder']}`.")
                 else:
-                    st.success(f"Found **{scan['count']}** images in `{scan['folder']}`.")
+                    total = scan["count"]
+                    st.success(f"Found **{total}** images in `{scan['folder']}`.")
+                    limit_all = st.checkbox("Import all images", value=True, key="_raw_import_all")
+                    raw_max = 0
+                    if not limit_all:
+                        raw_max = st.number_input(
+                            "Max images to import",
+                            min_value=1, max_value=total, value=min(100, total), step=10,
+                            key="_raw_max_images",
+                        )
                     with col_import:
                         if st.button("Import", type="primary", key="raw_import"):
                             img_count = _import_raw_images(
                                 ds, store, Path(scan["folder"]),
+                                max_images=raw_max,
                             )
                             st.session_state.pop(scan_key, None)
                             st.toast(f"Imported {img_count} images")

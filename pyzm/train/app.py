@@ -17,6 +17,7 @@ import argparse
 import base64
 import json
 import logging
+import sys
 import tempfile
 import threading
 from io import BytesIO
@@ -61,6 +62,7 @@ logger = logging.getLogger("pyzm.train")
 DEFAULT_BASE_PATH = "/var/lib/zmeventnotification/models"
 PROJECTS_ROOT = Path.home() / ".pyzm" / "training"
 MIN_IMAGES_PER_CLASS = 10
+_LOGO_PATH = Path(__file__).resolve().parents[2] / "logo" / "pyzm_train.png"
 
 _COLOR_PALETTE = [
     "#27AE60", "#8E44AD", "#0081FE", "#FE3C71",
@@ -90,7 +92,6 @@ def _inject_css() -> None:
     section[data-testid="stSidebar"] .stButton > button {
         text-align: left; width: 100%; font-size: 0.85em; padding: 0.3rem 0.5rem;
     }
-    h1, h2, h3 { font-size: 1.1em !important; margin-bottom: 0.3rem !important; }
     .stCaption { font-size: 0.78em !important; }
     .stCheckbox label, .stRadio label { font-size: 0.85em; }
     /* Hide Streamlit chrome but keep sidebar toggle */
@@ -108,7 +109,35 @@ def _inject_css() -> None:
     [data-testid="stElementToolbar"] {
         display: none !important;
     }
+    /* Section headers */
+    .pyzm-section-header {
+        display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.5rem 0.75rem; margin: 0.75rem 0 0.5rem 0;
+        border-left: 4px solid #4A90D9; background: rgba(74,144,217,0.08);
+        border-radius: 0 0.4rem 0.4rem 0;
+    }
+    .pyzm-section-header h3 {
+        margin: 0 !important; font-size: 1.1rem !important; font-weight: 600;
+    }
+    /* Project cards */
+    .pyzm-project-card {
+        padding: 0.2rem 0; margin: 0;
+    }
+    .pyzm-project-card .proj-name {
+        font-size: 0.95rem; font-weight: 600; margin: 0;
+    }
+    .pyzm-project-card .meta { color: #94A3B8; font-size: 0.8rem; }
     </style>""", unsafe_allow_html=True)
+
+
+def _section_header(icon: str, title: str) -> None:
+    """Render a styled section header with a material icon."""
+    st.markdown(
+        f'<div class="pyzm-section-header">'
+        f'<span style="font-size:1.3rem;">{icon}</span>'
+        f'<h3>{title}</h3></div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ===================================================================
@@ -488,10 +517,7 @@ def _upload_panel(
 def _sidebar(ds: YOLODataset | None, store: VerificationStore | None) -> str:
     """Render sidebar. Returns the active phase key."""
     with st.sidebar:
-        st.markdown(
-            "<div style='font-size:0.9em; font-weight:700; margin-bottom:0.5rem;'>pyZM Training</div>",
-            unsafe_allow_html=True,
-        )
+        st.image(str(_LOGO_PATH), width=120)
 
         # --- Phase navigation ---
         images = ds.staged_images() if ds else []
@@ -507,13 +533,13 @@ def _sidebar(ds: YOLODataset | None, store: VerificationStore | None) -> str:
         current = st.session_state.get("active_phase", "select")
 
         phases = [
-            ("select",  "1. Select Images",          has_images),
-            ("review",  "2. Review Detections",      all_reviewed),
-            ("train",   "3. Train & Export",         train_done),
+            ("select",  ":material/add_photo_alternate: Select Images",  has_images),
+            ("review",  ":material/rate_review: Review Detections",      all_reviewed),
+            ("train",   ":material/model_training: Train & Export",      train_done),
         ]
         for key, label, done in phases:
-            prefix = "-> " if key == current else "   "
-            check = " \u2713" if done else ""
+            prefix = "▸ " if key == current else "  "
+            check = " ✓" if done else ""
             btn_label = f"{prefix}{label}{check}"
             if st.button(btn_label, key=f"phase_{key}", width="stretch"):
                 st.session_state["active_phase"] = key
@@ -523,6 +549,7 @@ def _sidebar(ds: YOLODataset | None, store: VerificationStore | None) -> str:
         # --- Review progress (during review phase) ---
         if current == "review" and images and store:
             st.divider()
+            st.markdown(":material/checklist: **Review Progress**")
             _sidebar_review_summary(store, len(images))
 
         # --- Class coverage ---
@@ -530,10 +557,7 @@ def _sidebar(ds: YOLODataset | None, store: VerificationStore | None) -> str:
             classes = store.build_class_list()
             if classes:
                 st.divider()
-                st.markdown(
-                    "<div style='font-size:0.8em; font-weight:bold;'>Class Coverage</div>",
-                    unsafe_allow_html=True,
-                )
+                st.markdown(":material/category: **Class Coverage**")
                 counts = store.per_class_image_counts(classes)
                 for cls in classes:
                     count = counts.get(cls, 0)
@@ -546,13 +570,13 @@ def _sidebar(ds: YOLODataset | None, store: VerificationStore | None) -> str:
         st.divider()
         project_name = st.session_state.get("project_name", "")
         if project_name:
-            st.caption(f"Project: **{project_name}**")
+            st.markdown(f":material/folder_open: **{project_name}**")
             st.caption(f"`{PROJECTS_ROOT / project_name}`")
-        if st.button("Switch Project", key="switch_project"):
+        if st.button(":material/swap_horiz: Switch Project", key="switch_project"):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
-        if st.button("Reset Project", key="reset_workspace"):
+        if st.button(":material/restart_alt: Reset Project", key="reset_workspace"):
             st.session_state["_confirm_reset"] = True
             st.rerun()
         if st.session_state.get("_confirm_reset"):
@@ -573,10 +597,6 @@ def _sidebar_review_summary(store: VerificationStore, total: int) -> None:
     """Review progress summary in the sidebar."""
     reviewed = store.reviewed_images_count()
     unapproved = total - reviewed
-    st.markdown(
-        "<div style='font-size:0.8em; font-weight:bold;'>Review Progress</div>",
-        unsafe_allow_html=True,
-    )
     st.caption(f"Approved: {reviewed} / {total}")
     if unapproved > 0:
         st.caption(f"Unapproved: {unapproved}")
@@ -590,7 +610,7 @@ def _sidebar_review_summary(store: VerificationStore, total: int) -> None:
 # ===================================================================
 
 def _phase_select(ds: YOLODataset, store: VerificationStore, args: argparse.Namespace) -> None:
-    st.markdown("### Select Images")
+    _section_header("&#x1F4F7;", "Select Images")
 
     # Show banner when classes need more training images
     needs = store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS)
@@ -625,7 +645,7 @@ def _phase_select(ds: YOLODataset, store: VerificationStore, args: argparse.Name
     if images:
         st.divider()
         st.success(f"{len(images)} image{'s' if len(images) != 1 else ''} imported. Ready for review.")
-        if st.button("Go to Review", type="primary"):
+        if st.button(":material/rate_review: Go to Review", type="primary"):
             st.session_state["active_phase"] = "review"
             st.session_state.pop("_auto_label", None)
             st.rerun()
@@ -651,7 +671,7 @@ def _phase_review(ds: YOLODataset, store: VerificationStore, args: argparse.Name
         st.info("No images yet. Go to **Select Images** to add some.")
         return
 
-    st.markdown("### Review Detections")
+    _section_header("&#x1F50D;", "Review Detections")
 
     # Persistent auto-detect toggle (saved in project.json)
     auto_detect_default = bool(ds.get_setting("auto_detect", True))
@@ -711,7 +731,7 @@ def _phase_review(ds: YOLODataset, store: VerificationStore, args: argparse.Name
                 st.rerun()
         else:
             st.success("All images reviewed!")
-            if st.button("Continue to Train & Export", type="primary",
+            if st.button(":material/model_training: Continue to Train & Export", type="primary",
                          key="grid_go_train"):
                 st.session_state["active_phase"] = "train"
                 st.rerun()
@@ -986,7 +1006,7 @@ def _review_expanded(
                 st.rerun()
         else:
             st.success("All images reviewed! Ready to train.")
-            if st.button("Continue to Train", type="primary",
+            if st.button(":material/model_training: Continue to Train", type="primary",
                          key="review_go_train"):
                 st.session_state["active_phase"] = "train"
                 st.session_state.pop("_review_expanded_idx", None)
@@ -1292,7 +1312,7 @@ def _detection_list(
 # ===================================================================
 
 def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Namespace) -> None:
-    st.markdown("### Train")
+    _section_header("&#x1F3AF;", "Train & Export")
     pdir = st.session_state.get("workspace_dir")
     base_model = st.session_state.get("base_model", "yolo11s")
     if not pdir:
@@ -1338,7 +1358,13 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
 
     if not shared.get("active", False):
         all_ready = not needs
-        if st.button("Start Training", type="primary", disabled=not all_ready):
+        st.info(
+            f"This fine-tuned model will **only** detect the following "
+            f"{len(classes)} object(s): **{', '.join(classes)}**. "
+            f"It will not retain the base model's original classes. "
+            f"To detect other objects, run the base model alongside this one."
+        )
+        if st.button(":material/rocket_launch: Start Training", type="primary", disabled=not all_ready):
             class_name_to_id = {c: i for i, c in enumerate(classes)}
             ds.set_classes(classes)
             yaml_path = ds.generate_yaml()
@@ -1356,6 +1382,9 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
                 "result": None,
                 "log": [],
             }
+            import time as _time
+            shared["start_time"] = _time.time()
+            shared["image_count"] = len(images)
             st.session_state["_train_shared"] = shared
             st.session_state["trainer"] = trainer
             st.session_state["classes"] = classes
@@ -1383,11 +1412,15 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
                                 message=f"Writing annotations {i + 1}/{n}",
                             )
 
-                _s["progress"] = TrainProgress(
-                    total_epochs=epochs,
-                    message="Splitting into train/val...",
-                )
-                ds.split()
+                # Re-split only if annotations changed or no split exists yet
+                split_map = ds.get_setting("split_map") or {}
+                has_split = ds._train_images.exists() and any(ds._train_images.iterdir())
+                if need_rewrite or not has_split:
+                    _s["progress"] = TrainProgress(
+                        total_epochs=epochs,
+                        message="Splitting into train/val...",
+                    )
+                    ds.split()
 
                 _s["progress"] = TrainProgress(
                     total_epochs=epochs, message="Loading model...",
@@ -1397,7 +1430,7 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
                 def _cb(p: TrainProgress) -> None:
                     _s["progress"] = p
 
-                # Capture ultralytics logger output
+                # Capture all output (logging + stdout/stderr)
                 class _TrainLogHandler(logging.Handler):
                     def emit(self, record: logging.LogRecord) -> None:
                         log = _s["log"]
@@ -1405,11 +1438,30 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
                         if len(log) > 200:
                             del log[:-200]
 
+                class _StreamCapture:
+                    """Tee writes to the original stream and the shared log."""
+                    def __init__(self, original):
+                        self._original = original
+                    def write(self, text):
+                        self._original.write(text)
+                        if text.strip():
+                            log = _s["log"]
+                            log.append(text.rstrip())
+                            if len(log) > 200:
+                                del log[:-200]
+                    def flush(self):
+                        self._original.flush()
+                    def __getattr__(self, name):
+                        return getattr(self._original, name)
+
                 handler = _TrainLogHandler()
                 handler.setFormatter(logging.Formatter("%(message)s"))
                 ul_logger = logging.getLogger("ultralytics")
                 ul_logger.addHandler(handler)
                 ul_logger.setLevel(logging.INFO)
+                old_stdout, old_stderr = sys.stdout, sys.stderr
+                sys.stdout = _StreamCapture(old_stdout)
+                sys.stderr = _StreamCapture(old_stderr)
                 try:
                     r = trainer.train(
                         dataset_yaml=yaml_path, epochs=epochs,
@@ -1419,6 +1471,7 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
                 except Exception as exc:
                     _s["progress"] = TrainProgress(finished=True, error=str(exc))
                 finally:
+                    sys.stdout, sys.stderr = old_stdout, old_stderr
                     ul_logger.removeHandler(handler)
                     _s["active"] = False
 
@@ -1430,13 +1483,28 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
             pct = max(0.0, min(1.0, p.epoch / p.total_epochs))
             st.progress(pct, text=p.message or f"Epoch {p.epoch}/{p.total_epochs}")
 
+        import time as _time
+        start = shared.get("start_time")
+        if start:
+            elapsed = _time.time() - start
+            mins, secs = divmod(int(elapsed), 60)
+            hrs, mins = divmod(mins, 60)
+            elapsed_str = f"{hrs}:{mins:02d}:{secs:02d}" if hrs else f"{mins}:{secs:02d}"
+        else:
+            elapsed_str = "0:00"
+        img_count = shared.get("image_count", 0)
+
+        t1, t2 = st.columns(2)
+        t1.markdown(f":material/timer: **Elapsed Time:** {elapsed_str}")
+        t2.markdown(f":material/image: **Training Images:** {img_count}")
+
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Epoch", f"{p.epoch}/{p.total_epochs}")
         m2.metric("Box Loss", f"{p.box_loss:.4f}")
         m3.metric("Cls Loss", f"{p.cls_loss:.4f}")
         m4.metric("mAP50", f"{p.mAP50:.3f}")
 
-        if st.button("Stop"):
+        if st.button(":material/stop_circle: Stop Training"):
             trainer = st.session_state.get("trainer")
             if trainer:
                 trainer.request_stop()
@@ -1456,7 +1524,15 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
     # Results + Export
     result: TrainResult | None = shared.get("result")
     if result:
-        st.divider()
+        st.markdown(
+            '<div style="background:#1B5E20;padding:0.8rem 1rem;'
+            'border-radius:0.5rem;margin:1rem 0;">'
+            '<h2 style="color:white;text-align:center;margin:0;">'
+            '&#x2705; Training Complete</h2></div>',
+            unsafe_allow_html=True,
+        )
+        st.balloons()
+
         r1, r2, r3, r4 = st.columns(4)
         r1.metric("mAP50", f"{result.final_mAP50:.3f}")
         r2.metric("mAP50-95", f"{result.final_mAP50_95:.3f}")
@@ -1468,7 +1544,7 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
             if result.best_epoch > 0
             else f"{result.total_epochs} epochs"
         )
-        st.caption(f"Best model from: **{best_ep_label}**")
+        st.caption(f":material/star: Best model from: **{best_ep_label}**")
 
         if result.per_class:
             import pandas as pd
@@ -1497,7 +1573,7 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
 
 def _training_analysis(result: TrainResult, train_dir: Path) -> None:
     """Show interpretive guidance and diagnostic images after training."""
-    st.markdown("#### Training Analysis")
+    _section_header("&#x1F4CA;", "Training Analysis")
 
     # -- (a) Interpretive guidance --
     mAP = result.final_mAP50
@@ -1601,7 +1677,7 @@ def _training_analysis(result: TrainResult, train_dir: Path) -> None:
 
 
 def _phase_export(args: argparse.Namespace) -> None:
-    st.markdown("#### Export")
+    _section_header("&#x1F4E6;", "Export Model")
     pdir = st.session_state.get("workspace_dir")
     classes = st.session_state.get("classes", [])
     base_model = st.session_state.get("base_model", "yolo11s")
@@ -1612,6 +1688,18 @@ def _phase_export(args: argparse.Namespace) -> None:
     if not best_pt.exists():
         return
 
+    st.info(
+        f"This fine-tuned model only detects: **{', '.join(classes)}**. "
+        f"To also detect standard objects (person, car, etc.), add both models "
+        f"to your `objectconfig.yml` and use `same_model_sequence_strategy: union` "
+        f"to merge results:\n"
+        f"```yaml\n"
+        f"same_model_sequence_strategy: union\n"
+        f"```\n"
+        f"Then list your base model and this fine-tuned model as separate entries "
+        f"under the `object` sequence."
+    )
+
     suggested_name = f"{base_model}_finetune.onnx"
     export_path = st.text_input(
         "Export ONNX to",
@@ -1620,7 +1708,7 @@ def _phase_export(args: argparse.Namespace) -> None:
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Export ONNX", type="primary"):
+        if st.button(":material/download: Export ONNX", type="primary"):
             trainer = YOLOTrainer(base_model=base_model, project_dir=Path(pdir))
             with st.spinner("Exporting..."):
                 try:
@@ -1756,33 +1844,74 @@ def _delete_all_projects() -> None:
 
 def _project_selector() -> Path | None:
     """Show project selection screen. Returns project dir or None."""
-    st.markdown("### Projects")
+    # Hero banner
+    col_logo, col_title = st.columns([1, 4])
+    with col_logo:
+        st.image(str(_LOGO_PATH), width=150)
+    with col_title:
+        st.markdown(
+            '<div style="padding:0.5rem 0;">'
+            '<h1 style="margin:0 0 0.25rem 0;font-size:2rem;">'
+            'PyZM Training Studio</h1>'
+            '<p style="color:#94A3B8;margin:0;font-size:0.95rem;">'
+            'Fine-tune YOLO models on your own data</p></div>',
+            unsafe_allow_html=True,
+        )
+    st.divider()
 
     projects = _list_projects()
 
     if projects:
-        st.markdown("**Resume an existing project:**")
+        st.markdown(":material/folder_open: **Your Projects**")
         for proj in projects:
-            col_name, col_info, col_btn = st.columns([3, 3, 1])
-            with col_name:
-                st.markdown(f"**{proj['name']}**")
-            with col_info:
-                parts = []
-                if proj["image_count"]:
-                    parts.append(f"{proj['image_count']} images")
-                if proj["base_model"]:
-                    parts.append(f"model: {proj['base_model']}")
-                if proj["classes"]:
-                    parts.append(f"{len(proj['classes'])} classes")
-                st.caption(", ".join(parts) if parts else "empty")
-            with col_btn:
-                if st.button("Open", key=f"open_{proj['name']}", width="stretch"):
+            parts = []
+            if proj["image_count"]:
+                parts.append(f"&#x1F5BC; {proj['image_count']} images")
+            if proj["base_model"]:
+                parts.append(f"&#x1F916; {proj['base_model']}")
+            if proj["classes"]:
+                parts.append(f"&#x1F3F7; {len(proj['classes'])} classes")
+            meta_str = " &nbsp;&middot;&nbsp; ".join(parts) if parts else "Empty project"
+
+            col_card, col_open, col_del = st.columns([6, 1, 0.5])
+            with col_card:
+                st.markdown(
+                    f'<div class="pyzm-project-card">'
+                    f'<div class="proj-name">&#x1F4C1; {proj["name"]}</div>'
+                    f'<span class="meta">{meta_str}</span></div>',
+                    unsafe_allow_html=True,
+                )
+            with col_open:
+                if st.button(":material/open_in_new: Open", key=f"open_{proj['name']}"):
                     st.session_state["project_name"] = proj["name"]
                     st.rerun()
+            with col_del:
+                if st.button(":material/delete:", key=f"del_{proj['name']}"):
+                    st.session_state["_confirm_delete"] = proj["name"]
+                    st.rerun()
+
+        # Confirmation dialog for delete
+        confirm_name = st.session_state.get("_confirm_delete")
+        if confirm_name:
+            @st.dialog("Delete project?")
+            def _confirm_delete():
+                st.warning(f"This will permanently delete **{confirm_name}** and all its data.")
+                col_yes, col_no = st.columns(2)
+                with col_yes:
+                    if st.button("Delete", type="primary", key="_confirm_del_yes"):
+                        import shutil
+                        shutil.rmtree(PROJECTS_ROOT / confirm_name, ignore_errors=True)
+                        st.session_state.pop("_confirm_delete", None)
+                        st.rerun()
+                with col_no:
+                    if st.button("Cancel", key="_confirm_del_no"):
+                        st.session_state.pop("_confirm_delete", None)
+                        st.rerun()
+            _confirm_delete()
 
         st.divider()
 
-    st.markdown("**Create a new project:**")
+    st.markdown(":material/add_circle: **Create New Project**")
     col_input, col_create = st.columns([3, 1])
     with col_input:
         new_name = st.text_input(
@@ -1791,7 +1920,7 @@ def _project_selector() -> Path | None:
             label_visibility="collapsed",
         )
     with col_create:
-        create_clicked = st.button("Create", type="primary", width="stretch")
+        create_clicked = st.button(":material/rocket_launch: Create", type="primary", width="stretch")
 
     if create_clicked:
         name = (new_name or "").strip()
@@ -1850,8 +1979,8 @@ def _ensure_project(project_name: str) -> Path:
 
 def _model_picker(args: argparse.Namespace, pdir: Path) -> None:
     """Show model selection UI. Saves choice and moves to browse phase."""
-    st.markdown("### Select Base Model")
-    st.caption("Choose the model to fine-tune.")
+    _section_header("&#x1F916;", "Select Base Model")
+    st.caption("Choose the YOLO model to fine-tune. Larger models are more accurate but slower to train.")
 
     available = _scan_models(args.base_path)
     model_names = [m["name"] for m in available]
@@ -1880,7 +2009,7 @@ def _model_picker(args: argparse.Namespace, pdir: Path) -> None:
     else:
         st.caption("Could not read classes from model metadata.")
 
-    if st.button("Start", type="primary"):
+    if st.button(":material/arrow_forward: Continue", type="primary"):
         meta_path = pdir / "project.json"
         meta = json.loads(meta_path.read_text())
         meta["base_model"] = base_model
@@ -1893,7 +2022,11 @@ def _model_picker(args: argparse.Namespace, pdir: Path) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="pyZM: Customize your own ML model", layout="wide")
+    st.set_page_config(
+        page_title="pyZM Training Studio",
+        page_icon=":material/model_training:",
+        layout="wide",
+    )
     _inject_css()
 
     args = _parse_app_args()

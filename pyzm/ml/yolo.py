@@ -212,7 +212,7 @@ class YoloBase(Base):
 
 def Yolo(options={}):
     """Factory function: returns YoloDarknet or YoloOnnx based on weights file extension."""
-    weights_path = options.get('object_weights', '')
+    weights_path = options.get('object_weights') or ''
     if weights_path.lower().endswith('.onnx'):
         from pyzm.ml.yolo_onnx import YoloOnnx
         return YoloOnnx(options)

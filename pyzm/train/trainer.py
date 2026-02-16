@@ -20,15 +20,17 @@ logger = logging.getLogger("pyzm.train")
 class HardwareInfo:
     """Detected hardware capabilities."""
 
-    device: str           # "cuda:0", "cpu"
-    gpu_name: str | None  # e.g. "NVIDIA GTX 1050 Ti"
+    device: str           # "cuda:0", "mps", "cpu"
+    gpu_name: str | None  # e.g. "NVIDIA GTX 1050 Ti", "Apple M2 Max"
     vram_gb: float        # 0.0 for CPU
     suggested_batch: int  # Based on VRAM
 
     @property
     def display(self) -> str:
         if self.gpu_name:
-            return f"GPU: {self.gpu_name} ({self.vram_gb:.1f}GB)"
+            if self.vram_gb > 0:
+                return f"GPU: {self.gpu_name} ({self.vram_gb:.1f}GB)"
+            return f"GPU: {self.gpu_name}"
         return "CPU"
 
 
@@ -119,6 +121,23 @@ class YOLOTrainer:
                     gpu_name=props.name,
                     vram_gb=vram_gb,
                     suggested_batch=suggested,
+                )
+
+            if torch.backends.mps.is_available():
+                # Apple Silicon – unified memory, no separate VRAM query
+                import subprocess, platform
+                try:
+                    chip = subprocess.check_output(
+                        ["sysctl", "-n", "machdep.cpu.brand_string"],
+                        text=True,
+                    ).strip()
+                except Exception:
+                    chip = platform.processor() or "Apple Silicon"
+                return HardwareInfo(
+                    device="mps",
+                    gpu_name=chip,
+                    vram_gb=0.0,
+                    suggested_batch=16,
                 )
         except (ImportError, Exception):
             pass
