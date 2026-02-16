@@ -32,6 +32,17 @@ Features
 - Remote ML detection server (`pyzm.serve`) — run models on a GPU box, detect from anywhere
 - [Amazon Rekognition support](https://medium.com/@michael-ludvig/aws-rekognition-support-for-zoneminder-object-detection-40b71f926a80) for object detection
 
+Training UI
+============
+
+pyzm includes a Streamlit-based UI for fine-tuning YOLO models on your own data:
+
+```bash
+streamlit run pyzm/train/app.py -- --base-path /var/lib/zmeventnotification/models
+```
+
+The `--base-path` flag points to your ZoneMinder models directory (defaults to `/var/lib/zmeventnotification/models`). Projects are stored in `~/.pyzm/training/`.
+
 Testing
 ========
 

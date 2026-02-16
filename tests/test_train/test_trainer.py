@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pyzm.train.trainer import HardwareInfo, TrainProgress, TrainResult, YOLOTrainer
+from pyzm.train.trainer import ClassMetrics, HardwareInfo, TrainProgress, TrainResult, YOLOTrainer
 
 
 # ---------------------------------------------------------------------------
@@ -46,12 +46,38 @@ class TestTrainProgress:
 # TrainResult
 # ---------------------------------------------------------------------------
 
+class TestClassMetrics:
+    def test_defaults(self):
+        cm = ClassMetrics()
+        assert cm.precision == 0.0
+        assert cm.recall == 0.0
+        assert cm.ap50 == 0.0
+        assert cm.ap50_95 == 0.0
+
+    def test_custom_values(self):
+        cm = ClassMetrics(precision=0.9, recall=0.8, ap50=0.85, ap50_95=0.7)
+        assert cm.precision == pytest.approx(0.9)
+        assert cm.ap50_95 == pytest.approx(0.7)
+
+
 class TestTrainResult:
     def test_defaults(self):
         r = TrainResult()
         assert r.best_model is None
         assert r.final_mAP50 == 0.0
         assert r.model_size_mb == 0.0
+        assert r.per_class == {}
+
+    def test_per_class_field(self):
+        r = TrainResult(
+            per_class={
+                "cat": ClassMetrics(precision=0.9, recall=0.85, ap50=0.88, ap50_95=0.7),
+                "dog": ClassMetrics(precision=0.8, recall=0.75, ap50=0.82, ap50_95=0.6),
+            },
+        )
+        assert len(r.per_class) == 2
+        assert r.per_class["cat"].ap50 == pytest.approx(0.88)
+        assert r.per_class["dog"].recall == pytest.approx(0.75)
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +127,7 @@ class TestYOLOTrainer:
         with patch.dict("sys.modules", {"ultralytics": MagicMock(YOLO=mock_yolo)}):
             trainer._load_model()
 
-        mock_yolo.assert_called_once_with("yolo11s.pt")
+        mock_yolo.assert_called_once_with(str(tmp_path / "yolo11s.pt"))
 
     def test_export_onnx_no_model_raises(self, tmp_path: Path):
         trainer = YOLOTrainer("yolo11s", tmp_path)
@@ -172,3 +198,27 @@ class TestYOLOTrainer:
         assert len(dets) == 1
         assert dets[0]["label"] == "person"
         assert dets[0]["confidence"] == pytest.approx(0.95)
+
+
+# ---------------------------------------------------------------------------
+# _read_best_epoch
+# ---------------------------------------------------------------------------
+
+class TestReadBestEpoch:
+    def test_no_csv_returns_zero(self, tmp_path: Path):
+        assert YOLOTrainer._read_best_epoch(tmp_path) == 0
+
+    def test_parses_best_epoch(self, tmp_path: Path):
+        csv_content = (
+            "                  epoch,      train/box_loss,      train/cls_loss,       metrics/mAP50(B),  metrics/mAP50-95(B)\n"
+            "                      0,             1.5000,             2.0000,              0.100,              0.050\n"
+            "                      1,             1.2000,             1.5000,              0.800,              0.400\n"
+            "                      2,             1.0000,             1.2000,              0.600,              0.350\n"
+        )
+        (tmp_path / "results.csv").write_text(csv_content)
+        # Epoch 1 (0-based) has highest mAP50 (0.800), so best_epoch = 2 (1-based)
+        assert YOLOTrainer._read_best_epoch(tmp_path) == 2
+
+    def test_malformed_csv_returns_zero(self, tmp_path: Path):
+        (tmp_path / "results.csv").write_text("not,a,valid,csv\nfoo,bar,baz,qux\n")
+        assert YOLOTrainer._read_best_epoch(tmp_path) == 0

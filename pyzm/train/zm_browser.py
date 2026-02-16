@@ -365,16 +365,28 @@ def _zm_monitor_picker(monitors) -> int | None:
 # Event grid (thumbnails)
 # ------------------------------------------------------------------
 
-def _zm_event_grid(zm, monitor_id: int) -> None:
-    """Date filter + fetch + thumbnail grid of events."""
-    today = datetime.now().date()
-    default_from = today - timedelta(days=7)
+_TIME_PRESETS = {
+    "Last hour": timedelta(hours=1),
+    "Last 6 hours": timedelta(hours=6),
+    "Last 24 hours": timedelta(hours=24),
+    "Last 3 days": timedelta(days=3),
+    "Last 7 days": timedelta(days=7),
+    "Custom range": None,
+}
 
-    col_from, col_to, col_alarm, col_fetch = st.columns([2, 2, 1, 1])
-    with col_from:
-        date_from = st.date_input("From", value=default_from, key="zm_date_from")
-    with col_to:
-        date_to = st.date_input("To", value=today, key="zm_date_to")
+
+def _zm_event_grid(zm, monitor_id: int) -> None:
+    """Time filter + fetch + thumbnail grid of events."""
+    today = datetime.now().date()
+
+    col_preset, col_alarm, col_fetch = st.columns([2, 1, 1])
+    with col_preset:
+        time_preset = st.selectbox(
+            "Time range",
+            options=list(_TIME_PRESETS.keys()),
+            index=4,  # "Last 7 days"
+            key="zm_time_preset",
+        )
     with col_alarm:
         min_alarm = st.number_input(
             "Min alarm frames", min_value=0, value=1, step=1, key="zm_min_alarm",
@@ -383,9 +395,23 @@ def _zm_event_grid(zm, monitor_id: int) -> None:
         st.markdown("<br>", unsafe_allow_html=True)
         fetch_clicked = st.button("Fetch Events", type="primary")
 
+    # Show date pickers when "Custom range" is selected
+    if time_preset == "Custom range":
+        default_from = today - timedelta(days=7)
+        col_from, col_to = st.columns(2)
+        with col_from:
+            date_from = st.date_input("From", value=default_from, key="zm_date_from")
+        with col_to:
+            date_to = st.date_input("To", value=today, key="zm_date_to")
+
     if fetch_clicked:
-        since_str = datetime.combine(date_from, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-        until_str = datetime.combine(date_to, datetime.max.time()).strftime("%Y-%m-%d %H:%M:%S")
+        if time_preset == "Custom range":
+            since_str = datetime.combine(date_from, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+            until_str = datetime.combine(date_to, datetime.max.time()).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            delta = _TIME_PRESETS[time_preset]
+            since_str = (datetime.now() - delta).strftime("%Y-%m-%d %H:%M:%S")
+            until_str = None
         try:
             events = zm.events(
                 monitor_id=monitor_id,
@@ -603,13 +629,11 @@ def _import_frames(
     event_id: int,
     frame_ids: list[int | str],
 ) -> None:
-    """Fetch frame images from ZM, save to disk, add to dataset, run auto-detect."""
+    """Fetch frame images from ZM, save to disk, add to dataset."""
     from pyzm.models.config import StreamConfig
-    from pyzm.train.app import _auto_detect_image
 
     progress = st.progress(0, text="Importing frames...")
     imported = 0
-    total_dets = 0
 
     sc = StreamConfig(
         frame_set=[str(fid) for fid in frame_ids],
@@ -638,20 +662,16 @@ def _import_frames(
         dest = ds.add_image(tmp_path, [])
         imported += 1
 
-        detections = _auto_detect_image(dest, args)
-        total_dets += len(detections)
-
-        iv = ImageVerification(
+        store.set(ImageVerification(
             image_name=dest.name,
-            detections=detections,
+            detections=[],
             fully_reviewed=False,
-        )
-        store.set(iv)
+        ))
         progress.progress((i + 1) / len(frames), text=f"Imported {i + 1}/{len(frames)}")
 
     store.save()
-    progress.progress(1.0, text=f"Done: {imported} frames, {total_dets} detections")
-    st.toast(f"Imported {imported} frames with {total_dets} auto-detections")
+    progress.progress(1.0, text=f"Done: {imported} frames imported")
+    st.toast(f"Imported {imported} frames")
 
     # Auto-navigate to review phase
     if imported > 0:

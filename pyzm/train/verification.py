@@ -319,6 +319,25 @@ class VerificationStore:
             del entry["_total_corrections"]
         return result
 
+    def has_modifications(self) -> bool:
+        """Check whether any detection was modified during review.
+
+        Returns ``True`` if any detection has status DELETED, RENAMED,
+        RESHAPED, or ADDED — i.e. the user changed something beyond
+        simple approval.
+        """
+        _MODIFIED = {
+            DetectionStatus.DELETED,
+            DetectionStatus.RENAMED,
+            DetectionStatus.RESHAPED,
+            DetectionStatus.ADDED,
+        }
+        return any(
+            det.status in _MODIFIED
+            for iv in self._data.values()
+            for det in iv.detections
+        )
+
     def finalized_annotations(
         self,
         image_name: str,

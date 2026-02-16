@@ -14,6 +14,7 @@ Phases (sidebar-driven):
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import logging
 import tempfile
@@ -46,6 +47,8 @@ from streamlit_drawable_canvas import st_canvas
 
 from pyzm.train.dataset import Annotation, YOLODataset
 from pyzm.train.trainer import ClassMetrics, HardwareInfo, TrainProgress, TrainResult, YOLOTrainer
+from st_clickable_images import clickable_images
+
 from pyzm.train.verification import (
     DetectionStatus,
     ImageVerification,
@@ -71,6 +74,9 @@ _STATUS_COLORS = {
     DetectionStatus.RESHAPED: "#E67E22",
     DetectionStatus.ADDED: "#9B59B6",
 }
+
+_THUMB_WIDTH = 280
+_THUMB_CACHE_MAX = 100
 
 
 # ===================================================================
@@ -141,12 +147,9 @@ def _scan_models(base_path: str) -> list[dict]:
     if not bp.exists():
         return [{"name": "yolo11s", "path": "yolo11s.pt (auto-download)"}]
     models: list[dict] = []
-    for d in sorted(bp.iterdir()):
-        if not d.is_dir():
-            continue
-        for f in sorted(d.iterdir()):
-            if f.is_file() and f.suffix in (".onnx", ".pt"):
-                models.append({"name": f.stem, "path": str(f)})
+    for f in sorted(bp.rglob("*.onnx")):
+        if f.is_file():
+            models.append({"name": f.stem, "path": str(f)})
     if not models:
         models.append({"name": "yolo11s", "path": "yolo11s.pt (auto-download)"})
     return models
@@ -228,6 +231,154 @@ def _draw_verified_image(
         draw.text((x1 + 3, label_y + 1), label_text, fill="#FFFFFF", font=font)
 
     return img
+
+
+# ===================================================================
+# Grid review helpers
+# ===================================================================
+
+def _is_reviewed(store: VerificationStore, image_name: str) -> bool:
+    """Check if an image is fully reviewed."""
+    iv = store.get(image_name)
+    return iv is not None and iv.fully_reviewed
+
+
+def _filtered_images(
+    images: list[Path],
+    store: VerificationStore,
+    filter_mode: str,
+    object_class: str | None = None,
+) -> list[Path]:
+    """Filter images by review status and optionally by object class."""
+    if filter_mode == "approved":
+        result = [p for p in images if _is_reviewed(store, p.name)]
+    elif filter_mode == "unapproved":
+        result = [p for p in images if not _is_reviewed(store, p.name)]
+    else:
+        result = list(images)
+
+    if object_class:
+        result = [
+            p for p in result
+            if _image_has_class(store, p.name, object_class)
+        ]
+    return result
+
+
+def _image_has_class(
+    store: VerificationStore, image_name: str, class_name: str,
+) -> bool:
+    """Check if an image has at least one non-deleted detection of *class_name*."""
+    iv = store.get(image_name)
+    if iv is None:
+        return False
+    return any(
+        d.effective_label == class_name
+        for d in iv.detections
+        if d.status != DetectionStatus.DELETED
+    )
+
+
+def _generate_thumbnail_uri(img_path: Path, store: VerificationStore) -> str:
+    """Generate a thumbnail data URI with detection boxes and status border."""
+    from PIL import ImageDraw, ImageFont
+
+    cache: dict[str, str] = st.session_state.setdefault("_thumb_cache", {})
+    name = img_path.name
+    if name in cache:
+        return cache[name]
+
+    pil_img = _load_image_pil(img_path)
+    orig_w, orig_h = pil_img.size
+    scale = _THUMB_WIDTH / orig_w
+    thumb_h = int(orig_h * scale)
+    thumb = pil_img.resize((_THUMB_WIDTH, thumb_h))
+
+    iv = store.get(name)
+    if iv and iv.detections:
+        thumb = _draw_verified_image(thumb, iv.detections)
+
+    # Status border
+    if iv and iv.fully_reviewed:
+        border_color = "#27AE60"
+    elif iv and iv.detections:
+        border_color = "#F1C40F"
+    else:
+        border_color = None
+
+    if border_color:
+        draw = ImageDraw.Draw(thumb)
+        w, h = thumb.size
+        for i in range(3):
+            draw.rectangle([i, i, w - 1 - i, h - 1 - i], outline=border_color)
+
+    # Caption bar
+    det_count = len([
+        d for d in (iv.detections if iv else [])
+        if d.status != DetectionStatus.DELETED
+    ])
+    caption = _friendly_image_name(img_path.stem)
+    if det_count:
+        caption += f" ({det_count})"
+
+    try:
+        font = ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11,
+        )
+    except (OSError, IOError):
+        font = ImageFont.load_default()
+
+    bbox = font.getbbox(caption)
+    text_h = bbox[3] - bbox[1]
+    bar_h = text_h + 6
+    w, h = thumb.size
+
+    bar_img = Image.new("RGBA", (w, bar_h), (0, 0, 0, 160))
+    thumb_rgba = thumb.convert("RGBA")
+    thumb_rgba.paste(bar_img, (0, h - bar_h), bar_img)
+    draw = ImageDraw.Draw(thumb_rgba)
+    text_w = bbox[2] - bbox[0]
+    tx = (w - text_w) // 2
+    ty = h - bar_h + 2
+    draw.text((tx, ty), caption, fill="#FFFFFF", font=font)
+
+    buf = BytesIO()
+    thumb_rgba.convert("RGB").save(buf, format="JPEG", quality=80)
+    b64 = base64.b64encode(buf.getvalue()).decode()
+    uri = f"data:image/jpeg;base64,{b64}"
+
+    # FIFO cache eviction
+    if len(cache) >= _THUMB_CACHE_MAX:
+        oldest = next(iter(cache))
+        del cache[oldest]
+    cache[name] = uri
+    return uri
+
+
+def _invalidate_thumbnail(image_name: str) -> None:
+    """Remove a thumbnail from the cache so it's regenerated."""
+    cache: dict[str, str] = st.session_state.get("_thumb_cache", {})
+    cache.pop(image_name, None)
+
+
+def _pagination_controls(page: int, total_pages: int, position: str) -> None:
+    """Render Prev / Page X of Y / Next controls."""
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c1:
+        if st.button("Prev", disabled=page <= 0, key=f"page_prev_{position}"):
+            st.session_state["_review_page"] = page - 1
+            st.rerun()
+    with c2:
+        st.markdown(
+            f"<div style='text-align:center; font-size:0.9em; padding:0.3rem 0;'>"
+            f"Page {page + 1} of {total_pages}</div>",
+            unsafe_allow_html=True,
+        )
+    with c3:
+        if st.button("Next", disabled=page >= total_pages - 1,
+                      key=f"page_next_{position}"):
+            st.session_state["_review_page"] = page + 1
+            st.rerun()
 
 
 # ===================================================================
@@ -316,23 +467,17 @@ def _upload_panel(
         import_bar.progress((i + 1) / len(uploaded), text=f"Importing {i + 1}/{len(uploaded)}")
     import_bar.empty()
 
-    # Phase 2: run auto-detection on each saved image
-    detect_bar = st.progress(0, text="Running detection...")
-    total_dets = 0
-    for i, dest in enumerate(destinations):
-        detections = _auto_detect_image(dest, args)
-        total_dets += len(detections)
+    # Create empty verification entries (detection deferred to review phase)
+    for dest in destinations:
         store.set(ImageVerification(
             image_name=dest.name,
-            detections=detections,
+            detections=[],
             fully_reviewed=False,
         ))
-        detect_bar.progress((i + 1) / len(destinations), text=f"Detecting {i + 1}/{len(destinations)}")
 
     store.save()
     st.session_state["_upload_key"] = upload_key + 1
-    detect_bar.progress(1.0, text=f"Added {len(destinations)} images, {total_dets} detections")
-    st.toast(f"Added {len(destinations)} images with {total_dets} auto-detections")
+    st.toast(f"Added {len(destinations)} images")
     st.rerun()
 
 
@@ -375,10 +520,10 @@ def _sidebar(ds: YOLODataset | None, store: VerificationStore | None) -> str:
                 st.session_state.pop("_auto_label", None)
                 st.rerun()
 
-        # --- Image list (during review phase) ---
+        # --- Review progress (during review phase) ---
         if current == "review" and images and store:
             st.divider()
-            _sidebar_image_list(store, images)
+            _sidebar_review_summary(store, len(images))
 
         # --- Class coverage ---
         if store:
@@ -424,38 +569,19 @@ def _sidebar(ds: YOLODataset | None, store: VerificationStore | None) -> str:
     return current
 
 
-def _sidebar_image_list(store: VerificationStore, images: list[Path]) -> None:
-    """Compact image navigator in the sidebar."""
-    reviewed = sum(
-        1 for img in images
-        if (iv := store.get(img.name)) and iv.fully_reviewed
-    )
+def _sidebar_review_summary(store: VerificationStore, total: int) -> None:
+    """Review progress summary in the sidebar."""
+    reviewed = store.reviewed_images_count()
+    unapproved = total - reviewed
     st.markdown(
-        f"<div style='font-size:0.8em; font-weight:bold;'>"
-        f"Images ({reviewed}/{len(images)} reviewed)</div>",
+        "<div style='font-size:0.8em; font-weight:bold;'>Review Progress</div>",
         unsafe_allow_html=True,
     )
-    selected_idx = st.session_state.get("selected_image_idx", 0)
-
-    with st.container(height=350):
-        for i, img in enumerate(images):
-            iv = store.get(img.name)
-            if iv and iv.fully_reviewed:
-                icon = "\u2713"
-            elif iv and iv.pending_count > 0:
-                icon = f"[{iv.pending_count}]"
-            else:
-                icon = ""
-
-            is_active = i == selected_idx
-            label = f"{_friendly_image_name(img.stem)} {icon}"
-            if st.button(
-                label, key=f"img_nav_{i}",
-                type="primary" if is_active else "secondary",
-                width="stretch",
-            ):
-                st.session_state["selected_image_idx"] = i
-                st.rerun()
+    st.caption(f"Approved: {reviewed} / {total}")
+    if unapproved > 0:
+        st.caption(f"Unapproved: {unapproved}")
+    pct = reviewed / total if total > 0 else 0.0
+    st.progress(pct)
 
 
 
@@ -489,7 +615,7 @@ def _phase_select(ds: YOLODataset, store: VerificationStore, args: argparse.Name
     elif source == "Raw Images":
         st.caption("Import unannotated images for manual annotation.")
         from pyzm.train.local_import import raw_images_panel
-        raw_images_panel(ds, store, args, auto_detect_fn=_auto_detect_image)
+        raw_images_panel(ds, store, args)
     else:
         st.caption("Select events where detection was wrong or missing.")
         from pyzm.train.zm_browser import zm_event_browser_panel
@@ -499,23 +625,27 @@ def _phase_select(ds: YOLODataset, store: VerificationStore, args: argparse.Name
     if images:
         st.divider()
         st.success(f"{len(images)} image{'s' if len(images) != 1 else ''} imported. Ready for review.")
-        with st.expander(f"Imported images ({len(images)})", expanded=False):
-            for img in images:
-                iv = store.get(img.name)
-                status = "\u2713" if iv and iv.fully_reviewed else "\u23f3"
-                det_count = len(iv.detections) if iv else 0
-                st.caption(f"{status} {img.name} ({det_count} annotations)")
         if st.button("Go to Review", type="primary"):
             st.session_state["active_phase"] = "review"
             st.session_state.pop("_auto_label", None)
             st.rerun()
+        # Show image list in collapsed expander; cap to avoid slow renders
+        max_show = 200
+        with st.expander(f"Imported images ({len(images)})", expanded=False):
+            for img in images[:max_show]:
+                iv = store.get(img.name)
+                status = "\u2713" if iv and iv.fully_reviewed else "\u23f3"
+                det_count = len(iv.detections) if iv else 0
+                st.caption(f"{status} {img.name} ({det_count} annotations)")
+            if len(images) > max_show:
+                st.caption(f"... and {len(images) - max_show} more")
 
 
 # ===================================================================
 # PHASE 2: Review Detections
 # ===================================================================
 
-def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
+def _phase_review(ds: YOLODataset, store: VerificationStore, args: argparse.Namespace) -> None:
     images = ds.staged_images()
     if not images:
         st.info("No images yet. Go to **Select Images** to add some.")
@@ -523,39 +653,185 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
 
     st.markdown("### Review Detections")
 
-    selected_idx = st.session_state.get("selected_image_idx", 0)
-    if selected_idx >= len(images):
-        selected_idx = 0
-        st.session_state["selected_image_idx"] = 0
+    # Persistent auto-detect toggle (saved in project.json)
+    auto_detect_default = bool(ds.get_setting("auto_detect", True))
+    auto_detect = st.checkbox(
+        "Automatically detect objects",
+        value=auto_detect_default,
+        key="_auto_detect_toggle",
+        help="Run YOLO auto-detection when viewing an image with no annotations.",
+    )
+    if auto_detect != auto_detect_default:
+        ds.set_setting("auto_detect", auto_detect)
 
-    img_path = images[selected_idx]
+    # --- Filter bar ---
+    reviewed_count = store.reviewed_images_count()
+    total = len(images)
+    unapproved_count = total - reviewed_count
+
+    all_classes = store.build_class_list()
+
+    filter_col, obj_col, size_col = st.columns([3, 1, 1])
+    with filter_col:
+        filter_mode = st.radio(
+            "Filter",
+            ["all", "approved", "unapproved"],
+            format_func=lambda x: {
+                "all": f"All ({total})",
+                "approved": f"Approved ({reviewed_count})",
+                "unapproved": f"Unapproved ({unapproved_count})",
+            }[x],
+            horizontal=True,
+            key="_review_filter",
+        )
+    with obj_col:
+        object_class = st.selectbox(
+            "Object",
+            [""] + all_classes,
+            format_func=lambda x: x or "All objects",
+            key="_review_object_class",
+        ) if all_classes else ""
+    with size_col:
+        page_size = st.selectbox(
+            "Per page", [12, 20, 40, 60], index=1, key="_review_page_size",
+        )
+
+    # --- All-reviewed banner ---
+    all_reviewed = reviewed_count >= total and store.pending_count() == 0
+    if all_reviewed and "_review_expanded_idx" not in st.session_state:
+        needs = store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS)
+        if needs:
+            names = ", ".join(f"**{e['class_name']}**" for e in needs)
+            st.info(
+                f"All images reviewed. Classes needing more images: {names}."
+            )
+            if st.button("Import More Images", type="primary",
+                         key="grid_go_select"):
+                st.session_state["active_phase"] = "select"
+                st.rerun()
+        else:
+            st.success("All images reviewed!")
+            if st.button("Continue to Train & Export", type="primary",
+                         key="grid_go_train"):
+                st.session_state["active_phase"] = "train"
+                st.rerun()
+
+    filtered = _filtered_images(images, store, filter_mode, object_class or None)
+    if not filtered:
+        st.info("No images match this filter.")
+        return
+
+    # Dispatch: expanded single-image view or thumbnail grid
+    if "_review_expanded_idx" in st.session_state:
+        _review_expanded(ds, store, args, filtered, auto_detect)
+    else:
+        _review_grid(store, filtered, page_size)
+
+
+def _review_grid(
+    store: VerificationStore, filtered: list[Path], page_size: int,
+) -> None:
+    """Paginated thumbnail grid of images."""
+    total_pages = max(1, -(-len(filtered) // page_size))
+    page = st.session_state.get("_review_page", 0)
+    if page >= total_pages:
+        page = total_pages - 1
+        st.session_state["_review_page"] = page
+
+    _pagination_controls(page, total_pages, "top")
+
+    start = page * page_size
+    end = min(start + page_size, len(filtered))
+    page_images = filtered[start:end]
+
+    paths: list[str] = []
+    titles: list[str] = []
+    for img_path in page_images:
+        paths.append(_generate_thumbnail_uri(img_path, store))
+        titles.append(img_path.stem)
+
+    counter = st.session_state.get("_review_grid_counter", 0)
+    clicked_idx = clickable_images(
+        paths, titles=titles,
+        div_style={
+            "display": "flex", "flex-wrap": "wrap",
+            "justify-content": "flex-start",
+        },
+        img_style={
+            "width": "23%", "margin": "1%",
+            "border-radius": "6px", "cursor": "pointer",
+        },
+        key=f"review_grid_{page}_{counter}",
+    )
+
+    if clicked_idx > -1 and clicked_idx < len(page_images):
+        st.session_state["_review_expanded_idx"] = start + clicked_idx
+        st.rerun()
+
+    if total_pages > 1:
+        _pagination_controls(page, total_pages, "bottom")
+
+
+def _review_expanded(
+    ds: YOLODataset,
+    store: VerificationStore,
+    args: argparse.Namespace,
+    filtered: list[Path],
+    auto_detect: bool,
+) -> None:
+    """Single-image expanded view launched from the grid."""
+    expanded_idx = st.session_state.get("_review_expanded_idx", 0)
+    if expanded_idx >= len(filtered):
+        st.session_state.pop("_review_expanded_idx", None)
+        st.rerun()
+        return
+
+    img_path = filtered[expanded_idx]
     pil_img = _load_image_pil(img_path)
     iv = store.get(img_path.name)
     if iv is None:
         iv = ImageVerification(image_name=img_path.name)
         store.set(iv)
 
+    # On-demand auto-detection
+    if auto_detect and not iv.detections and not iv.fully_reviewed:
+        detections = _auto_detect_image(img_path, args)
+        if detections:
+            iv.detections = detections
+            store.set(iv)
+            store.save()
+            _invalidate_thumbnail(img_path.name)
+
     image_name = img_path.name
     canvas_counter = st.session_state.get(f"_canvas_counter_{image_name}", 0)
 
     # --- Navigation bar ---
-    nav1, nav2, nav3 = st.columns([1, 4, 1])
+    back_col, nav1, nav2, nav3 = st.columns([1, 1, 4, 1])
+    with back_col:
+        if st.button("< Grid", key="back_to_grid"):
+            st.session_state.pop("_review_expanded_idx", None)
+            st.rerun()
     with nav1:
-        if st.button("Prev", disabled=selected_idx == 0, width="stretch"):
-            st.session_state["selected_image_idx"] = selected_idx - 1
+        if st.button("Prev", disabled=expanded_idx == 0, key="expanded_prev"):
+            st.session_state["_review_expanded_idx"] = expanded_idx - 1
             st.rerun()
     with nav2:
         status_text = "Reviewed" if iv.fully_reviewed else f"{iv.pending_count} pending"
-        status_color = _STATUS_COLORS[DetectionStatus.APPROVED] if iv.fully_reviewed else _STATUS_COLORS[DetectionStatus.PENDING]
+        status_color = (
+            _STATUS_COLORS[DetectionStatus.APPROVED]
+            if iv.fully_reviewed
+            else _STATUS_COLORS[DetectionStatus.PENDING]
+        )
         st.markdown(
             f"<div style='text-align:center; font-size:0.9em;'>"
-            f"<b>{img_path.name}</b> ({selected_idx + 1}/{len(images)}) "
+            f"<b>{img_path.name}</b> ({expanded_idx + 1}/{len(filtered)}) "
             f"<span style='color:{status_color}'>{status_text}</span></div>",
             unsafe_allow_html=True,
         )
     with nav3:
-        if st.button("Next", disabled=selected_idx >= len(images) - 1, width="stretch"):
-            st.session_state["selected_image_idx"] = selected_idx + 1
+        if st.button("Next", disabled=expanded_idx >= len(filtered) - 1,
+                      key="expanded_next"):
+            st.session_state["_review_expanded_idx"] = expanded_idx + 1
             st.rerun()
 
     # --- Compute canvas dimensions ---
@@ -568,7 +844,9 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
 
     # --- Check modal states ---
     reshape_det_id = st.session_state.get(f"_reshape_{image_name}")
-    pending_rects: list[dict] = st.session_state.get(f"_pending_rects_{image_name}", [])
+    pending_rects: list[dict] = st.session_state.get(
+        f"_pending_rects_{image_name}", [],
+    )
     changed = False
 
     if reshape_det_id:
@@ -585,7 +863,6 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
         )
     else:
         # ---- NORMAL MODE: interactive canvas ----
-        # Toolbar above canvas
         tb1, tb2 = st.columns(2)
         with tb1:
             expand_label = "Shrink canvas" if expanded else "Expand canvas"
@@ -628,7 +905,6 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
             ]
             if new_rects:
                 if auto_label:
-                    # Auto-assign label without prompting
                     _save_pending_rects(
                         iv, new_rects, auto_label,
                         canvas_w, canvas_h, image_name, canvas_counter,
@@ -647,28 +923,17 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
     if not reshape_det_id and not pending_rects:
         st.divider()
         pending = [d for d in iv.detections if d.status == DetectionStatus.PENDING]
-
-        # Check if this is the last unreviewed image
-        unreviewed_remaining = sum(
-            1 for img in images
-            if not ((v := store.get(img.name)) and v.fully_reviewed)
-        )
-        is_last = unreviewed_remaining <= 1  # current image is the last (or only)
-
-        # If classes need more images, loop back to select; otherwise go to train
-        needs_more = bool(store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS))
-        next_phase = "select" if needs_more else "train"
-        next_phase_label = "import more images" if needs_more else "train"
+        is_last = expanded_idx >= len(filtered) - 1
+        filter_mode = st.session_state.get("_review_filter", "all")
 
         if pending:
-            if is_last:
-                btn_label = f"Approve all ({len(pending)}) & continue"
-            else:
-                btn_label = f"Approve all ({len(pending)}) & next"
-        elif iv.fully_reviewed:
-            btn_label = "Next image" if not is_last else f"Continue to {next_phase_label}"
+            btn_label = (
+                f"Approve all ({len(pending)}) & back to grid"
+                if is_last
+                else f"Approve all ({len(pending)}) & next"
+            )
         else:
-            btn_label = "Next image" if not is_last else f"Continue to {next_phase_label}"
+            btn_label = "Next image" if not is_last else "Back to grid"
 
         if st.button(btn_label, type="primary", width="stretch"):
             for d in iv.detections:
@@ -677,26 +942,38 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
             iv.fully_reviewed = True
             store.set(iv)
             store.save()
+            _invalidate_thumbnail(image_name)
+            st.session_state["_review_grid_counter"] = (
+                st.session_state.get("_review_grid_counter", 0) + 1
+            )
+
             if is_last:
-                st.session_state["active_phase"] = next_phase
+                st.session_state.pop("_review_expanded_idx", None)
+            elif filter_mode == "unapproved":
+                pass  # same index, list shifts
             else:
-                _advance_to_next_unreviewed(store, images, selected_idx)
+                st.session_state["_review_expanded_idx"] = expanded_idx + 1
             st.rerun()
 
     if changed:
         store.set(iv)
         store.save()
+        _invalidate_thumbnail(image_name)
+        st.session_state["_review_grid_counter"] = (
+            st.session_state.get("_review_grid_counter", 0) + 1
+        )
         st.rerun()
 
-    # --- Post-review guidance (shown when all images are reviewed) ---
+    # --- Post-review guidance ---
+    all_images = ds.staged_images()
     all_reviewed = (
         store.pending_count() == 0
-        and store.reviewed_images_count() >= len(images)
+        and store.reviewed_images_count() >= len(all_images)
     )
     if all_reviewed and not reshape_det_id and not pending_rects:
         needs = store.classes_needing_upload(min_images=MIN_IMAGES_PER_CLASS)
+        st.divider()
         if needs:
-            st.divider()
             names = ", ".join(f"**{e['class_name']}**" for e in needs)
             st.info(
                 f"Classes needing more training images: {names}. "
@@ -705,6 +982,14 @@ def _phase_review(ds: YOLODataset, store: VerificationStore) -> None:
             if st.button("Import More Images", type="primary",
                          key="review_go_select"):
                 st.session_state["active_phase"] = "select"
+                st.session_state.pop("_review_expanded_idx", None)
+                st.rerun()
+        else:
+            st.success("All images reviewed! Ready to train.")
+            if st.button("Continue to Train", type="primary",
+                         key="review_go_train"):
+                st.session_state["active_phase"] = "train"
+                st.session_state.pop("_review_expanded_idx", None)
                 st.rerun()
 
 
@@ -1002,21 +1287,6 @@ def _detection_list(
     return changed
 
 
-def _advance_to_next_unreviewed(
-    store: VerificationStore,
-    images: list[Path],
-    current_idx: int,
-) -> None:
-    """Set selected_image_idx to the next unreviewed image after current."""
-    for offset in range(1, len(images)):
-        idx = (current_idx + offset) % len(images)
-        iv = store.get(images[idx].name)
-        if iv is None or not iv.fully_reviewed:
-            st.session_state["selected_image_idx"] = idx
-            return
-    st.session_state["selected_image_idx"] = min(current_idx, len(images) - 1)
-
-
 # ===================================================================
 # PHASE 3: Train & Export
 # ===================================================================
@@ -1071,13 +1341,8 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
         if st.button("Start Training", type="primary", disabled=not all_ready):
             class_name_to_id = {c: i for i, c in enumerate(classes)}
             ds.set_classes(classes)
-
-            for img_path in images:
-                anns = store.finalized_annotations(img_path.name, class_name_to_id)
-                ds.update_annotations(img_path.name, anns)
-
-            ds.split()
             yaml_path = ds.generate_yaml()
+
             trainer = YOLOTrainer(
                 base_model=base_model,
                 project_dir=Path(pdir),
@@ -1085,7 +1350,9 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
             )
             shared = {
                 "active": True,
-                "progress": TrainProgress(total_epochs=epochs),
+                "progress": TrainProgress(
+                    total_epochs=epochs, message="Preparing dataset...",
+                ),
                 "result": None,
                 "log": [],
             }
@@ -1094,6 +1361,39 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
             st.session_state["classes"] = classes
 
             def _run(_s: dict = shared) -> None:
+                # ── Dataset preparation (runs in background) ──
+                # Skip rewriting annotations when the dataset was
+                # imported with the same classes and nothing was modified.
+                import_classes = ds.get_setting("import_classes")
+                need_rewrite = (
+                    store.has_modifications()
+                    or import_classes != classes
+                )
+
+                n = len(images)
+                if need_rewrite:
+                    for i, img_path in enumerate(images):
+                        anns = store.finalized_annotations(
+                            img_path.name, class_name_to_id,
+                        )
+                        ds.update_annotations(img_path.name, anns)
+                        if n > 100 and (i + 1) % 50 == 0:
+                            _s["progress"] = TrainProgress(
+                                total_epochs=epochs,
+                                message=f"Writing annotations {i + 1}/{n}",
+                            )
+
+                _s["progress"] = TrainProgress(
+                    total_epochs=epochs,
+                    message="Splitting into train/val...",
+                )
+                ds.split()
+
+                _s["progress"] = TrainProgress(
+                    total_epochs=epochs, message="Loading model...",
+                )
+
+                # ── Training ──
                 def _cb(p: TrainProgress) -> None:
                     _s["progress"] = p
 
@@ -1651,7 +1951,7 @@ def main() -> None:
     if phase == "select":
         _phase_select(ds, store, args)
     elif phase == "review":
-        _phase_review(ds, store)
+        _phase_review(ds, store, args)
     elif phase == "train":
         _phase_train(ds, store, args)
 

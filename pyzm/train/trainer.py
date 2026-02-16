@@ -48,6 +48,16 @@ class TrainProgress:
 
 
 @dataclass
+class ClassMetrics:
+    """Per-class evaluation metrics."""
+
+    precision: float = 0.0
+    recall: float = 0.0
+    ap50: float = 0.0
+    ap50_95: float = 0.0
+
+
+@dataclass
 class TrainResult:
     """Final training results."""
 
@@ -60,6 +70,7 @@ class TrainResult:
     elapsed_seconds: float = 0.0
     model_size_mb: float = 0.0
     log_lines: list[str] = field(default_factory=list)
+    per_class: dict[str, ClassMetrics] = field(default_factory=dict)
 
 
 class YOLOTrainer:
@@ -131,6 +142,13 @@ class YOLOTrainer:
         # If it doesn't look like a file path, assume it's a hub name
         if not Path(model_path).suffix:
             model_path = f"{model_path}.pt"
+
+        # If model_path is already an existing file, use it as-is.
+        # Otherwise resolve into project_dir so Ultralytics downloads
+        # there instead of polluting the working directory.
+        if not Path(model_path).exists():
+            model_path = str(self.project_dir / Path(model_path).name)
+
         self._model = YOLO(model_path)
         return self._model
 
@@ -177,6 +195,7 @@ class YOLOTrainer:
         runs_dir = self.project_dir / "runs"
 
         progress = TrainProgress(total_epochs=epochs)
+        final_metrics: dict[str, Any] | None = None
 
         def _on_train_epoch_end(trainer: Any) -> None:
             """Ultralytics callback after each training epoch."""
@@ -197,6 +216,35 @@ class YOLOTrainer:
                 progress_callback(progress)
 
         model.add_callback("on_train_epoch_end", _on_train_epoch_end)
+
+        def _on_train_end(trainer: Any) -> None:
+            """Capture final eval metrics from best.pt validation."""
+            nonlocal final_metrics
+            vm = getattr(trainer, "validator", None)
+            if vm is None:
+                return
+            m = getattr(vm, "metrics", None)
+            if m is None:
+                return
+            final_metrics = {
+                "map50": float(getattr(m, "map50", 0.0)),
+                "map": float(getattr(m, "map", 0.0)),
+                "per_class": {},
+            }
+            names = getattr(m, "names", {}) or getattr(trainer.model, "names", {})
+            box = getattr(m, "box", None)
+            if box is not None:
+                for i in box.ap_class_index:
+                    p, r, ap50, ap = m.class_result(i)
+                    cls_name = names.get(i, f"class_{i}")
+                    final_metrics["per_class"][cls_name] = ClassMetrics(
+                        precision=float(p),
+                        recall=float(r),
+                        ap50=float(ap50),
+                        ap50_95=float(ap),
+                    )
+
+        model.add_callback("on_train_end", _on_train_end)
 
         start = time.monotonic()
         try:
@@ -242,20 +290,70 @@ class YOLOTrainer:
 
         model_size = best_pt.stat().st_size / (1024 * 1024) if best_pt else 0.0
 
+        # Use final_metrics (from on_train_end) if available, else fall back
+        # to last epoch's progress values.
+        if final_metrics:
+            map50 = final_metrics["map50"]
+            map50_95 = final_metrics["map"]
+            per_class = final_metrics["per_class"]
+        else:
+            map50 = progress.mAP50
+            map50_95 = progress.mAP50_95
+            per_class = {}
+
+        best_epoch = self._read_best_epoch(runs_dir / "train")
+
         return TrainResult(
             best_model=best_pt,
             last_model=last_pt,
-            best_epoch=progress.epoch,
-            final_mAP50=progress.mAP50,
-            final_mAP50_95=progress.mAP50_95,
+            best_epoch=best_epoch if best_epoch > 0 else progress.epoch,
+            final_mAP50=map50,
+            final_mAP50_95=map50_95,
             total_epochs=progress.epoch,
             elapsed_seconds=elapsed,
             model_size_mb=model_size,
+            per_class=per_class,
         )
 
     def request_stop(self) -> None:
         """Signal the training loop to stop after the current epoch."""
         self._stop_event.set()
+
+    @staticmethod
+    def _read_best_epoch(train_dir: Path) -> int:
+        """Read results.csv and return the 1-based epoch with highest mAP50.
+
+        Returns 0 if the file can't be read.
+        """
+        import csv
+
+        csv_path = train_dir / "results.csv"
+        if not csv_path.exists():
+            return 0
+        try:
+            with open(csv_path) as f:
+                reader = csv.DictReader(f)
+                best_epoch = 0
+                best_map50 = -1.0
+                for row in reader:
+                    # Column names have leading spaces in Ultralytics output
+                    epoch_str = (row.get("epoch") or row.get("                  epoch") or "").strip()
+                    map50_str = ""
+                    for key in row:
+                        if "mAP50(B)" in key and "mAP50-95" not in key:
+                            map50_str = row[key].strip()
+                            break
+                    if not epoch_str or not map50_str:
+                        continue
+                    epoch_val = int(epoch_str) + 1  # CSV is 0-based, we display 1-based
+                    map50_val = float(map50_str)
+                    if map50_val > best_map50:
+                        best_map50 = map50_val
+                        best_epoch = epoch_val
+                return best_epoch
+        except Exception:
+            logger.debug("Could not parse results.csv for best epoch", exc_info=True)
+            return 0
 
     # ------------------------------------------------------------------
     # Evaluation

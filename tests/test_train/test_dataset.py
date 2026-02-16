@@ -174,6 +174,75 @@ class TestYOLODataset:
 
         assert val1 == val2
 
+    def test_split_honors_split_map(self, dataset: YOLODataset, sample_images: list[Path]):
+        """Images pre-assigned via split_map go to their designated dirs."""
+        for img in sample_images:
+            dataset.add_image(img, [Annotation(0, 0.5, 0.5, 0.3, 0.3)])
+
+        staged = dataset.staged_images()
+        # Assign first 2 images to val, next 3 to train
+        split_map = {}
+        for img in staged[:2]:
+            split_map[img.name] = "val"
+        for img in staged[2:5]:
+            split_map[img.name] = "train"
+        # Remaining 5 are unassigned (random split)
+        dataset.set_setting("split_map", split_map)
+
+        dataset.split(val_ratio=0.2)
+
+        val_names = {p.name for p in dataset._val_images.iterdir()}
+        train_names = {p.name for p in dataset._train_images.iterdir()}
+
+        # Pre-assigned images must be in their designated dirs
+        for img in staged[:2]:
+            assert img.name in val_names, f"{img.name} should be in val"
+        for img in staged[2:5]:
+            assert img.name in train_names, f"{img.name} should be in train"
+
+        # Total should be 10
+        assert len(val_names) + len(train_names) == 10
+
+    def test_split_mixed_assigned_and_random(self, dataset: YOLODataset, sample_images: list[Path]):
+        """Unassigned images get randomly split while assigned ones are honored."""
+        for img in sample_images[:4]:
+            dataset.add_image(img, [Annotation(0, 0.5, 0.5, 0.3, 0.3)])
+
+        staged = dataset.staged_images()
+        # Assign only the first image to train
+        dataset.set_setting("split_map", {staged[0].name: "train"})
+
+        dataset.split(val_ratio=0.5)
+
+        train_names = {p.name for p in dataset._train_images.iterdir()}
+        val_names = {p.name for p in dataset._val_images.iterdir()}
+
+        assert staged[0].name in train_names
+        assert len(train_names) + len(val_names) == 4
+        assert len(val_names) >= 1  # at least 1 val image guaranteed
+
+    def test_split_hardlinks(self, dataset: YOLODataset, sample_images: list[Path]):
+        """Verify split uses hardlinks (same inode) on supported systems."""
+        import os
+
+        for img in sample_images[:3]:
+            dataset.add_image(img, [Annotation(0, 0.5, 0.5, 0.3, 0.3)])
+        dataset.split(val_ratio=0.3)
+
+        # Check that at least one train image shares inode with staging
+        staged = dataset.staged_images()
+        for staged_img in staged:
+            train_path = dataset._train_images / staged_img.name
+            val_path = dataset._val_images / staged_img.name
+            dest = train_path if train_path.exists() else val_path
+            if dest.exists():
+                assert os.path.samefile(staged_img, dest), (
+                    f"Expected hardlink (same inode) for {staged_img.name}"
+                )
+                break
+        else:
+            pytest.fail("No split image found to verify hardlink")
+
     def test_generate_yaml(self, dataset: YOLODataset, sample_images: list[Path]):
         for img in sample_images[:3]:
             dataset.add_image(img, [Annotation(0, 0.5, 0.5, 0.3, 0.3)])
@@ -223,6 +292,29 @@ class TestSetClasses:
         assert dataset.classes == []
         loaded = YOLODataset.load(dataset.project_dir)
         assert loaded.classes == []
+
+
+class TestSettings:
+    def test_set_and_get_setting(self, dataset: YOLODataset):
+        assert dataset.get_setting("auto_detect") is None
+        assert dataset.get_setting("auto_detect", True) is True
+
+        dataset.set_setting("auto_detect", False)
+        assert dataset.get_setting("auto_detect") is False
+
+        # Persists across reload
+        loaded = YOLODataset.load(dataset.project_dir)
+        assert loaded.get_setting("auto_detect") is False
+
+    def test_settings_default_empty(self, dataset: YOLODataset):
+        assert dataset.settings == {}
+
+    def test_settings_preserved_on_set_classes(self, dataset: YOLODataset):
+        dataset.set_setting("auto_detect", True)
+        dataset.set_classes(["cat", "dog"])
+        loaded = YOLODataset.load(dataset.project_dir)
+        assert loaded.get_setting("auto_detect") is True
+        assert loaded.classes == ["cat", "dog"]
 
 
 class TestQualityReport:

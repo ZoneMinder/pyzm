@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import random
 import shutil
 from dataclasses import dataclass, field
@@ -41,14 +42,27 @@ class Annotation:
 
     @classmethod
     def from_yolo_line(cls, line: str) -> Annotation:
+        """Parse a YOLO annotation line.
+
+        Supports standard box format (class_id cx cy w h) and polygon/
+        segmentation format (class_id x1 y1 x2 y2 ... xn yn) used by
+        Roboflow exports.  Polygons are converted to bounding boxes.
+        """
         parts = line.strip().split()
-        return cls(
-            class_id=int(parts[0]),
-            cx=float(parts[1]),
-            cy=float(parts[2]),
-            w=float(parts[3]),
-            h=float(parts[4]),
-        )
+        class_id = int(parts[0])
+        coords = [float(x) for x in parts[1:]]
+        if len(coords) == 4:
+            return cls(class_id=class_id, cx=coords[0], cy=coords[1],
+                       w=coords[2], h=coords[3])
+        if len(coords) >= 6 and len(coords) % 2 == 0:
+            xs = coords[0::2]
+            ys = coords[1::2]
+            x_min, x_max = min(xs), max(xs)
+            y_min, y_max = min(ys), max(ys)
+            return cls(class_id=class_id,
+                       cx=(x_min + x_max) / 2, cy=(y_min + y_max) / 2,
+                       w=x_max - x_min, h=y_max - y_min)
+        raise ValueError(f"Expected 4 or 6+ even coordinates, got {len(coords)}")
 
 
 @dataclass
@@ -70,6 +84,14 @@ class QualityReport:
     warnings: list[QualityWarning] = field(default_factory=list)
 
 
+def _link_or_copy(src: Path, dst: Path) -> None:
+    """Hard-link *src* to *dst*, falling back to copy if linking fails."""
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
 class YOLODataset:
     """Manage a YOLO-format dataset within a project directory.
 
@@ -86,10 +108,13 @@ class YOLODataset:
         project_dir: Path,
         classes: list[str],
         class_groups: dict[str, list[str]] | None = None,
+        settings: dict[str, object] | None = None,
     ) -> None:
         self.project_dir = Path(project_dir)
         self.classes = list(classes)
         self.class_groups: dict[str, list[str]] = class_groups or {}
+        self.settings: dict[str, object] = settings or {}
+        self._staged_cache: list[Path] | None = None
 
         # Unsplit staging area
         self._images_dir = self.project_dir / "images" / "all"
@@ -119,10 +144,20 @@ class YOLODataset:
         meta = {
             "classes": self.classes,
             "class_groups": self.class_groups,
+            "settings": self.settings,
         }
         (self.project_dir / "project.json").write_text(
             json.dumps(meta, indent=2)
         )
+
+    def set_setting(self, key: str, value: object) -> None:
+        """Update a single project setting and persist."""
+        self.settings[key] = value
+        self._save_project_json()
+
+    def get_setting(self, key: str, default: object = None) -> object:
+        """Read a project setting."""
+        return self.settings.get(key, default)
 
     def set_classes(
         self,
@@ -143,6 +178,7 @@ class YOLODataset:
             project_dir=project_dir,
             classes=meta["classes"],
             class_groups=meta.get("class_groups", {}),
+            settings=meta.get("settings", {}),
         )
 
     # ------------------------------------------------------------------
@@ -179,6 +215,7 @@ class YOLODataset:
             if annotations
             else ""
         )
+        self._staged_cache = None  # invalidate cache
         return dest
 
     def update_annotations(
@@ -201,13 +238,20 @@ class YOLODataset:
     _IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
     def staged_images(self) -> list[Path]:
-        """Return all images in the staging (``all``) directory."""
+        """Return all images in the staging (``all``) directory.
+
+        Results are cached in memory; the cache is invalidated by
+        :meth:`add_image`.
+        """
+        if self._staged_cache is not None:
+            return self._staged_cache
         if not self._images_dir.exists():
             return []
-        return sorted(
+        self._staged_cache = sorted(
             p for p in self._images_dir.iterdir()
             if p.suffix.lower() in self._IMG_EXTS
         )
+        return self._staged_cache
 
     def annotations_for(self, image_name: str) -> list[Annotation]:
         """Load annotations for a staged image by filename."""
@@ -224,8 +268,12 @@ class YOLODataset:
     def split(self, val_ratio: float = 0.2, seed: int = 42) -> None:
         """Split staged images into train/val sets.
 
-        Clears any previous split, then copies from ``all/`` into
-        ``train/`` and ``val/``.
+        Clears any previous split, then hard-links (with copy fallback)
+        from ``all/`` into ``train/`` and ``val/``.
+
+        If a ``split_map`` setting exists (dict mapping image names to
+        ``"train"`` or ``"val"``), those assignments are honored.
+        Unassigned images are randomly split using *val_ratio*.
         """
         if not 0.0 < val_ratio < 1.0:
             raise ValueError("val_ratio must be between 0 and 1 (exclusive)")
@@ -244,26 +292,52 @@ class YOLODataset:
             logger.warning("No images to split")
             return
 
-        rng = random.Random(seed)
-        shuffled = list(images)
-        rng.shuffle(shuffled)
-        n_val = max(1, int(len(shuffled) * val_ratio))
-        val_set = set(shuffled[:n_val])
+        split_map: dict[str, str] = self.settings.get("split_map", {}) or {}
 
-        for img in shuffled:
+        # Separate pre-assigned from unassigned
+        val_set: set[Path] = set()
+        train_set: set[Path] = set()
+        unassigned: list[Path] = []
+
+        for img in images:
+            assignment = split_map.get(img.name)
+            if assignment == "val":
+                val_set.add(img)
+            elif assignment == "train":
+                train_set.add(img)
+            else:
+                unassigned.append(img)
+
+        # Randomly split unassigned images
+        if unassigned:
+            rng = random.Random(seed)
+            rng.shuffle(unassigned)
+            n_val = max(0, int(len(unassigned) * val_ratio))
+            for img in unassigned[:n_val]:
+                val_set.add(img)
+            for img in unassigned[n_val:]:
+                train_set.add(img)
+
+        # Ensure at least 1 val image
+        if not val_set and train_set:
+            moved = next(iter(train_set))
+            train_set.discard(moved)
+            val_set.add(moved)
+
+        for img in images:
             label_src = self._labels_dir / f"{img.stem}.txt"
             if img in val_set:
-                shutil.copy2(img, self._val_images / img.name)
+                _link_or_copy(img, self._val_images / img.name)
                 if label_src.exists():
-                    shutil.copy2(label_src, self._val_labels / f"{img.stem}.txt")
+                    _link_or_copy(label_src, self._val_labels / f"{img.stem}.txt")
             else:
-                shutil.copy2(img, self._train_images / img.name)
+                _link_or_copy(img, self._train_images / img.name)
                 if label_src.exists():
-                    shutil.copy2(label_src, self._train_labels / f"{img.stem}.txt")
+                    _link_or_copy(label_src, self._train_labels / f"{img.stem}.txt")
 
         logger.info(
             "Split: %d train, %d val (ratio=%.2f)",
-            len(shuffled) - n_val, n_val, val_ratio,
+            len(train_set), len(val_set), val_ratio,
         )
 
     # ------------------------------------------------------------------

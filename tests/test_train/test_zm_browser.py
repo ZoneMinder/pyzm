@@ -11,12 +11,10 @@ import numpy as np
 import pytest
 
 from pyzm.models.zm import Event, Frame, Monitor
-from pyzm.train.dataset import Annotation, YOLODataset
+from pyzm.train.dataset import YOLODataset
 from pyzm.train.verification import (
-    DetectionStatus,
     ImageVerification,
     VerificationStore,
-    VerifiedDetection,
 )
 from pyzm.train.zm_browser import (
     _all_alarm_frames,
@@ -176,7 +174,8 @@ class TestImportFrames:
         assert any("event54321_frame5" in n for n in names)
         assert any("event54321_frame10" in n for n in names)
 
-    def test_import_calls_auto_detect_when_model_available(self, project, args):
+    def test_import_saves_frames_without_detection(self, project, args):
+        """Frames are imported with empty detections (detection deferred to review)."""
         ds, store = project
 
         mock_zm = MagicMock()
@@ -186,17 +185,7 @@ class TestImportFrames:
             {"original": (100, 100), "resized": None},
         )
 
-        fake_detections = [
-            VerifiedDetection(
-                detection_id="det_0",
-                original=Annotation(0, 0.5, 0.5, 0.3, 0.3),
-                status=DetectionStatus.PENDING,
-                original_label="person",
-            ),
-        ]
-
-        with patch("pyzm.train.zm_browser.st") as mock_st, \
-             patch("pyzm.train.app._auto_detect_image", return_value=fake_detections) as mock_detect:
+        with patch("pyzm.train.zm_browser.st") as mock_st:
             mock_st.session_state = {
                 "base_model": "yolo11s",
                 "model_class_names": ["person", "car"],
@@ -206,12 +195,11 @@ class TestImportFrames:
 
             _import_frames(ds, store, args, mock_zm, 99, [1])
 
-        mock_detect.assert_called_once()
         images = ds.staged_images()
+        assert len(images) == 1
         iv = store.get(images[0].name)
-        assert len(iv.detections) == 1
-        assert iv.detections[0].original_label == "person"
-        assert iv.detections[0].status == DetectionStatus.PENDING
+        assert len(iv.detections) == 0
+        assert iv.fully_reviewed is False
 
     def test_import_handles_fetch_error(self, project, args):
         ds, store = project
