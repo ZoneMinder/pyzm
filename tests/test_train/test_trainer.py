@@ -120,11 +120,20 @@ class TestYOLOTrainer:
             assert hw.suggested_batch >= 4
 
     def test_load_model_adds_pt_extension(self, tmp_path: Path):
-        """A plain model name like 'yolo11s' gets .pt appended."""
+        """A plain model name like 'yolo11s' gets .pt appended and downloaded to project_dir."""
         trainer = YOLOTrainer("yolo11s", tmp_path)
         mock_yolo = MagicMock(return_value=MagicMock())
 
-        with patch.dict("sys.modules", {"ultralytics": MagicMock(YOLO=mock_yolo)}):
+        def _fake_download(dest):
+            Path(dest).touch()
+            return dest
+
+        mock_downloads = MagicMock(attempt_download_asset=_fake_download)
+        with patch.dict("sys.modules", {
+            "ultralytics": MagicMock(YOLO=mock_yolo),
+            "ultralytics.utils": MagicMock(),
+            "ultralytics.utils.downloads": mock_downloads,
+        }):
             trainer._load_model()
 
         mock_yolo.assert_called_once_with(str(tmp_path / "yolo11s.pt"))

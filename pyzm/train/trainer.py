@@ -162,11 +162,15 @@ class YOLOTrainer:
         if not Path(model_path).suffix:
             model_path = f"{model_path}.pt"
 
-        # If model_path is already an existing file, use it as-is.
-        # Otherwise resolve into project_dir so Ultralytics downloads
-        # there instead of polluting the working directory.
+        # If already an absolute/existing file, use as-is.
+        # Otherwise pre-download into project_dir so Ultralytics doesn't
+        # pollute the working directory with .pt files.
         if not Path(model_path).exists():
-            model_path = str(self.project_dir / Path(model_path).name)
+            dest = self.project_dir / Path(model_path).name
+            if not dest.exists():
+                from ultralytics.utils.downloads import attempt_download_asset
+                attempt_download_asset(str(dest))
+            model_path = str(dest)
 
         self._model = YOLO(model_path)
         return self._model
