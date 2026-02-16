@@ -1531,7 +1531,6 @@ def _phase_train(ds: YOLODataset, store: VerificationStore, args: argparse.Names
             '&#x2705; Training Complete</h2></div>',
             unsafe_allow_html=True,
         )
-        st.balloons()
 
         r1, r2, r3, r4 = st.columns(4)
         r1.metric("mAP50", f"{result.final_mAP50:.3f}")
