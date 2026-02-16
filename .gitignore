@@ -17,3 +17,5 @@ __pycache__/
 .idea/*
 .pypirc
 .env.zm_e2e
+# YOLO model weights (auto-downloaded by Ultralytics)
+*.pt
