@@ -133,8 +133,8 @@ def zm_db_available() -> tuple[bool, str]:
         return False, "get_zm_db() returned None (missing mysql-connector-python?)"
     except PermissionError as exc:
         return False, (f"Permission denied: {exc.filename or exc} — "
-                       "sudo pip install pytest --break-system-packages && "
-                       "sudo -u www-data python -m pytest")
+                       "sudo /opt/zoneminder/venv/bin/pip install pytest && "
+                       "sudo -u www-data /opt/zoneminder/venv/bin/python -m pytest")
     except Exception as exc:
         return False, f"{type(exc).__name__}: {exc}"
 

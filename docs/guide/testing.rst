@@ -79,7 +79,7 @@ events, zones, frames, state management) against a live ZoneMinder server.
 
 .. code-block:: bash
 
-   sudo pip install pytest --break-system-packages
+   sudo /opt/zoneminder/venv/bin/pip install pytest
    cp tests/.env.zm_e2e.sample .env.zm_e2e
    # edit .env.zm_e2e with your ZM_API_URL, ZM_USER, ZM_PASSWORD
 

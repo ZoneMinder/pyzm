@@ -38,7 +38,7 @@ Training UI
 pyzm includes a Streamlit-based UI for fine-tuning YOLO models on your own data:
 
 ```bash
-streamlit run pyzm/train/app.py -- --base-path /var/lib/zmeventnotification/models
+/opt/zoneminder/venv/bin/python -m streamlit run pyzm/train/app.py -- --base-path /var/lib/zmeventnotification/models
 ```
 
 The `--base-path` flag points to your ZoneMinder models directory (defaults to `/var/lib/zmeventnotification/models`). Projects are stored in `~/.pyzm/training/`.
@@ -68,16 +68,16 @@ python -m pytest tests/test_ml_e2e/ -v -m "not serve"
 
 One-time setup:
 ```bash
-sudo pip install pytest --break-system-packages
+sudo /opt/zoneminder/venv/bin/pip install pytest
 cp tests/.env.zm_e2e.sample .env.zm_e2e   # edit with your ZM server details
 ```
 
 ```bash
 # Readonly tests (auth, monitors, events, zones, frames, detection):
-sudo -u www-data python -m pytest tests/test_zm_e2e/ -v -p no:cacheprovider
+sudo -u www-data /opt/zoneminder/venv/bin/python -m pytest tests/test_zm_e2e/ -v -p no:cacheprovider
 
 # Include write tests (event notes, stop/start/restart, DB tagging):
-sudo -u www-data ZM_E2E_WRITE=1 python -m pytest tests/test_zm_e2e/ -v -p no:cacheprovider
+sudo -u www-data ZM_E2E_WRITE=1 /opt/zoneminder/venv/bin/python -m pytest tests/test_zm_e2e/ -v -p no:cacheprovider
 ```
 
 ZM E2E tests auto-skip when `.env.zm_e2e` is missing, so `pytest tests/` is always safe.
@@ -92,6 +92,12 @@ To make a release:
 To skip PyPI upload (e.g. package already published):
 ```
 ./scripts/make_release.sh --skip-pypi
+```
+
+To test docs:
+```
+cd docs/
+make html && python -m http.server -d _build/html
 ```
 
 To test a CHANGELOG:

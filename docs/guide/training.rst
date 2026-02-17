@@ -19,7 +19,7 @@ Installation
 
 .. code-block:: bash
 
-   pip install --break-system-packages "pyzm[train]"
+   /opt/zoneminder/venv/bin/pip install "pyzm[train]"
 
 This installs Ultralytics (YOLO), Streamlit, and the canvas/image components
 used by the UI.
@@ -41,13 +41,20 @@ Launching the UI
 
 .. code-block:: bash
 
-   python -m pyzm.train
+   /opt/zoneminder/venv/bin/python -m pyzm.train
 
 Or directly via Streamlit:
 
 .. code-block:: bash
 
-   streamlit run pyzm/train/app.py -- --base-path /var/lib/zmeventnotification/models
+   /opt/zoneminder/venv/bin/python -m streamlit run pyzm/train/app.py -- --base-path /var/lib/zmeventnotification/models
+
+.. important::
+
+   Always use the **venv Python** to run the training UI. If you use the
+   system Python instead, Ultralytics' auto-dependency installer will
+   target ``/usr/bin/python3`` and attempt global installs with
+   ``--break-system-packages``, which will fail with permission errors.
 
 Options:
 
@@ -79,7 +86,7 @@ Basic usage:
 
 .. code-block:: bash
 
-   python -m pyzm.train /path/to/yolo-dataset
+   /opt/zoneminder/venv/bin/python -m pyzm.train /path/to/yolo-dataset
 
 The dataset folder must be in standard YOLO format (``data.yaml`` + ``images/``
 + ``labels/``). The pipeline validates, imports, splits, trains, and exports
@@ -89,7 +96,7 @@ Full flags:
 
 .. code-block:: bash
 
-   python -m pyzm.train /path/to/yolo-dataset \
+   /opt/zoneminder/venv/bin/python -m pyzm.train /path/to/yolo-dataset \
        --model yolo11s \
        --epochs 100 \
        --batch 8 \

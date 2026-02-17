@@ -1,6 +1,23 @@
 Installation
 ============
 
+.. important::
+
+   pyzm and zmeventnotification now install into a **shared Python virtual
+   environment** (``/opt/zoneminder/venv`` by default) instead of installing
+   globally with ``pip install --break-system-packages``.
+
+   Why the change:
+
+   - Modern Linux distributions (Debian 12+, Ubuntu 23.04+, Fedora 38+)
+     mark the system Python as *externally managed* (PEP 668) and actively
+     block global pip installs.
+   - ``--break-system-packages`` bypasses that protection but can break
+     OS tools that depend on the system Python.
+   - Multiple ZoneMinder components (pyzm, zmeventnotification hooks) need
+     to share a single Python environment — a dedicated venv gives them
+     isolation from the OS while still sharing packages with each other.
+
 Requirements
 ------------
 
@@ -9,40 +26,71 @@ Requirements
 - OpenCV 4.13+ (``cv2``) -- required for ML detection features (ONNX YOLO models need 4.13+ for full operator support)
 - A running ZoneMinder instance (for API features)
 
-.. note::
+Path A: Install from PyPI
+--------------------------
 
-   On newer Linux distributions (Debian 12+, Ubuntu 23.04+, Fedora 38+),
-   the system Python is marked as *externally managed* and ``pip install``
-   will fail unless you add ``--break-system-packages``. All ``pip`` commands
-   below include this flag. If you are using a virtual environment, you can
-   omit it.
+The simplest path — no need to clone the repo.
 
-Installing from PyPI
---------------------
-
-**Core library** (API client, ML detection, logging):
+**1. Create the venv** (skip if it already exists, e.g. from zmeventnotification's
+installer):
 
 .. code-block:: bash
 
-   pip install --break-system-packages pyzm
+   sudo python3 -m venv /opt/zoneminder/venv --system-site-packages
+   sudo /opt/zoneminder/venv/bin/pip install --upgrade pip setuptools wheel
 
-**With the remote ML detection server** (adds FastAPI, Uvicorn):
-
-.. code-block:: bash
-
-   pip install --break-system-packages "pyzm[serve]"
-
-**With the model fine-tuning UI** (adds Ultralytics, Streamlit):
+**2. Install pyzm:**
 
 .. code-block:: bash
 
-   pip install --break-system-packages "pyzm[train]"
+   sudo /opt/zoneminder/venv/bin/pip install pyzm
 
-**Everything** (core + serve + train):
+With extras:
 
 .. code-block:: bash
 
-   pip install --break-system-packages "pyzm[serve,train]"
+   sudo /opt/zoneminder/venv/bin/pip install "pyzm[serve]"        # remote ML server
+   sudo /opt/zoneminder/venv/bin/pip install "pyzm[train]"        # model fine-tuning UI
+   sudo /opt/zoneminder/venv/bin/pip install "pyzm[serve,train]"  # everything
+
+**3. Set ownership** so ``www-data`` can use the venv:
+
+.. code-block:: bash
+
+   sudo chown -R www-data:www-data /opt/zoneminder/venv
+
+Path B: Install from source
+-----------------------------
+
+Clone the repo first, then use the helper script which handles venv creation,
+OpenCV shim, and ownership in one step.
+
+.. code-block:: bash
+
+   git clone https://github.com/pliablepixels/pyzm.git
+   cd pyzm
+   sudo ./scripts/setup_venv.sh
+
+   # With extras:
+   sudo ./scripts/setup_venv.sh --extras serve
+   sudo ./scripts/setup_venv.sh --extras serve,train
+
+   # Custom venv path:
+   sudo ZM_VENV=/usr/local/zm/venv ./scripts/setup_venv.sh
+
+If the venv already exists (e.g. created by zmeventnotification's installer),
+the script reuses it and just installs/upgrades pyzm.
+
+The script will:
+
+1. Install ``python3-venv`` if it is missing (Debian/Ubuntu/Fedora/CentOS).
+2. Create the venv with ``--system-site-packages`` so distro-packaged
+   libraries (e.g. OpenCV built from source) are still visible.
+3. Register an ``opencv-python`` shim if a source/system OpenCV is already
+   importable, preventing pip from overwriting it when installing packages
+   like ``ultralytics`` that unconditionally depend on ``opencv-python``.
+4. Install pyzm (and any requested extras) into the venv.
+5. Set ownership to ``www-data`` (configurable via ``ZM_VENV_OWNER``).
 
 What each extra installs
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -62,17 +110,23 @@ What each extra installs
 
 .. note::
 
-   The ``[train]`` extra pulls in ``ultralytics``, which installs its own
-   ``opencv-python`` from PyPI. If you need GPU-accelerated or Apple Silicon
-   OpenCV (e.g. built from source with CUDA or Metal support), install the
-   training extras first, then remove the pip OpenCV and install your custom
-   build:
+   The ``[train]`` extra pulls in ``ultralytics``, which unconditionally
+   requires ``opencv-python`` from PyPI — even if you already have OpenCV
+   installed from source or your system package manager.
+
+   The install script (``scripts/setup_venv.sh`` and zmeventnotification's
+   ``install.sh``) attempts to work around this by creating a compatibility
+   shim: if ``cv2`` is already importable when the venv is created, a fake
+   ``opencv-python`` dist-info entry is registered so that pip considers the
+   requirement satisfied and skips the download.
+
+   If your source-built OpenCV is nevertheless overwritten, you can fix it
+   manually:
 
    .. code-block:: bash
 
-      pip install --break-system-packages "pyzm[train]"
-      pip uninstall opencv-python opencv-python-headless
-      # Now build/install OpenCV from source — see below
+      /opt/zoneminder/venv/bin/pip uninstall opencv-python opencv-python-headless
+      # Reinstall or rebuild your custom OpenCV — see below
 
 Building OpenCV from source
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -83,20 +137,18 @@ you need to build OpenCV from source:
 - `Apple Silicon (macOS) <https://gist.github.com/pliablepixels/d0605aab085592e1d3b6bb9033bdc835>`_
 - `Ubuntu 24.04 with CUDA <https://gist.github.com/pliablepixels/73d61e28060c8d418f9fcfb1e912e425>`_
 
-Installing from GitHub
------------------------
+The venv is created with ``--system-site-packages``, so a system-wide OpenCV
+built from source is automatically visible inside the venv.
 
-To install the latest development version directly from GitHub:
+macOS (development)
+-------------------
 
-.. code-block:: bash
-
-   pip install --break-system-packages "git+https://github.com/pliablepixels/pyzm.git"
-
-With extras:
+On macOS the venv can live anywhere — there is no ``www-data`` user:
 
 .. code-block:: bash
 
-   pip install --break-system-packages "pyzm[train] @ git+https://github.com/pliablepixels/pyzm.git"
+   python3 -m venv ~/zm-venv --system-site-packages
+   ~/zm-venv/bin/pip install -e ".[serve,train]"
 
 Optional dependencies
 ---------------------
@@ -125,10 +177,10 @@ Verifying the installation
 
 .. code-block:: bash
 
-   python -c "import pyzm; print(pyzm.__version__)"
+   /opt/zoneminder/venv/bin/python -c "import pyzm; print(pyzm.__version__)"
 
 To verify the training UI is available:
 
 .. code-block:: bash
 
-   python -c "from pyzm.train import check_dependencies; check_dependencies(); print('OK')"
+   /opt/zoneminder/venv/bin/python -c "from pyzm.train import check_dependencies; check_dependencies(); print('OK')"
