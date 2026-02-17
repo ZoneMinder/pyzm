@@ -608,9 +608,13 @@ class Detector:
             row = cur.fetchone()
             cur.close()
             conn.close()
-        except Exception:
-            logger.debug("Failed to query event %d for audio extraction", event_id, exc_info=True)
+        except Exception as e:
+            logger.debug("Failed to query event %d for audio extraction: %s", event_id, e)
             return None, -1, -1.0, -1.0
+
+        logger.debug("Event %d DB row: DefaultVideo=%s StartDateTime=%s",
+                      event_id, row.get("DefaultVideo") if row else None,
+                      row.get("StartDateTime") if row else None)
 
         if not row or not row.get("DefaultVideo"):
             logger.debug("Event %d has no DefaultVideo", event_id)
@@ -641,10 +645,14 @@ class Detector:
                 capture_output=True, text=True, timeout=10,
             )
             if "audio" not in probe.stdout:
-                logger.debug("No audio stream in %s", video_path)
+                logger.debug(
+                    "No audio stream in %s (ffprobe rc=%d stdout=%r stderr=%r)",
+                    video_path, probe.returncode, probe.stdout.strip(), probe.stderr.strip(),
+                )
                 return None, -1, -1.0, -1.0
-        except Exception:
-            logger.debug("ffprobe failed for %s", video_path, exc_info=True)
+            logger.debug("Audio stream found in %s", video_path)
+        except Exception as e:
+            logger.debug("ffprobe failed for %s: %s", video_path, e)
             return None, -1, -1.0, -1.0
 
         # Extract audio to temp WAV (48 kHz mono, PCM s16le)

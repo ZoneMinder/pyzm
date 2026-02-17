@@ -126,8 +126,8 @@ class ModelPipeline:
                 backend = _create_backend(mc)
                 backend.load()
                 self._backends.append((mc, backend))
-            except Exception:
-                logger.exception("Error loading model %s", mc.name or mc.framework)
+            except Exception as e:
+                logger.exception("Error loading model %s: %s", mc.name or mc.framework, e)
         self._loaded = True
 
     def prepare(self) -> None:
@@ -146,8 +146,8 @@ class ModelPipeline:
                 backend = _create_backend(mc)
                 # Don't call backend.load() — weights load on first detect()
                 self._backends.append((mc, backend))
-            except Exception:
-                logger.exception("Error creating backend for %s", mc.name or mc.framework)
+            except Exception as e:
+                logger.exception("Error creating backend for %s: %s", mc.name or mc.framework, e)
         self._loaded = True
 
     def run(
@@ -363,8 +363,8 @@ class ModelPipeline:
                     logger.debug("%s: %d detections [%s]", backend.name, len(raw), det_summary)
                 else:
                     logger.debug("%s: no detections", backend.name)
-            except Exception:
-                logger.exception("Error running %s", backend.name)
+            except Exception as e:
+                logger.exception("Error running %s: %s", backend.name, e)
                 continue
 
             # Apply per-model pattern

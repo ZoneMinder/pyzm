@@ -264,9 +264,13 @@ class _ZMFileFormatter(logging.Formatter):
         dbg_lvl = getattr(record, "zm_debug_level", 1)
         disp = f"DB{dbg_lvl}" if zm_code == "DBG" else zm_code
         caller = f"{os.path.basename(record.pathname)}:{record.lineno}"
+        msg = record.getMessage()
+        if record.exc_info and record.exc_info[1] is not None:
+            tb = self.formatException(record.exc_info)
+            msg = f"{msg}\n{tb}"
         return (
             f"{ts}.{usec:06d} {self._pname}[{os.getpid()}].{disp} "
-            f"[{caller}] [{record.getMessage()}]"
+            f"[{caller}] [{msg}]"
         )
 
 
@@ -280,7 +284,11 @@ class _ZMSyslogFormatter(logging.Formatter):
         zm_code = _python_to_zm(record)
         dbg_lvl = getattr(record, "zm_debug_level", 1)
         disp = f"DB{dbg_lvl}" if zm_code == "DBG" else zm_code
-        return f"{disp} [{record.getMessage()}]"
+        msg = record.getMessage()
+        if record.exc_info and record.exc_info[1] is not None:
+            tb = self.formatException(record.exc_info)
+            msg = f"{msg}\n{tb}"
+        return f"{disp} [{msg}]"
 
 
 class ZMLogAdapter:
