@@ -53,7 +53,7 @@ class BirdnetBackend(MLBackend):
         except ImportError:
             raise ImportError(
                 "birdnet_analyzer is not installed. "
-                "Install with: pip install birdnet-analyzer"
+                "Install with: /opt/zoneminder/venv/bin/pip install birdnet-analyzer"
             )
 
         # Ensure the model file exists / is downloaded
