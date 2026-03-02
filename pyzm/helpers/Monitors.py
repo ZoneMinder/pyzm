@@ -40,6 +40,8 @@ class Monitors(Base):
                 {
                     'function': string # function of monitor
                     'name': string # name of monitor
+                    'type': string # capture type (Ffmpeg, Remote, Local, etc.)
+                    'device': string # device path (e.g. /dev/video0)
                     'enabled': boolean
                     'protocol': string
                     'host': string
@@ -64,9 +66,12 @@ class Monitors(Base):
             payload['Monitor[Function]'] = options.get('function')
         if options.get('name'):
             payload['Monitor[Name]'] = options.get('name')
-        if options.get('enabled'):
-            enabled = '1' if options.get('enabled') else '0'
-            payload['Monitor[Enabled]'] = enabled
+        if options.get('type'):
+            payload['Monitor[Type]'] = options.get('type')
+        if options.get('device') is not None:
+            payload['Monitor[Device]'] = options.get('device')
+        if options.get('enabled') is not None:
+            payload['Monitor[Enabled]'] = '1' if options.get('enabled') else '0'
         if options.get('protocol'):
             payload['Monitor[Protocol]'] = options.get('protocol')
         if options.get('host'):

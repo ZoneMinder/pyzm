@@ -61,6 +61,8 @@ class Configs(Base):
             if name and config['Config']['Name'].lower() == name.lower():
                 match = config
                 break
+        if match is None:
+            return None
         return {
             'id': int(match['Config']['Id']),
             'name': match['Config']['Name'],

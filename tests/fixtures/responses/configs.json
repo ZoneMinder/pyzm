@@ -1,0 +1,36 @@
+{
+    "configs": [
+        {
+            "Config": {
+                "Id": "1",
+                "Name": "ZM_AUTH_TYPE",
+                "Value": "builtin",
+                "Type": "string",
+                "DefaultValue": "builtin",
+                "Prompt": "Authentication type",
+                "Help": "Specifies which authentication method is used",
+                "Category": "System",
+                "Readonly": "0",
+                "Requires": null
+            }
+        },
+        {
+            "Config": {
+                "Id": "2",
+                "Name": "ZM_AUTH_HASH_LOGINS",
+                "Value": "1",
+                "Type": "boolean",
+                "DefaultValue": "0"
+            }
+        },
+        {
+            "Config": {
+                "Id": "3",
+                "Name": "ZM_AUTH_HASH_SECRET",
+                "Value": "mysecret",
+                "Type": "string",
+                "DefaultValue": ""
+            }
+        }
+    ]
+}
