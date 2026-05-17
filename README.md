@@ -1,4 +1,6 @@
-<img src="https://raw.githubusercontent.com/ZoneMinder/pyzm/master/images/pyzm.png" width="200"/>
+Update
+=======
+This is the legacy version of pyzm and will not be extended. Please head over to [pyzmNg](https://github.com/pliablepixels/pyzmNg)
 
 What
 =====
