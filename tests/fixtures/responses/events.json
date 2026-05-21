@@ -1,0 +1,54 @@
+{
+    "events": [
+        {
+            "Event": {
+                "Id": "100",
+                "Name": "Event 100",
+                "MonitorId": "1",
+                "Cause": "Motion",
+                "Notes": "detected:person",
+                "StartTime": "2024-01-15 10:30:00",
+                "EndTime": "2024-01-15 10:31:00",
+                "Length": "60.5",
+                "Frames": "150",
+                "AlarmFrames": "45",
+                "TotScore": "500",
+                "AvgScore": "11.1",
+                "MaxScore": "85",
+                "DefaultVideo": "100-video.mp4",
+                "FileSystemPath": "/var/lib/zoneminder/events/1/2024-01-15/100"
+            }
+        },
+        {
+            "Event": {
+                "Id": "99",
+                "Name": "Event 99",
+                "MonitorId": "1",
+                "Cause": "Motion",
+                "Notes": "",
+                "StartTime": "2024-01-15 10:00:00",
+                "EndTime": "2024-01-15 10:00:30",
+                "Length": "30.2",
+                "Frames": "75",
+                "AlarmFrames": "20",
+                "TotScore": "200",
+                "AvgScore": "10.0",
+                "MaxScore": "50",
+                "DefaultVideo": null,
+                "FileSystemPath": "/var/lib/zoneminder/events/1/2024-01-15/99"
+            }
+        }
+    ],
+    "pagination": {
+        "page": 1,
+        "current": 2,
+        "count": 2,
+        "prevPage": false,
+        "nextPage": false,
+        "pageCount": 1,
+        "order": null,
+        "limit": 100,
+        "options": {},
+        "paramType": "named"
+    }
+}

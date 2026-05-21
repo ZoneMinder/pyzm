@@ -1,0 +1,10 @@
+{
+    "access_token": "test_access_token_abc123",
+    "access_token_expires": 3600,
+    "refresh_token": "test_refresh_token_xyz789",
+    "refresh_token_expires": 86400,
+    "version": "1.36.32",
+    "apiversion": "2.0",
+    "credentials": null,
+    "append_password": null
+}

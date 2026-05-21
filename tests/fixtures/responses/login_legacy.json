@@ -1,0 +1,6 @@
+{
+    "version": "1.32.3",
+    "apiversion": "1.0",
+    "credentials": "auth=abc123hash",
+    "append_password": "0"
+}

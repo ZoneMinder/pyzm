@@ -1,0 +1,28 @@
+{
+    "states": [
+        {
+            "State": {
+                "Id": "1",
+                "Name": "default",
+                "Definition": "ZM default state",
+                "IsActive": "1"
+            }
+        },
+        {
+            "State": {
+                "Id": "2",
+                "Name": "away",
+                "Definition": "All monitors active",
+                "IsActive": "0"
+            }
+        },
+        {
+            "State": {
+                "Id": "3",
+                "Name": "home",
+                "Definition": "",
+                "IsActive": "0"
+            }
+        }
+    ]
+}

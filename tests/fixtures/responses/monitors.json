@@ -1,0 +1,34 @@
+{
+    "monitors": [
+        {
+            "Monitor": {
+                "Id": "1",
+                "Name": "Front Door",
+                "Function": "Modect",
+                "Enabled": "1",
+                "Type": "Ffmpeg",
+                "Width": "1920",
+                "Height": "1080",
+                "Protocol": "rtsp",
+                "Host": "192.168.1.100",
+                "Port": "554",
+                "Path": "/stream1"
+            }
+        },
+        {
+            "Monitor": {
+                "Id": "2",
+                "Name": "Backyard",
+                "Function": "Monitor",
+                "Enabled": "0",
+                "Type": "Ffmpeg",
+                "Width": "1280",
+                "Height": "720",
+                "Protocol": "rtsp",
+                "Host": "192.168.1.101",
+                "Port": "554",
+                "Path": "/stream1"
+            }
+        }
+    ]
+}
