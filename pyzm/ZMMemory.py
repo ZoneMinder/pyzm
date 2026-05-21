@@ -2,6 +2,9 @@
 ZMMemory
 =====================
 Wrapper to access SHM for Monitor status
+
+Supports both ZoneMinder 1.36.x and 1.38.0+ SharedData struct formats.
+The version is auto-detected from the 'size' field in shared memory.
 """
 
 
@@ -13,51 +16,45 @@ from pyzm.helpers.Base import Base
 import pyzm.helpers.globals as g
 
 
-"""
-shared_data => { type=>'SharedData', seq=>$mem_seq++, contents=> {
-    size             => { type=>'uint32', seq=>$mem_seq++ }, I
-    last_write_index => { type=>'uint32', seq=>$mem_seq++ }, i
-    last_read_index  => { type=>'uint32', seq=>$mem_seq++ }, i
-    state            => { type=>'uint32', seq=>$mem_seq++ }, I
-    capture_fps      => { type=>'double', seq=>$mem_seq++ },  d
-    analysis_fps     => { type=>'double', seq=>$mem_seq++ },  d
-    last_event       => { type=>'uint64', seq=>$mem_seq++ }, Q
-    action           => { type=>'uint32', seq=>$mem_seq++ }, I
-    brightness       => { type=>'int32', seq=>$mem_seq++ },  i
-    hue              => { type=>'int32', seq=>$mem_seq++ },  i
-    colour           => { type=>'int32', seq=>$mem_seq++ },  i
-    contrast         => { type=>'int32', seq=>$mem_seq++ },  i
-    alarm_x          => { type=>'int32', seq=>$mem_seq++ },  i
-    alarm_y          => { type=>'int32', seq=>$mem_seq++ },  i
-    valid            => { type=>'uint8', seq=>$mem_seq++ },  ?
-    active           => { type=>'uint8', seq=>$mem_seq++ },  ?
-    signal           => { type=>'uint8', seq=>$mem_seq++ },  ?
-    format           => { type=>'uint8', seq=>$mem_seq++ },  ?
-    imagesize        => { type=>'uint32', seq=>$mem_seq++ }, I
-    last_frame_score => { type=>'uint32', seq=>$mem_seq++ },  I
-    audio_frequency  => { type=>'uint32', seq=>$mem_seq++ },  I
-    audio_channels   => { type=>'uint32', seq=>$mem_seq++ },  I
-    startup_time     => { type=>'time_t64', seq=>$mem_seq++ },  q
-    zmc_heartbeat_time  => { type=>'time_t64', seq=>$mem_seq++ },  q
-    last_write_time  => { type=>'time_t64', seq=>$mem_seq++ },  q
-    last_read_time   => { type=>'time_t64', seq=>$mem_seq++ },  q
-    control_state    => { type=>'uint8[256]', seq=>$mem_seq++ }, s256
-    alarm_cause      => { type=>'int8[256]', seq=>$mem_seq++ }, s256
-    video_fifo       => { type=>'int8[64]', seq=>$mem_seq++ },  s64
-    audio_fifo       => { type=>'int8[64]', seq=>$mem_seq++ }  s64
-"""
+# ZM 1.36.x SharedData struct format and field names
+_STRUCT_FMT_136 = '@IiiIddQIiiiiii????IIIIqqqq256s256s64s64s'
+_FIELDS_136 = (
+    'size last_write_index last_read_index state '
+    'capture_fps analysis_fps last_event action '
+    'brightness hue color contrast alarm_x alarm_y '
+    'valid active signal format '
+    'imagesize last_frame_score audio_frequency audio_channels '
+    'startup_time heartbeat_time last_write_time last_read_time '
+    'control_state alarm_cause video_fifo audio_fifo'
+)
+_SD_STRING_FIELDS_136 = [
+    'alarm_cause', 'control_state', 'audio_fifo', 'video_fifo'
+]
 
-"""
-    trigger_data => { type=>'TriggerData', seq=>$mem_seq++, 'contents'=> {
-    size             => { type=>'uint32', seq=>$mem_seq++ }, I
-    trigger_state    => { type=>'uint32', seq=>$mem_seq++ }, I
-    trigger_score    => { type=>'uint32', seq=>$mem_seq++ }, I
-    padding          => { type=>'uint32', seq=>$mem_seq++ }, I
-    trigger_cause    => { type=>'int8[32]', seq=>$mem_seq++ }, s32
-    trigger_text     => { type=>'int8[256]', seq=>$mem_seq++ }, s256
-    trigger_showtext => { type=>'int8[256]', seq=>$mem_seq++ }, s256
-  }
-"""
+# ZM 1.38.0+ SharedData struct format and field names
+_STRUCT_FMT_138 = '@IiiiIddddQIiiiiii????????IIIIqqqqqq256s256s64s64s64s'
+_FIELDS_138 = (
+    'size last_write_index last_read_index image_count state '
+    'capture_fps analysis_fps latitude longitude last_event action '
+    'brightness hue color contrast alarm_x alarm_y '
+    'valid capturing analysing recording signal format reserved1 reserved2 '
+    'imagesize last_frame_score audio_frequency audio_channels '
+    'startup_time heartbeat_time last_write_time last_read_time '
+    'last_viewed_time last_analysis_viewed_time '
+    'control_state alarm_cause video_fifo audio_fifo janus_pin'
+)
+_SD_STRING_FIELDS_138 = [
+    'alarm_cause', 'control_state', 'audio_fifo', 'video_fifo', 'janus_pin'
+]
+
+# Pre-calculate struct sizes for version detection
+_SIZE_136 = struct.calcsize(_STRUCT_FMT_136)
+_SIZE_138 = struct.calcsize(_STRUCT_FMT_138)
+
+# TriggerData struct (unchanged between versions)
+_TRIGGER_FMT = 'IIII32s256s256s'
+_TRIGGER_SIZE = struct.calcsize(_TRIGGER_FMT)
+
 
 class ZMMemory(Base):
 
@@ -82,6 +79,7 @@ class ZMMemory(Base):
         }
         self.fhandle = None
         self.mhandle = None
+        self._zm_version = None  # Will be '1.36' or '1.38' after first read
 
         if not mid:
             raise ValueError ('No monitor specified')
@@ -104,6 +102,7 @@ class ZMMemory(Base):
         self.mhandle = mmap.mmap(self.fhandle.fileno(), 0, access=mmap.ACCESS_READ)
         self.sd = None
         self.td = None
+        self._zm_version = None
         self._read()
 
     def is_valid(self):
@@ -205,21 +204,70 @@ class ZMMemory(Base):
 
         }
 
-    def _read(self):
+    def _detect_version(self):
+        """Detect ZM version from the size field in SharedData.
+        
+        The first uint32 in SharedData is the struct size, which differs
+        between ZM versions:
+        - ZM 1.36.x: 760 bytes
+        - ZM 1.38.0+: 872 bytes
+        """
         self.mhandle.seek(0)
-        struct_fmt = '@IiiIddQIiiiiii????IIIIqqqq256s256s64s64s'
-        SharedData = namedtuple('SharedData', 'size last_write_index last_read_index state capture_fps analysis_fps last_event action brightness hue color contrast alarm_x alarm_y valid active signal format imagesize last_frame_score audio_frequency audio_channels startup_time heartbeat_time last_write_time last_read_time control_state alarm_cause video_fifo audio_fifo')
-        s = SharedData._make(struct.unpack(struct_fmt, self.mhandle.read(struct.calcsize(struct_fmt))))
+        size_bytes = self.mhandle.read(4)
+        size_val = struct.unpack('@I', size_bytes)[0]
+        if size_val == _SIZE_138:
+            self._zm_version = '1.38'
+        elif size_val == _SIZE_136:
+            self._zm_version = '1.36'
+        else:
+            # Default to 1.36 format but warn
+            self._zm_version = '1.36'
+            try:
+                g.logger.Warning(
+                    'ZMMemory: Unknown SharedData size {} in {}, '
+                    'expected {} (ZM 1.36) or {} (ZM 1.38). '
+                    'Falling back to ZM 1.36 format.'.format(
+                        size_val, self.fname, _SIZE_136, _SIZE_138
+                    )
+                )
+            except Exception:
+                pass
+
+    def _read(self):
+        # Detect version on first read
+        if self._zm_version is None:
+            self._detect_version()
+
+        self.mhandle.seek(0)
+
+        if self._zm_version == '1.38':
+            struct_fmt = _STRUCT_FMT_138
+            fields = _FIELDS_138
+            string_fields = _SD_STRING_FIELDS_138
+        else:
+            struct_fmt = _STRUCT_FMT_136
+            fields = _FIELDS_136
+            string_fields = _SD_STRING_FIELDS_136
+
+        SharedData = namedtuple('SharedData', fields)
+        struct_size = struct.calcsize(struct_fmt)
+        s = SharedData._make(struct.unpack(struct_fmt, self.mhandle.read(struct_size)))
+
         TriggerData = namedtuple('TriggerData', 'size trigger_state trigger_score padding trigger_cause trigger_text trigger_showtext')
-        t = TriggerData._make(struct.unpack('IIII32s256s256s', self.mhandle.read(560)))
+        t = TriggerData._make(struct.unpack(_TRIGGER_FMT, self.mhandle.read(_TRIGGER_SIZE)))
         self.sd = s._asdict()
         self.td = t._asdict()
 
-        for key in ['alarm_cause', 'control_state', 'audio_fifo', 'video_fifo']:
-            self.sd[key] = self.sd[key].split(b'\0',1)[0].decode()
-        self.td['trigger_cause'] = self.td['trigger_cause'].split(b'\0',1)[0].decode()
-        self.td['trigger_text'] = self.td['trigger_text'].split(b'\0',1)[0].decode()
-        self.td['trigger_showtext'] = self.td['trigger_showtext'].split(b'\0',1)[0].decode()
+        for key in string_fields:
+            self.sd[key] = self.sd[key].split(b'\0',1)[0].decode(errors='replace')
+        self.td['trigger_cause'] = self.td['trigger_cause'].split(b'\0',1)[0].decode(errors='replace')
+        self.td['trigger_text'] = self.td['trigger_text'].split(b'\0',1)[0].decode(errors='replace')
+        self.td['trigger_showtext'] = self.td['trigger_showtext'].split(b'\0',1)[0].decode(errors='replace')
+
+        # For backward compatibility, add 'active' as alias for 'capturing' in ZM 1.38
+        if self._zm_version == '1.38' and 'capturing' in self.sd:
+            self.sd['active'] = self.sd['capturing']
+
         return {'shared_data': self.sd, 'trigger_data': self.td}
 
 
@@ -261,5 +309,3 @@ class ZMMemory(Base):
             if self.fhandle: self.fhandle.close()
         except Exception as e:
             pass
-
-
